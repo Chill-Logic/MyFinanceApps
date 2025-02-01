@@ -1,6 +1,6 @@
 export const fontFamily = {
-	'roboto': [ 'Roboto', 'sans-serif' ],
-	'noto-sans': [ 'NotoSans', 'sans-serif' ],
+	'roboto': ['Roboto', 'sans-serif'],
+	'noto-sans': ['NotoSans', 'sans-serif'],
 };
 
 export const fontSize = {
@@ -52,6 +52,7 @@ export const colors = {
 	'text-default': '#C7C3BF',
 	'text-dark': '#052131',
 	'background-light': '#C7C3BF',
+	'background-input': '#DDDDDD',
 	'background-default': '#082435',
 };
 

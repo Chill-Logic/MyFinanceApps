@@ -8,7 +8,15 @@ export const DefaultPaths: IPath[] = [
 		display: 'Início',
 		path: '/',
 		element: lazy(() => import('@/pages/home')),
-		template: lazy(() => import('@/components/templates/default')),
+		template: lazy(() => import('@/components/templates/Default')),
 		isMainPath: true,
+	},
+	{
+		id: 'login',
+		display: 'Login',
+		path: '/signin',
+		element: lazy(() => import('@/pages/auth/sign-in')),
+		template: lazy(() => import('@/components/templates/Auth')),
+		isMainPath: false,
 	}
 ];

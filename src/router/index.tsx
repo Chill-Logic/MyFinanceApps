@@ -9,18 +9,18 @@ export const Router = () => {
 		<BrowserRouter>
 			<Routes>
 				{
-					Paths.map(({ 
-						path, 
-						element: Element, 
-						template: Template 
+					Paths.map(({
+						path,
+						element: Element,
+						template: Template
 					}) => (
 						<Fragment key={path}>
-							<Route 
+							<Route
 								path={path}
 								element={
 									<Suspense>
 										<Template>
-											<Element/>
+											<Element />
 										</Template>
 									</Suspense>
 								}

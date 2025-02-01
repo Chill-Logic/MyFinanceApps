@@ -27,8 +27,8 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
   const styles = {
     wrapper: 'flex flex-col-reverse relative ',
     input: {
-      base: 'h-giant-xx w-full border border-stroke-default rounded-lg  px-small-xx bg-background-default text-paragraph-dark font-noto-sans text-small font-medium transition durantion-200 outline-none',
-      placeholder: 'placeholder:text-stroke-default placeholder:font-normal',
+      base: 'h-giant-xx w-full border border-stroke-dark rounded-lg  px-small-xx bg-background-input text-dark font-noto-sans text-small font-medium transition durantion-200 outline-none',
+      placeholder: 'placeholder-text-dark placeholder:font-normal',
       filled: 'font-normal',
       disabled: 'cursor-not-allowed !bg-stroke-light !text-stroke-dark',
       invalid: '!border-feedback-danger-dark',
@@ -74,6 +74,7 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
     disabled,
     className: classNames(
       styles.input.base,
+      styles.input.placeholder,
       {
         [styles.input.disabled]: disabled,
         [styles.input.invalid]: error !== undefined,
