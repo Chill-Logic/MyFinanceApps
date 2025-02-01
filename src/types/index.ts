@@ -1,0 +1,1 @@
+export type TError<T> = Partial<Record<keyof T, { message: string }>>;
