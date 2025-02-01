@@ -3,8 +3,8 @@ import tailwindScrollbar from 'tailwind-scrollbar';
 import withMT from '@material-tailwind/react/utils/withMT';
 
 import { Tokens } from './src/util';
-import { Config } from 'tailwindcss';
 
+import { Config } from 'tailwindcss/types/config';
 
 /** @type {import('tailwindcss').Config} */
 
