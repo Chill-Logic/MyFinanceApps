@@ -1,6 +1,6 @@
 export const fontFamily = {
-	'roboto': [ 'Roboto', 'sans-serif' ],
-	'noto-sans': [ 'NotoSans', 'sans-serif' ],
+	'roboto': ['Roboto', 'sans-serif'],
+	'noto-sans': ['NotoSans', 'sans-serif'],
 };
 
 export const fontSize = {
@@ -28,11 +28,10 @@ export const fontWeight = {
 };
 
 export const colors = {
-	'brand-main': '#074060',
-	'brand-primary': '#A81D54',
-	'brand-secondary': '#EBC163',
-	'brand-tertiary': '#517E37',
-	'basic-intense': '#FF5973',
+	'brand-main': '#C7C3BF',
+	'brand-secondary': '#89A160',
+	'brand-tertiary': '#6E8B4D',
+	'basic-intense': '#078DA7',
 	'basic-link': '#006BE2',
 	'basic-light': '#D6F2FF',
 	'basic-placeholder': '#888888',
@@ -48,19 +47,12 @@ export const colors = {
 	'feedback-danger-light': '#FFDDE2',
 	'feedback-danger-default': '#E20023',
 	'feedback-danger-dark': '#AF051F',
-	'stroke-light': '#E7E7E7',
-	'stroke-default': '#D1D1D1',
-	'stroke-dark': '#B0B0B0',
-	'title-light': '#6D6D6D',
-	'title-default': '#006CA7',
-	'title-dark': '#262626',
-	'paragraph-light': '#E7E7E7',
-	'paragraph-default': '#4F4F4F 	',
-	'paragraph-dark': '#262626',
-	'background-light': '#FFFFFF',
-	'background-default': '#FBFBFB',
-	'background-dark': '#E7E7E7',
-	'background-info': '#DFF2FF',
+	'stroke-default': '#C7C3BF',
+	'stroke-dark': '#052131',
+	'text-default': '#C7C3BF',
+	'text-dark': '#052131',
+	'background-light': '#C7C3BF',
+	'background-default': '#082435',
 };
 
 export const spacing = {
