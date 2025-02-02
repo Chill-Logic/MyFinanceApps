@@ -4,7 +4,8 @@ import TextInput from '../../../components/atoms/TextInput';
 const SignInPage = () => {
 
   return (
-    <form className="flex w-full min-h-full items-center justify-center">
+    // <form className="flex w-full min-h-full items-center justify-center">
+    <form>
       <div className="w-[300px] flex flex-col gap-y-14">
         <img src={logo} alt="logo" />
         <div className="w-full flex flex-col gap-y-4">
