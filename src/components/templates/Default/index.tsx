@@ -1,7 +1,7 @@
 import { ITemplateProps } from '@/types';
 
 const DefaultTemplate = ({ children }: ITemplateProps) => (
-	<div className='h-screen'>
+	<div className='h-screen bg-background-light'>
 		<div className='container h-full'>
 			<div>
 				{children}

@@ -2,19 +2,11 @@ import { lazy } from 'react';
 
 import { IPath } from '@/types';
 
-export const DefaultPaths: IPath[] = [
-	{
-		id: 'home',
-		display: 'Início',
-		path: '/',
-		element: lazy(() => import('@/pages/home')),
-		template: lazy(() => import('@/components/templates/Default')),
-		isMainPath: true,
-	},
+export const AuthPaths: IPath[] = [
 	{
 		id: 'login',
 		display: 'Login',
-		path: '/signin',
+		path: 'auth/sign-in',
 		element: lazy(() => import('@/pages/auth/sign-in')),
 		template: lazy(() => import('@/components/templates/Auth')),
 		isMainPath: false,

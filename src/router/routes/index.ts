@@ -1,10 +1,12 @@
 
 import { IPath } from '@/types';
 
-import { DefaultPaths } from './default-paths';
+import { AuthPaths } from './auth';
+import { DefaultPaths } from './default';
 
 export const Paths: IPath[] = [
 	...DefaultPaths,
+	...AuthPaths
 ];
 
 export const getNavigationPaths = (): Omit<IPath, 'element' | 'template'>[] => {
