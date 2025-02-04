@@ -9,6 +9,12 @@ export const AuthPaths: IPath[] = [
 		path: 'auth/sign-in',
 		element: lazy(() => import('@/pages/auth/sign-in')),
 		template: lazy(() => import('@/components/templates/Auth')),
-		isMainPath: false,
+	},
+	{
+		id: 'sign-up',
+		display: 'Sign-up',
+		path: 'auth/sign-up',
+		element: lazy(() => import('@/pages/auth/sign-up')),
+		template: lazy(() => import('@/components/templates/Auth')),
 	}
 ];

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
 
-const SignInPage = () => {
+const SignUpPage = () => {
 	const navigate = useNavigate();
 
 	return (
@@ -17,18 +17,21 @@ const SignInPage = () => {
 				<div className='w-full flex flex-col gap-y-4'>
 					<TextInput type='email' placeholder='Insira aqui seu e-mail' label='E-mail' />
 					<TextInput type='password' placeholder='Insira aqui sua senha' label='Senha' />
+					<TextInput type='password' placeholder='Insira aqui sua senha' label='Senha' />
+					<TextInput type='password' placeholder='Insira aqui sua senha' label='Senha' />
 				</div>
+					
 				<div className='flex flex-col gap-y-2'>
 					<Button
 						type='submit'
 					>
-						Entrar
+						Cadastrar
 					</Button>
 					<Button
-						theme='secondary'
-						onClick={() => navigate('/auth/sign-up')}
+						theme='danger'
+						onClick={() => navigate(-1)}
 					>
-						Cadastre-se
+						Voltar
 					</Button>
 				</div>
 			</div>
@@ -36,4 +39,4 @@ const SignInPage = () => {
 	);
 };
 
-export default SignInPage;
+export default SignUpPage;
