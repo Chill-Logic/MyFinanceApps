@@ -27,7 +27,7 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 	const styles = {
 		wrapper: 'flex flex-col-reverse relative ',
 		input: {
-			base: 'h-giant-xx w-full border border-stroke-dark rounded-lg  px-small-xx bg-background-input text-dark font-noto-sans text-small font-medium transition durantion-200 outline-none',
+			base: 'h-giant-xx w-full border border-stroke-dark dark:border-stroke-default rounded-lg  px-small-xx bg-background-input text-dark font-noto-sans text-small font-medium transition-all duration-300 outline-none',
 			placeholder: 'placeholder-text-dark placeholder:font-normal',
 			filled: 'font-normal',
 			disabled: 'cursor-not-allowed !bg-stroke-light !text-stroke-dark',
@@ -35,7 +35,7 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 			leftIcon: ''
 		},
 		label: {
-			base: 'text-paragraph-dark font-noto-sans text-small font-medium mb-tiny',
+			base: 'text-dark dark:text-text-default font-noto-sans text-small font-medium mb-tiny',
 			invalid: '!text-feedback-danger-dark'
 		},
 		support_text: {

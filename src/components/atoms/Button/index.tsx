@@ -68,8 +68,8 @@ const 	Button = (props: IProps) => {
 	} = props;
 
 	const styles = {
-		base: 'font-noto-sans relative align-middle flex items-center justify-center focus:outline-none transition ease-in-out duration-300',
-		loading: '!text-transparent',
+		base: 'font-noto-sans relative font-medium align-middle flex items-center justify-center focus:outline-none transition ease-in-out duration-300',
+		loading: '!text-transparent cursor-not-allowed',
 		disabled: {
 			outlined: 'border bg-transparent border-title-light text-title-light cursor-not-allowed',
 			contained: 'bg-paragraph-light text-title-light cursor-not-allowed'
@@ -82,22 +82,22 @@ const 	Button = (props: IProps) => {
 		variants: {
 			primary: {
 				outlined: {
-					base: 'border border-solid border-feedback-info-default bg-transparent text-feedback-info-default',
-					hover: 'hover:bg-feedback-info-default/[0.12] '
+					base: 'border border-solid border-background-default bg-transparent text-background-default',
+					hover: 'hover:bg-background-default/[0.12] '
 				},
 				contained: {
-					base: 'bg-feedback-info-default text-white',
-					hover: 'hover:shadow-md hover:shadow-feedback-info-default/40'
+					base: 'bg-background-default dark:bg-brand-tertiary text-white',
+					hover: 'hover:shadow-md hover:shadow-background-default/40 dark:hover:shadow-brand-tertiary/40'
 				},
 			},
 			secondary: {
 				outlined: {
-					base: 'border border-solid border-title-light bg-transparent text-title-light font-normal',
+					base: 'border border-solid border-title-light bg-brand-tertiary text-title-light font-normal',
 					hover: 'hover:bg-paragraph-dark/[0.12]'
 				},
 				contained: {
-					base: 'bg-paragraph-dark text-white',
-					hover: 'hover:shadow-md hover:shadow-paragraph-dark/40'
+					base: 'bg-brand-secondary text-text-dark',
+					hover: 'hover:shadow-md hover:shadow-brand-secondary/40'
 				}
 			},
 			danger: {

@@ -1,6 +1,6 @@
 export const fontFamily = {
-	'roboto': ['Roboto', 'sans-serif'],
-	'noto-sans': ['NotoSans', 'sans-serif'],
+	'roboto': [ 'Roboto', 'sans-serif' ],
+	'noto-sans': [ 'NotoSans', 'sans-serif' ],
 };
 
 export const fontSize = {
