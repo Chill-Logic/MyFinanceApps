@@ -9,6 +9,7 @@ import { Config } from 'tailwindcss/types/config';
 /** @type {import('tailwindcss').Config} */
 
 const tailwindConfig: Config = {
+	darkMode: 'class',
 	content: [
 		'./index.html',
 		'./src/**/*.{js,ts,jsx,tsx}',
