@@ -1,10 +1,19 @@
 {
-  "name": "myfance",
+  "name": "MyFinanceWebApp",
   "version": "0.0.0",
   "private": true,
-  "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint --fix src/**/*.{js,ts,jsx,tsx}",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage .",
+    "test:debug": "jest --inspect-brk --runInBand --no-cache",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@casl/ability": "^6.7.1",
@@ -50,19 +59,6 @@
     "web-vitals": "^1.1.2",
     "xml2js": "^0.6.2",
     "yup": "^1.0.2"
-  },
-  "scripts": {
-    "dev": "vite --host",
-    "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint --fix src/**/*.{js,ts,jsx,tsx}",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage .",
-    "test:debug": "jest --inspect-brk --runInBand --no-cache",
-    "storybook": "storybook dev -p 6006",
-    "storybook:build": "storybook build",
-    "prepare": "husky"
   },
   "eslintConfig": {
     "extends": [
