@@ -5,6 +5,19 @@
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "react-router": {
+      "react": "18.3.1"
+    },
+    "react-router-dom": {
+      "react": "18.3.1"
+    },
+    "eslint-plugin-jest": {
+      "@typescript-eslint/eslint-plugin": "^8.0.0"
+    },
+    "babel-plugin-syntax-hermes-parser": "0.35.0",
+    "hermes-parser": "0.35.0"
+  },
   "scripts": {
     "mobile:start": "npm run start --workspace=@myfinance/mobile",
     "mobile:android": "npm run android --workspace=@myfinance/mobile",

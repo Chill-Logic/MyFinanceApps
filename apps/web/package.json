@@ -33,6 +33,7 @@
     "clsx": "^2.1.1",
     "eslint-plugin-no-relative-import-paths": "^1.5.5",
     "eslint-plugin-unused-imports": "^3.2.0",
+    "eslint-rule-composer": "^0.3.0",
     "events": "^3.3.0",
     "i18next": "^23.12.7",
     "i18next-browser-languagedetector": "^8.0.0",
@@ -46,7 +47,7 @@
     "react-input-mask": "^2.0.4",
     "react-multi-date-picker": "^4.5.2",
     "react-paginate": "^8.1.4",
-    "react-router-dom": "^6.9.0",
+    "react-router-dom": "^6.30.4",
     "react-select": "^5.7.0",
     "react-toastify": "^9.1.1",
     "simple-xml-to-json": "^1.2.2",
@@ -99,7 +100,6 @@
     "@types/react-dom": "^18.0.11",
     "@types/react-input-mask": "^3.0.1",
     "@types/react-paginate": "^7.1.1",
-    "@types/react-router-dom": "^5.1.9",
     "@types/xml2js": "^0.4.14",
     "@typescript-eslint/eslint-plugin": "^6.8.0",
     "@typescript-eslint/parser": "^6.0.0",
@@ -115,7 +115,7 @@
     "storybook": "^8.2.9",
     "tailwind-scrollbar": "^3.0.5",
     "tailwindcss": "^3.3.5",
-    "typescript": "5.0.4",
+    "typescript": "5.8.3",
     "vite-plugin-eslint": "^1.8.1"
   }
 }

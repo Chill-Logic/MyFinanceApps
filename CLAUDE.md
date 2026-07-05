@@ -80,11 +80,79 @@ mobile migrar pra Expo.
 
 ### apps/mobile (React Native, CLI puro)
 
-RN está em migração faseada até o Expo (rodando hoje: `0.80.3`). Ordem combinada: `0.79 → 0.80` (feito,
-2026-07) `→ 0.83 → 0.86 → Expo SDK 57`. A comparação arquivo-a-arquivo do template oficial
-(`rn-diff-purge`) mostrou que 0.79→0.80 mudou só `kotlinVersion` (2.0.21→2.1.20 em `android/build.gradle`)
-e o Gradle wrapper (8.13→8.14.1) — nenhum patch de monorepo precisou ser reaplicado. Não assuma que os
-próximos saltos (0.80→0.83, 0.83→0.86) serão igual de leves; refaça essa comparação a cada etapa.
+RN está em migração faseada até o Expo (rodando hoje: `0.83.10`). Ordem combinada: `0.79 → 0.80` (feito)
+`→ 0.83` (feito, 2026-07) `→ 0.86 → Expo SDK 57`. Metodologia usada nas duas etapas: comparar
+arquivo-a-arquivo com o template oficial do
+[rn-diff-purge](https://github.com/react-native-community/rn-diff-purge) (`RnDiffApp/` na tag
+`release/<versão>`) antes de aplicar qualquer coisa — isso evita reaplicar patches de monorepo
+desnecessariamente e mostra exatamente o que realmente mudou. Refaça essa comparação a cada etapa
+futura, não assuma que vai ser tão leve quanto 0.79→0.80.
+
+0.79→0.80 mudou só `kotlinVersion` (2.0.21→2.1.20) e o Gradle wrapper (8.13→8.14.1). 0.80→0.83 foi bem
+mais denso — problemas encontrados e como foram resolvidos, prováveis de reaparecer em upgrades
+futuros:
+- **`tsconfig.json` do mobile**: `"extends": "@react-native/typescript-config/tsconfig.json"` (com
+  subpath explícito) parou de funcionar silenciosamente — a partir da 0.83 o pacote passou a declarar
+  `"exports"` no `package.json` só liberando `"."` e `"./strict"`, bloqueando o subpath `/tsconfig.json`
+  literal. O `extends` não dava erro, só deixava de herdar `jsx`/`esModuleInterop`/etc., causando uma
+  cascata de erros de JSX. Fix: `"extends": "@react-native/typescript-config"` (sem subpath, igual o
+  template oficial já usa).
+- **`eslint-plugin-jest` não resolvia** (`Environment key "jest/globals" is unknown"`): o
+  `@react-native/eslint-config@0.83.10` passou a depender de `eslint-plugin-jest`, mas só como
+  dependência aninhada dentro do próprio pacote — a resolução de plugin do ESLint legado não achava
+  dali no contexto do monorepo. Fix: declarar `eslint-plugin-jest` como devDependency direta do
+  `apps/mobile`.
+- Isso, por sua vez, criou um conflito de peer: `eslint-plugin-jest` quer `@typescript-eslint/eslint-plugin@^8`,
+  mas o `apps/web` já tem `^6.8.0` pro próprio lint. Resolvido com um `overrides` aninhado na raiz do
+  monorepo (`package.json`) forçando `eslint-plugin-jest` a usar sua própria cópia do `^8.0.0`, sem
+  mexer na versão que o web usa.
+- **`@typescript-eslint/member-delimiter-style` sumiu** ("rule not found"): essa regra foi deprecada e
+  removida do `@typescript-eslint/eslint-plugin` a partir da v8 (que veio transitivamente com o
+  `@react-native/eslint-config@0.83.10`) — a substituta é `@stylistic/ts/member-delimiter-style`
+  (mesmas opções), já que o `@stylistic/eslint-plugin-ts` já estava instalado.
+- **`react-router-dom` (web) quebrou o typecheck de JSX** depois do bump de TypeScript pra `5.8.3`: o
+  hoisting do npm deduplicou o `react` interno do `react-router`/`react-router-dom` pro React 19 do
+  mobile (peer bem aberto, `>=16.8`, satisfeito por qualquer um dos dois), em vez do React 18 real do
+  web — misturando os tipos de `ReactNode`/`ReactPortal` de versões diferentes. Resolvido com
+  `overrides` na raiz forçando `react-router`/`react-router-dom` a usar `react: 18.3.1`. Se outro
+  pacote do web (não do mobile) começar a dar erro de JSX parecido depois de mexer em dependências,
+  suspeite do mesmo tipo de dedupe cruzado entre os dois React majors do monorepo.
+- `@types/react-router-dom@^5.1.9` era outro resquício obsoleto (tipos da v5, mas o pacote instalado é
+  v6, que já vem com tipos próprios) — removido, mesma categoria do `@types/axios`/`@types/date-fns`
+  já limpos antes.
+- `react-native-reanimated` foi de `4.0.1` para `4.5.1` (compatível com RN `0.83 - 0.86`, então não
+  precisa bumpar de novo na próxima etapa) e `react-native-worklets` de `^0.4.1` pra `0.10.1` exato
+  (par obrigatório do reanimated 4.5.x).
+- **`react-native-screens` precisou de bump de verdade**, e isso **não aparece em typecheck/lint
+  nenhum** — só estoura na compilação/bundle nativo. `4.11.1` referenciava uma classe interna do RN
+  (`CSSBackgroundDrawable`) que mudou entre 0.80 e 0.83 (`Unresolved reference` no Kotlin durante
+  `compileDebugKotlin`). A versão mais nova na época (`4.25.2`) resolvia isso, mas introduziu outro
+  problema: seu componente Fabric `SafeAreaViewNativeComponent.ts` (feature de safe area pra Android
+  Tabs, adicionada em set/2025) usa um prop (`insetType`) que o codegen do RN 0.83 não reconhece
+  (`Unknown prop type ... "undefined"` no bundle do Metro). Fixamos em **`4.16.0`** (set/2025, antes
+  dessa feature existir, mas depois do fix do `CSSBackgroundDrawable`) — janela estreita entre dois
+  bugs de versões diferentes. Se subir esse pacote de novo no futuro, cheque primeiro se uma versão
+  mais nova corrigiu o bug do `insetType`, não assuma que "mais novo é mais seguro" aqui.
+  `react-native-gesture-handler` e `react-native-safe-area-context` não precisaram de bump manual
+  porque já estavam com range `^` (resolveram sozinhos pra `2.32.0`/`5.8.0` no `npm install`) —
+  `screens` só ficou preso porque tinha sido fixado sem `^` numa etapa anterior. Ao subir a próxima
+  versão do RN, não assuma que nenhuma lib nativa precisa de bump só porque o typecheck passou — o
+  build Android real é a única validação confiável pra isso.
+- Gradle `8.14.1 → 9.0.0` (major) e `compileSdk`/`targetSdk`/`buildToolsVersion` `35 → 36` — compilou de
+  primeira, sem precisar de ajuste (os warnings de "deprecated Gradle features" dos builds anteriores
+  não viraram erro).
+- **Bug de versionamento dentro do próprio RN 0.83.x**: `@react-native/babel-preset` fixa
+  `babel-plugin-syntax-hermes-parser@0.32.0` em todos os patches 0.83.x, mas o `metro` já usa
+  `hermes-parser@0.35.0` internamente — o parser do Babel (0.32.0) não reconhece a sintaxe `match` que
+  o próprio código-fonte do RN 0.83 já usa internamente (`VirtualView.js`), dando `SyntaxError` no bundle
+  do Metro. Corrigido com `overrides` na raiz forçando `hermes-parser`/`babel-plugin-syntax-hermes-parser`
+  pra `0.35.0` em toda a árvore.
+- **Depois de qualquer mudança grande de dependência nativa, reinicie o Metro com cache limpo**
+  (`npm run mobile:start`, que já roda com `--reset-cache`) — ele cacheia módulos transformados e não
+  necessariamente percebe que o conteúdo dentro de `node_modules` mudou só porque a versão no
+  `package.json` mudou. Os erros de `VirtualView.js`/`insetType` acima reapareceram idênticos depois de
+  já estarem corrigidos, simplesmente porque o Metro de uma sessão anterior continuava rodando com
+  cache antigo.
 
 - O ponto de entrada `App.tsx` aninha providers: `QueryClientProvider` (TanStack Query v5, fixado
   exatamente em `5.80.6` — ver abaixo) → `ThemeProvider` → `CurrentUserProvider` → `WalletUserProvider`
@@ -209,6 +277,13 @@ próximos saltos (0.80→0.83, 0.83→0.86) serão igual de leves; refaça essa 
   `@types/axios` obsoleto (dependência esquecida do mobile, de quando o axios não vinha com tipos
   próprios) vazava pro web e sobrescrevia `AxiosInstance`. Não reintroduza `@types/axios` nem outros
   stubs de tipos de pacotes que já publicam seus próprios `.d.ts`.
+- `eslint-rule-composer` é uma devDependency direta aqui mesmo sem nenhum código do repo importar
+  dela — é uma dependência real de `eslint-plugin-unused-imports@3.2.0` (a versão que o web usa; o
+  mobile usa a v4, que não precisa dela) que o npm, no contexto do monorepo, não estava instalando
+  sozinho de forma confiável (mesma categoria de bug de resolução aninhada que já vimos com
+  `eslint-plugin-jest` no mobile). Se o lint do web começar a falhar com
+  `Cannot find module 'eslint-rule-composer'`, não é regressão de código — é essa dependência sumindo
+  de novo depois de um `npm install` do zero; reinstale/declare explicitamente de novo.
 
 ## Convenções deste repositório
 

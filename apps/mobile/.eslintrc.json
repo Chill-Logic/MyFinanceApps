@@ -122,7 +122,7 @@
         "after": true
       }
     ],
-    "@typescript-eslint/member-delimiter-style": [
+    "@stylistic/ts/member-delimiter-style": [
       "error",
       {
         "multiline": {
