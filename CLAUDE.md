@@ -80,6 +80,12 @@ mobile migrar pra Expo.
 
 ### apps/mobile (React Native, CLI puro)
 
+RN está em migração faseada até o Expo (rodando hoje: `0.80.3`). Ordem combinada: `0.79 → 0.80` (feito,
+2026-07) `→ 0.83 → 0.86 → Expo SDK 57`. A comparação arquivo-a-arquivo do template oficial
+(`rn-diff-purge`) mostrou que 0.79→0.80 mudou só `kotlinVersion` (2.0.21→2.1.20 em `android/build.gradle`)
+e o Gradle wrapper (8.13→8.14.1) — nenhum patch de monorepo precisou ser reaplicado. Não assuma que os
+próximos saltos (0.80→0.83, 0.83→0.86) serão igual de leves; refaça essa comparação a cada etapa.
+
 - O ponto de entrada `App.tsx` aninha providers: `QueryClientProvider` (TanStack Query v5, fixado
   exatamente em `5.80.6` — ver abaixo) → `ThemeProvider` → `CurrentUserProvider` → `WalletUserProvider`
   → `RefreshProvider` → `MainStack` (React Navigation native-stack).
