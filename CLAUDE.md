@@ -80,13 +80,13 @@ mobile migrar pra Expo.
 
 ### apps/mobile (React Native, CLI puro)
 
-RN está em migração faseada até o Expo (rodando hoje: `0.83.10`). Ordem combinada: `0.79 → 0.80` (feito)
-`→ 0.83` (feito, 2026-07) `→ 0.86 → Expo SDK 57`. Metodologia usada nas duas etapas: comparar
-arquivo-a-arquivo com o template oficial do
+RN está em migração faseada até o Expo (rodando hoje: `0.86.0`, a última etapa antes do Expo SDK 57).
+Ordem: `0.79 → 0.80 → 0.83 → 0.86` (todas feitas, 2026-07) `→ Expo SDK 57` (próxima). Metodologia usada
+em todas as etapas: comparar arquivo-a-arquivo com o template oficial do
 [rn-diff-purge](https://github.com/react-native-community/rn-diff-purge) (`RnDiffApp/` na tag
 `release/<versão>`) antes de aplicar qualquer coisa — isso evita reaplicar patches de monorepo
-desnecessariamente e mostra exatamente o que realmente mudou. Refaça essa comparação a cada etapa
-futura, não assuma que vai ser tão leve quanto 0.79→0.80.
+desnecessariamente e mostra exatamente o que realmente mudou. Reaplique essa metodologia pra migração
+do Expo também.
 
 0.79→0.80 mudou só `kotlinVersion` (2.0.21→2.1.20) e o Gradle wrapper (8.13→8.14.1). 0.80→0.83 foi bem
 mais denso — problemas encontrados e como foram resolvidos, prováveis de reaparecer em upgrades
@@ -141,12 +141,19 @@ futuros:
 - Gradle `8.14.1 → 9.0.0` (major) e `compileSdk`/`targetSdk`/`buildToolsVersion` `35 → 36` — compilou de
   primeira, sem precisar de ajuste (os warnings de "deprecated Gradle features" dos builds anteriores
   não viraram erro).
-- **Bug de versionamento dentro do próprio RN 0.83.x**: `@react-native/babel-preset` fixa
-  `babel-plugin-syntax-hermes-parser@0.32.0` em todos os patches 0.83.x, mas o `metro` já usa
-  `hermes-parser@0.35.0` internamente — o parser do Babel (0.32.0) não reconhece a sintaxe `match` que
-  o próprio código-fonte do RN 0.83 já usa internamente (`VirtualView.js`), dando `SyntaxError` no bundle
-  do Metro. Corrigido com `overrides` na raiz forçando `hermes-parser`/`babel-plugin-syntax-hermes-parser`
-  pra `0.35.0` em toda a árvore.
+- **Bug de versionamento dentro do próprio RN 0.83.x** (histórico, já não se aplica a partir da 0.86):
+  `@react-native/babel-preset` fixava `babel-plugin-syntax-hermes-parser@0.32.0` em todos os patches
+  0.83.x, mas o `metro` já usava `hermes-parser@0.35.0` internamente — o parser do Babel (0.32.0) não
+  reconhecia a sintaxe `match` que o próprio código-fonte do RN 0.83 já usa internamente
+  (`VirtualView.js`), dando `SyntaxError` no bundle do Metro. Corrigimos com `overrides` na raiz
+  forçando `hermes-parser`/`babel-plugin-syntax-hermes-parser` pra `0.35.0`. **Na 0.86 o próprio
+  `@react-native/babel-preset` já pede `0.36.0` (alinhado com o resto), então removemos o override** —
+  se reaparecer um mismatch parecido numa versão futura, cheque se ainda precisa de um override antes
+  de simplesmente atualizar o valor fixo; pode ser que o upstream já tenha corrigido sozinho.
+- RN 0.86 rodou limpo sem nenhum outro ajuste: mesmo `screens@4.16.0` da etapa anterior continuou
+  funcionando (não precisou reavaliar), Gradle wrapper só subiu de patch (`9.0.0 → 9.3.1`, dentro do
+  mesmo major), e `compileSdk`/`targetSdk`/`kotlinVersion` ficaram inalterados. `engines.node` do
+  template oficial subiu pra `>= 22.11.0` (Node instalado aqui já era v24, sem impacto prático).
 - **Depois de qualquer mudança grande de dependência nativa, reinicie o Metro com cache limpo**
   (`npm run mobile:start`, que já roda com `--reset-cache`) — ele cacheia módulos transformados e não
   necessariamente percebe que o conteúdo dentro de `node_modules` mudou só porque a versão no
