@@ -1,0 +1,8 @@
+{
+  "name": "myfinance",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
