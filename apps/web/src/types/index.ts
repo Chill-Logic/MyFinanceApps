@@ -2,6 +2,8 @@ import { ReactNode } from 'react';
 
 import { Tokens } from '@/util';
 
+export * from '@myfinance/shared';
+
 export type TError<T> = Partial<Record<keyof T, { message: string }>>;
 export type TFontSize = keyof typeof Tokens.fontSize;
 export type TColor = keyof typeof Tokens.colors | 'white' | 'black';

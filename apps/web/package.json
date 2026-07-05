@@ -1,5 +1,5 @@
 {
-  "name": "MyFinanceWebApp",
+  "name": "@myfinance/web",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@casl/ability": "^6.7.1",
+    "@myfinance/shared": "*",
     "@casl/react": "^4.0.0",
     "@material-tailwind/react": "^2.1.4",
     "@rails/actioncable": "^7.1.3",
