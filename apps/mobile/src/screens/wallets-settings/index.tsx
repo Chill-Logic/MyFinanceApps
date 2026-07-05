@@ -3,6 +3,8 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import { colors } from '@myfinance/shared';
+
 import { useUpdateWallets } from '../../hooks/api/wallets/useUpdateWallets';
 
 import { TWalletState, useWallet } from '../../context/wallet';
@@ -135,7 +137,7 @@ const styles = StyleSheet.create({
 	actionButton: {
 		flex: 1,
 		height: 50,
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 		borderRadius: 5,
 		justifyContent: 'center',
 		alignItems: 'center',

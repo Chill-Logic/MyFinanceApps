@@ -6,6 +6,7 @@ import {
 import { Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import { colors } from '@myfinance/shared';
 import CheckBox from '@react-native-community/checkbox';
 
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
@@ -119,7 +120,7 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 						disabled={is_sign_in_pending}
 						value={keep_logged_in}
 						onValueChange={(newValue: boolean) => setKeepLoggedIn(newValue)}
-						tintColors={{ true: '#A328D6', false: '#666' }}
+						tintColors={{ true: colors['brand-secondary'], false: '#666' }}
 					/>
 					<ThemedText style={styles.linkText}>Manter logado?</ThemedText>
 				</ThemedView>
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
 	button: {
 		width: '100%',
 		height: 48,
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 		borderRadius: 8,
 		justifyContent: 'center',
 		alignItems: 'center',

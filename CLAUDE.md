@@ -110,6 +110,17 @@ mobile migrar pra Expo.
   `darkTheme` (não existe alternância light/dark implementada, só os dois temas disponíveis).
   `src/constants/Colors.ts` (o placeholder padrão do template RN, formato diferente e nunca usado) foi
   removido.
+- `ThemedView` (`src/components/atoms/ThemedView.tsx`) **sempre** pinta o próprio `backgroundColor` com
+  a cor do tema, a não ser que o `style` passado sobrescreva — ele não é "transparente por padrão". Um
+  `<ThemedView>` sem `style` aninhado dentro de outro container já colorido pinta um retângulo opaco do
+  tamanho do próprio conteúdo por cima (ficou invisível enquanto as duas cores eram quase iguais
+  `#121212`/`#121214`; virou um artefato visual visível assim que a paleta mudou pra navy). Se usar
+  `ThemedView` só como agrupador de layout dentro de algo que já tem fundo, passe
+  `style={{ backgroundColor: 'transparent' }}` (ver `TransactionList`, style `transactionLeft`).
+- Cor de ação/marca (botões primários, checkbox "manter logado", badge de convites): use
+  `colors['brand-secondary']` de `@myfinance/shared` (verde). Havia um roxo hardcoded (`#A328D6`)
+  espalhado em ~9 arquivos sem nenhuma relação com o tema, antigo ou novo — se aparecer de novo em
+  algum componente novo, é resquício do branding antigo, troque pelo token.
 - Imports são relativos (sem alias de path configurado/imposto no mobile), agrupados e ordenados
   alfabeticamente pelo `eslint-plugin-import-helpers` (react → módulos externos → hooks →
   util/services/context → types → components → parent/sibling/index).
@@ -127,6 +138,34 @@ mobile migrar pra Expo.
   `@tanstack/react-query` (5.80.6 — versões 5.x mais novas degradam silenciosamente os genéricos de
   `useQuery`/`useMutation` pra `any` sob a versão de TypeScript deste projeto). Não solte esses ranges
   de volta pra `^` sem checar compatibilidade de peer/tipos antes.
+- **Build Android nativo no monorepo**: o Gradle não sabe nada sobre hoisting de workspace — qualquer
+  caminho relativo hardcoded pro `node_modules` que assumia `apps/mobile/node_modules/...` quebra
+  quando o pacote sobe pra raiz do monorepo. Já corrigimos três pontos (confirmados rodando
+  `assembleDebug`/`installDebug` de verdade, não só typecheck):
+  - `android/settings.gradle`: `pluginManagement { includeBuild(...) }` e o `includeBuild(...)` do
+    `@react-native/gradle-plugin` apontam pra `../../../node_modules/@react-native/gradle-plugin`
+    (raiz do monorepo), não `../node_modules/...`. Repare que dentro do bloco `pluginManagement {}` o
+    Gradle roda num contexto restrito — resolver o caminho dinamicamente via Node (`.execute()`) não
+    funcionou ali; caminho relativo literal foi o que funcionou de forma confiável.
+  - `android/app/build.gradle`: o bloco `react { }` tem `reactNativeDir`/`codegenDir`/`cliFile`
+    descomentados e apontando pra `../../../../node_modules/react-native` (o default comentado assume
+    `../../node_modules/react-native`, local). Sem isso, o Gradle falha tentando ler
+    `apps/mobile/node_modules/react-native/ReactAndroid/gradle.properties`, que não existe.
+  - Fontes do `react-native-vector-icons` (ícones viram caixinhas com "X" sem isso): o próprio
+    `fonts.gradle` da lib tem um `iconFontsDir` hardcoded relativo (`../../node_modules/.../Fonts`) que
+    também assume node_modules local. A lib já prevê um override via `project.ext.vectoricons` — é
+    isso que está declarado em `android/app/build.gradle` logo antes do `apply from:` do
+    `fonts.gradle`. Sem esse override, a task `copyReactNativeVectorIconFonts` roda como `NO-SOURCE` e
+    nenhuma fonte é empacotada no app.
+  - Esses três pontos precisam ser reconferidos manualmente sempre que o Upgrade Helper do React
+    Native (ou uma futura migração pro Expo) regenerar `settings.gradle`/`app/build.gradle` do zero —
+    o diff oficial não sabe que isso é um monorepo.
+- `android/app/src/main/res/values/styles.xml` tem `android:forceDarkAllowed="false"` no `AppTheme`
+  (que estende `Theme.AppCompat.DayNight.NoActionBar`). Sem isso, o Android tenta "consertar" contraste
+  sozinho em builds API 29+ — mas isso **não foi a causa** de um artefato visual parecido que
+  encontramos (ver o ponto do `ThemedView` acima); vale manter o `forceDarkAllowed=false` de qualquer
+  forma já que o app gerencia o próprio tema em JS e nunca declarou suporte real a light/dark pro
+  Android (não existe pasta `values-night`).
 
 ### apps/web (Vite + React)
 

@@ -2,6 +2,8 @@ import { Fragment, useState } from 'react';
 import { Alert, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
+import { colors } from '@myfinance/shared';
+
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
 
@@ -104,7 +106,7 @@ const TransactionsList = () => {
 			style={styles.transactionItem}
 			onPress={() => setTransaction(transaction_item)}
 		>
-			<ThemedView>
+			<ThemedView style={styles.transactionLeft}>
 				<ThemedText style={styles.transactionDescription}>{TextUtils.truncate({ text: transaction_item.description, maxLength: 35 })}</ThemedText>
 				<ThemedText style={styles.transactionDate}>{DateUtils.formatDate(transaction_item.transaction_date)}</ThemedText>
 				{transaction_item.user?.name && <ThemedText style={styles.transactionUserName}>{transaction_item.user.name}</ThemedText>}
@@ -263,14 +265,15 @@ const styles = StyleSheet.create({
 		borderRadius: 10,
 		backgroundColor: '#121214',
 	},
+	transactionLeft: {
+		backgroundColor: 'transparent',
+	},
 	transactionDate: {
 		color: '#C6C6C6',
 		marginRight: 10,
-		backgroundColor: '#121214',
 	},
 	transactionDescription: {
 		fontWeight: 'bold',
-		backgroundColor: '#121214',
 	},
 	transactionUserName: {
 		color: '#C6C6C6',
@@ -326,7 +329,7 @@ const styles = StyleSheet.create({
 	actionButton: {
 		flex: 1,
 		height: 50,
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 		borderRadius: 5,
 		justifyContent: 'center',
 		alignItems: 'center',

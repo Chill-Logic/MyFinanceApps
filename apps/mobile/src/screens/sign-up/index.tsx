@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 
+import { colors } from '@myfinance/shared';
+
 import { useSignUp } from '../../hooks/api/auth/useSignUp';
 
 import { TSignUpBody } from '../../types/api';
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
 	button: {
 		width: '100%',
 		height: 48,
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 		borderRadius: 8,
 		justifyContent: 'center',
 		alignItems: 'center',

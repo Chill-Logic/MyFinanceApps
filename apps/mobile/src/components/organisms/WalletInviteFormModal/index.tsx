@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import Toast from 'react-native-toast-message';
 
+import { colors } from '@myfinance/shared';
+
 import { useCreateWalletInvites } from '../../../hooks/api/user-wallets/useCreateWalletInvites';
 
 import { useWallet } from '../../../context/wallet';
@@ -141,7 +143,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#f16f6f',
 	},
 	saveButton: {
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 	},
 	buttonText: {
 		color: 'white',

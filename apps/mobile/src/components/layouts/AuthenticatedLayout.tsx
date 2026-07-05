@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
 
+import { colors } from '@myfinance/shared';
+
 import { useListInvites } from '../../hooks/api/user-wallets/useListInvites';
 import useShowCurrentUser from '../../hooks/api/user/useShowCurrentUser';
 
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		fontWeight: 'bold',
 		borderRadius: 100,
-		backgroundColor: '#A328D6',
+		backgroundColor: colors['brand-secondary'],
 		marginLeft: 10,
 		width: 20,
 		height: 20,

@@ -10,12 +10,12 @@ react {
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
-    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
-    // reactNativeDir = file("../../node_modules/react-native")
-    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
-    // codegenDir = file("../../node_modules/@react-native/codegen")
-    //   The cli.js file which is the React Native CLI entrypoint. Default is ../../node_modules/react-native/cli.js
-    // cliFile = file("../../node_modules/react-native/cli.js")
+    //   The folder where the react-native NPM package is. Hoisted to the monorepo root by npm workspaces.
+    reactNativeDir = file("../../../../node_modules/react-native")
+    //   The folder where the react-native Codegen package is. Same monorepo-root hoisting as above.
+    codegenDir = file("../../../../node_modules/@react-native/codegen")
+    //   The cli.js file which is the React Native CLI entrypoint. Same monorepo-root hoisting as above.
+    cliFile = file("../../../../node_modules/react-native/cli.js")
 
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to
@@ -125,4 +125,10 @@ dependencies {
     }
 }
 
-apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+// fonts.gradle hardcodes a relative iconFontsDir assuming node_modules is local (not hoisted to the
+// monorepo root by npm workspaces), so it must be overridden here or copyReactNativeVectorIconFonts
+// runs as NO-SOURCE and no icon fonts get bundled into the app.
+project.ext.vectoricons = [
+    iconFontsDir: "../../../../node_modules/react-native-vector-icons/Fonts"
+]
+apply from: "../../../../node_modules/react-native-vector-icons/fonts.gradle"
