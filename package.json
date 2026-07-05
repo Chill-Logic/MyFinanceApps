@@ -4,5 +4,18 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "mobile:start": "npm run start --workspace=@myfinance/mobile",
+    "mobile:android": "npm run android --workspace=@myfinance/mobile",
+    "mobile:ios": "npm run ios --workspace=@myfinance/mobile",
+    "mobile:lint": "npm run lint --workspace=@myfinance/mobile",
+    "mobile:test": "npm run test --workspace=@myfinance/mobile",
+    "mobile:typecheck": "tsc --noEmit -p apps/mobile",
+    "webapp:dev": "npm run dev --workspace=@myfinance/web",
+    "webapp:build": "npm run build --workspace=@myfinance/web",
+    "webapp:lint": "npm run lint --workspace=@myfinance/web",
+    "webapp:test": "npm run test --workspace=@myfinance/web",
+    "webapp:storybook": "npm run storybook --workspace=@myfinance/web"
+  }
 }
