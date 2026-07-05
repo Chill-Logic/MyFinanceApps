@@ -2,8 +2,6 @@ import { Fragment, useState } from 'react';
 import { Alert, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
-import moment from 'moment';
-
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
 
@@ -35,8 +33,7 @@ const TransactionsList = () => {
 		year: new Date().getFullYear(),
 	});
 
-	const start_date = moment(new Date(month_year_selector_values.year, month_year_selector_values.month, 1)).format('YYYY-MM-DD');
-	const end_date = moment(start_date).endOf('month').format('YYYY-MM-DD');
+	const { start_date, end_date } = DateUtils.getMonthRange(month_year_selector_values.year, month_year_selector_values.month);
 
 	const { data: data_transactions, isLoading: is_data_transactions_loading } = useListTransactions({
 		params: {
@@ -237,7 +234,7 @@ const TransactionsList = () => {
 			<TransactionFormModal
 				visible={is_modal_visible || Boolean(transaction)}
 				transaction={transaction}
-				suggested_date={moment(new Date(month_year_selector_values.year, month_year_selector_values.month, new Date().getDate())).format('DD/MM/YYYY')}
+				suggested_date={DateUtils.formatDate(new Date(month_year_selector_values.year, month_year_selector_values.month, new Date().getDate()))}
 				onClose={() => {
 					setIsModalVisible(false);
 					setTransaction(null);

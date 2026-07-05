@@ -12,12 +12,28 @@ apps/web/        @myfinance/web    — app web em Vite + React
 packages/shared/ @myfinance/shared — tipos de domínio, contratos de API e rotas do backend, compartilhados
 ```
 
-`packages/shared` é a única fonte de verdade pra qualquer coisa que descreva o contrato com o backend:
-`models.ts` (entidades de domínio: `TUser`, `TTransaction`, `TWallet`, `TInvite`), `api.ts` (tipos de
-request/response + `TMutationParams`), `routes.ts` (`API_ROUTES`, o mapa de endpoints). Os dois apps
-importam como uma dependência de workspace comum (sem etapa de build — o Metro e o Vite consomem o
-TypeScript fonte diretamente). Ao adicionar ou mudar algo do contrato com o backend, edite ali uma
-única vez; não redefina tipos equivalentes localmente em nenhum dos apps.
+`packages/shared` é a única fonte de verdade pra qualquer coisa que descreva o contrato com o backend
+e pra lógica que não depende de plataforma:
+- `models.ts` — entidades de domínio (`TUser`, `TTransaction`, `TWallet`, `TInvite`)
+- `api.ts` — tipos de request/response + `TMutationParams`
+- `routes.ts` — `API_ROUTES`, o mapa de endpoints
+- `queryKeys.ts` — `QUERY_KEYS`, as chaves de cache do React Query
+- `fetchers/*.ts` — funções puras `(axios, params?) => Promise<T>` que batem no endpoint certo com o
+  tipo certo (uma por operação: `signIn`, `indexWallets`, `createTransaction`, etc.). Os hooks de cada
+  app só chamam essas funções, passando a instância de axios da própria plataforma — a lógica de "qual
+  endpoint, qual payload, qual tipo de retorno" mora só aqui.
+- `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`: formatação pura, sem dependência de plataforma.
+- `tokens.ts` — design tokens da marca: `colors` (paleta flat, chaves hifenizadas de propósito — são
+  consumidas literalmente como classes Tailwind no web, ex. `colors['background-light']` vira
+  `bg-background-light`; não normalize pra camelCase), `spacing`, `borderRadius`, `fontSize`,
+  `fontWeight`, e `Theme.light`/`Theme.dark` (papéis semânticos: `text`, `background`, `border`,
+  `placeholder`, `error`, no formato que o `context/theme.tsx` do mobile consome). `fontFamily` fica
+  só em `apps/web/src/util/tokens.ts` — depende de arquivos de fonte carregados só no web.
+
+Os dois apps importam `packages/shared` como uma dependência de workspace comum (sem etapa de build —
+o Metro e o Vite consomem o TypeScript fonte diretamente). Ao adicionar ou mudar algo do contrato com
+o backend, um fetcher, uma query key ou um formatter, edite ali uma única vez; não redefina equivalentes
+localmente em nenhum dos apps.
 
 ## Comandos
 
@@ -70,17 +86,30 @@ mobile migrar pra Expo.
 - `src/navigation/index.tsx` monta a stack a partir de um array `SCREENS` (`{ name, component }`) mais
   `AUTH_SCREENS` vindo de `src/navigation/auth`.
 - `src/hooks/api/<recurso>/<useVerboRecurso>/index.ts` — uma pasta por hook, um hook por operação
-  (ex: `hooks/api/transactions/useCreateTransactions`). Cada hook encapsula uma chamada `useQuery`/
-  `useMutation` do TanStack Query, obtém uma instância do axios via `hooks/api/useAxiosInstance`
-  (`getAxiosInstance()` lê o token de autenticação do `LocalStorage` e injeta
-  `Authorization: Bearer <token>`), e tipa request/response com os tipos de `@myfinance/shared`
-  reexportados por `src/types/api.ts` / `src/types/models.ts`. As strings de endpoint ficam em
-  `packages/shared/src/routes.ts` (`API_ROUTES`).
+  (ex: `hooks/api/transactions/useCreateTransactions`). Cada hook é um wrapper fino: obtém uma
+  instância do axios via `hooks/api/useAxiosInstance` (`getAxiosInstance()` lê o token de autenticação
+  do `LocalStorage` e injeta `Authorization: Bearer <token>`) e chama o fetcher correspondente de
+  `@myfinance/shared` (`signIn`, `indexWallets`, `createTransaction`, etc.) dentro do `queryFn`/
+  `mutationFn` do TanStack Query. O hook não sabe qual é o endpoint nem monta o payload — isso é
+  responsabilidade do fetcher em `packages/shared/src/fetchers`. `QUERY_KEYS` também vem de
+  `@myfinance/shared`.
 - `src/services/storage` encapsula o `AsyncStorage` com um prefixo de chave próprio do app
   (`LocalStorage`).
 - `src/components` segue o padrão atoms/organisms; `src/types/forms.ts`, `screen.ts` e `storage.ts`
   são específicos do mobile (formato de campos de formulário, tipos de parâmetros de navegação, chaves
   de storage) e não são compartilhados com o web.
+- Formatação de data/dinheiro/texto usa `DateUtils`/`MoneyUtils`/`TextUtils` de `@myfinance/shared`
+  (`src/utils/*.ts` no mobile são só re-export desses). `DateUtils` usa `date-fns` por baixo — nenhum
+  código de app deve importar `date-fns` diretamente, só o helper compartilhado. Não existe mais
+  `moment` no projeto (foi removido dos dois apps).
+- O tema real do mobile é `src/context/theme.tsx` (`ThemeProvider`/`useTheme()`), consumido por
+  `ThemedText`, `ThemedView`, `Loader`, `ThemedTextInput`, `SelectInput`, `Dropdown` via
+  `src/hooks/useThemeColor.ts`. `lightTheme`/`darkTheme` vêm de `Theme.light`/`Theme.dark` de
+  `@myfinance/shared` (mesma paleta de marca do web); `useThemeColor` detecta modo escuro comparando
+  com `Theme.dark.background` — não hardcode esse valor de novo. `ThemeProvider` hoje só usa
+  `darkTheme` (não existe alternância light/dark implementada, só os dois temas disponíveis).
+  `src/constants/Colors.ts` (o placeholder padrão do template RN, formato diferente e nunca usado) foi
+  removido.
 - Imports são relativos (sem alias de path configurado/imposto no mobile), agrupados e ordenados
   alfabeticamente pelo `eslint-plugin-import-helpers` (react → módulos externos → hooks →
   util/services/context → types → components → parent/sibling/index).
@@ -101,10 +130,10 @@ mobile migrar pra Expo.
 
 ### apps/web (Vite + React)
 
-- A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` — atenção que
-  este app usa `react-query` v3 (API antiga: `useQuery(key, fn)`), *não* o `@tanstack/react-query` v5
-  usado no mobile. São bibliotecas diferentes com APIs diferentes; não assuma que os padrões de
-  data-fetching do mobile valem aqui.
+- A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do
+  `@tanstack/react-query`, mesma versão pinada do mobile (`5.80.6`) — os dois apps estão alinhados
+  aqui. Ainda não existe nenhuma tela no web consumindo dados via hook; quando isso começar, use os
+  fetchers de `@myfinance/shared` (ver seção do mobile acima) em vez de bater no axios direto.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
   cada entrada tem `{ id, path, element, template, isMainPath? }` com `element`/`template` como imports
   `React.lazy`. As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`,
@@ -125,6 +154,16 @@ mobile migrar pra Expo.
 - `src/types/index.ts` reexporta tudo de `@myfinance/shared` junto com os tipos próprios de UI deste
   app (`IPath`, `ITypographyStyle`, `TFontSize`, etc.) — tipos de domínio/API e tipos de UI são ambos
   importados de `@/types` neste app.
+- `tsconfig.json` usa `"moduleResolution": "bundler"` (o comentário `/* Bundler mode */` já indicava
+  isso, mas por herança de um template antigo do Vite estava como `"node"` — cuidado se algum dia
+  reaparecer). Com `"node"`, a resolução de pacotes com `exports` condicional no `package.json` (como o
+  `axios`) fica inconsistente e pode quebrar tipos de forma difícil de rastrear.
+- O `tsconfig.json` não restringe `"types"` (ao contrário do mobile, que herda `"types": ["react-native",
+  "jest"]` do `@react-native/typescript-config`) — qualquer pacote `@types/*` hoisted na raiz do
+  monorepo entra ambientalmente no programa do TypeScript aqui. Já mordemos isso uma vez: um
+  `@types/axios` obsoleto (dependência esquecida do mobile, de quando o axios não vinha com tipos
+  próprios) vazava pro web e sobrescrevia `AxiosInstance`. Não reintroduza `@types/axios` nem outros
+  stubs de tipos de pacotes que já publicam seus próprios `.d.ts`.
 
 ## Convenções deste repositório
 

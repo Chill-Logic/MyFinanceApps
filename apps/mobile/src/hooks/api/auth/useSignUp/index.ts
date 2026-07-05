@@ -1,3 +1,4 @@
+import { signUp } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
 import {
@@ -12,8 +13,7 @@ export const useSignUp = () => {
 	return useMutation({
 		mutationFn: async({ body }: TMutationParams<TSignUpResponse, TSignUpBody>) => {
 			const axios = await getAxiosInstance();
-			const response = await axios.post<TSignUpResponse>('/auth/sign-up', body);
-			return response.data;
+			return signUp(axios, body);
 		},
 		onSuccess: (data, { onSuccess }) => {
 			onSuccess?.(data);

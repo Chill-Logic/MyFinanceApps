@@ -1,6 +1,8 @@
 import React, { createContext, useContext } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Theme as SharedTheme } from '@myfinance/shared';
+
 interface ThemeContextData {
 	theme: Theme;
 }
@@ -15,15 +17,8 @@ interface Theme {
 	};
 }
 
-const darkTheme: Theme = {
-	colors: {
-		text: '#FFFFFF',
-		background: '#121212',
-		border: '#333333',
-		placeholder: '#666666',
-		error: '#FF4444',
-	},
-};
+export const lightTheme: Theme = { colors: SharedTheme.light };
+export const darkTheme: Theme = { colors: SharedTheme.dark };
 
 const ThemeContext = createContext<ThemeContextData>({} as ThemeContextData);
 

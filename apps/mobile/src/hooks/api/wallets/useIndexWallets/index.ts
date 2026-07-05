@@ -1,8 +1,6 @@
+import { indexWallets, QUERY_KEYS } from '@myfinance/shared';
 import { useQuery } from '@tanstack/react-query';
 
-import { type TIndexWalletsResponse } from '../../../../types/api';
-
-import { QUERY_KEYS } from '../../../../constants/QueryKeys';
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 type TUseIndexWalletsProps = {
@@ -16,8 +14,7 @@ export const useIndexWallets = (props?: TUseIndexWalletsProps) => {
 		queryKey: [ QUERY_KEYS.wallet.get_all ],
 		queryFn: async() => {
 			const axios = await getAxiosInstance();
-			const response = await axios.get<TIndexWalletsResponse>('/wallets');
-			return response.data;
+			return indexWallets(axios);
 		},
 		enabled,
 	});

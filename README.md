@@ -1,11 +1,11 @@
-# MyFinance
+# MyFinanceApps
 
 Monorepo com o app mobile e o webapp do MyFinance, compartilhando tipos, contratos de API e rotas do mesmo backend.
 
 ## Estrutura
 
 ```
-MyFinance/
+MyFinanceApps/
 ├── apps/
 │   ├── mobile/   # React Native (CLI puro, sem Expo) — ver apps/mobile/README.md
 │   └── web/      # Vite + React — ver apps/web/README.md
@@ -19,8 +19,11 @@ MyFinance/
   - `models.ts` — entidades do domínio (`TUser`, `TTransaction`, `TWallet`, `TInvite`)
   - `api.ts` — contratos de request/response da API
   - `routes.ts` — endpoints do backend (`API_ROUTES`)
+  - `queryKeys.ts` — chaves de cache do React Query (`QUERY_KEYS`)
+  - `fetchers/` — funções que batem em cada endpoint, usadas pelos hooks dos dois apps
+  - `utils/` — formatação de data/dinheiro/texto (`DateUtils`, `MoneyUtils`, `TextUtils`)
 
-Qualquer tipo ou rota de API deve ser adicionado/alterado em `packages/shared`, não duplicado em cada app.
+Qualquer tipo, rota, fetcher ou formatter deve ser adicionado/alterado em `packages/shared`, não duplicado em cada app.
 
 ## Requisitos
 

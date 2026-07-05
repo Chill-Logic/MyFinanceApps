@@ -1,5 +1,5 @@
 {
-  "name": "myfinance",
+  "name": "myfinance-apps",
   "private": true,
   "workspaces": [
     "apps/*",

@@ -2,6 +2,7 @@
 import axios from 'axios';
 
 import { LocalStorage } from '../../../services/storage';
+
 import env from '../../../../env';
 
 export const getAxiosInstance = async() => {

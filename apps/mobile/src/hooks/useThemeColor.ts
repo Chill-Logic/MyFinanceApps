@@ -1,3 +1,5 @@
+import { Theme as SharedTheme } from '@myfinance/shared';
+
 import { useTheme } from '../context/theme';
 
 type ThemeColorKey = 'text' | 'background' | 'border' | 'placeholder' | 'error';
@@ -7,7 +9,7 @@ export function useThemeColor(
 	colorName: ThemeColorKey,
 ) {
 	const { theme } = useTheme();
-	const isDark = theme.colors.background === '#121212';
+	const isDark = theme.colors.background === SharedTheme.dark.background;
 	const colorFromProps = props[isDark ? 'dark' : 'light'];
 
 	if (colorFromProps) {
