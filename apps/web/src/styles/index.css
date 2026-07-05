@@ -1,0 +1,56 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import './fonts.css';
+
+@layer base {
+    .row {
+        @apply flex flex-wrap -mx-3
+    }
+    .col-1 {
+        @apply w-1/12 px-3
+    }
+    .col-2 {
+        @apply w-1/6 px-3
+    }
+    .col-3 {
+        @apply w-1/4 px-3
+    }
+    .col-4 {
+        @apply w-1/3 px-3
+    }
+    .col-5 {
+        @apply w-5/12 px-3
+    }
+    .col-6 {
+        @apply w-1/2 px-3
+    }
+    .col-7 {
+        @apply w-7/12 px-3
+    }
+    .col-8 {
+        @apply w-2/3 px-3
+    }
+    .col-9 {
+        @apply w-3/4 px-3
+    }
+    .col-10 {
+        @apply w-5/6 px-3
+    }
+    .col-11 {
+        @apply w-11/12 px-3
+    }
+    .col-12 {
+        @apply w-full px-3
+    }
+}
+
+@layer utilities {
+    .scroll-container {
+        @apply overflow-auto scrollbar scrollbar-w-[5px] scrollbar-thumb-rounded-full scrollbar-thumb-gray-400 hover:scrollbar-thumb-gray-600
+    }
+
+    .backdrop-blur-sm {
+        backdrop-filter: none !important;
+    }
+}
