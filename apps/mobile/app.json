@@ -8,8 +8,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "android": {
-      "package": "com.chilllogic.myfinance.app",
-      "versionCode": 9
+      "package": "com.chilllogic.myfinance.app"
     },
     "ios": {
       "bundleIdentifier": "com.chilllogic.myfinance.app"
@@ -23,6 +22,12 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2c58d5d6-610a-4651-b352-295fe6367b0a"
+      }
+    },
+    "owner": "csjhonathan"
   }
 }

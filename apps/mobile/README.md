@@ -78,17 +78,30 @@ SDK novo sair.
 
 ## Build de release assinado (Play Store)
 
-O template gerado pelo `expo prebuild` não vem com `signingConfigs.release` configurado — builds de
-release usam a assinatura de debug por padrão. A keystore de produção
-(`android/app/my-release-key.keystore` + `android/app/release.properties`, ambos gitignored) existe no
-projeto, mas o bloco de signing config no `build.gradle` precisa ser readicionado manualmente toda vez
-que o `prebuild` regenerar esse arquivo do zero (não sobrevive ao CNG sozinho).
+O build de release é feito via **EAS Build** (configurado em `apps/mobile/eas.json`), não mais
+localmente pelo `build.gradle` gerado pelo `expo prebuild` (que não vem com `signingConfigs.release`
+nenhum por padrão — builds nativos locais de release usariam a assinatura de debug). A keystore de
+produção já está no credential manager do EAS (conta `csjhonathan`, projeto `myfinance`), verificada
+contra o fingerprint de **upload key** da Play Console.
 
-O caminho recomendado daqui pra frente é **EAS Build** (builda na nuvem, guarda a keystore de forma
-gerenciada, e destrava build de iOS sem precisar de Mac) — ainda não configurado neste repo
-(`eas.json` não existe). Antes de configurar, confirme na Play Console
-(**Configuração do app → Integridade do app → Assinatura do app**) que o fingerprint da keystore local
-bate com o que já assina o app publicado.
+```bash
+npm run mobile:build          # eas build --platform android --profile production
+npm run mobile:build:submit   # o mesmo build + envio automático pra track de teste interno (EAS Submit)
+```
+
+`mobile:build:submit` usa `apps/mobile/google-service-account.json` (gitignored, chave de uma conta de
+serviço do Google Cloud com permissão só de "Liberar apps para as faixas de teste") pra subir o `.aab`
+direto na Play Console via API, sem passo manual. `mobile:build` sozinho só gera o `.aab` — baixe pelo
+link impresso no terminal (ou por **expo.dev**, projeto `myfinance`, aba Builds) e suba manualmente se
+preferir conferir antes.
+
+O `versionCode` do Android não vem mais do `app.json` — é controlado remotamente pelo EAS
+(`appVersionSource: "remote"`, com `autoIncrement` no perfil `production`). Pra consultar ou ajustar:
+
+```bash
+npx eas-cli build:version:get --platform android
+npx eas-cli build:version:set --platform android
+```
 
 ## Testes e lint
 

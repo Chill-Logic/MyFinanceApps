@@ -23,6 +23,8 @@
     "mobile:lint": "npm run lint --workspace=@myfinance/mobile",
     "mobile:test": "npm run test --workspace=@myfinance/mobile",
     "mobile:typecheck": "tsc --noEmit -p apps/mobile",
+    "mobile:build": "npm run build --workspace=@myfinance/mobile",
+    "mobile:build:submit": "npm run build:submit --workspace=@myfinance/mobile",
     "webapp:dev": "npm run dev --workspace=@myfinance/web",
     "webapp:build": "npm run build --workspace=@myfinance/web",
     "webapp:lint": "npm run lint --workspace=@myfinance/web",

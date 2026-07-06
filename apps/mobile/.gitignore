@@ -86,3 +86,6 @@ env.ts
 # a partir do app.json, nao versionamos o resultado.
 /android/
 /ios/
+
+# EAS Submit - chave da conta de servico do Google Cloud (Play Developer API)
+google-service-account.json

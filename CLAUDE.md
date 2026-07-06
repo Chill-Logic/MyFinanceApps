@@ -53,6 +53,8 @@ npm run mobile:ios
 npm run mobile:lint
 npm run mobile:test         # jest
 npm run mobile:typecheck    # tsc --noEmit (não existe script equivalente dentro do app)
+npm run mobile:build        # eas build --platform android --profile production
+npm run mobile:build:submit # o mesmo build + eas submit automático (track de teste interno)
 
 # web (apps/web, pacote @myfinance/web)
 npm run webapp:dev          # vite dev server
@@ -214,9 +216,28 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   vez sem o mismatch de path que tínhamos antes do Expo) foram restaurados no lugar, mas o bloco de
   `signingConfigs.release` que lia esse arquivo **precisa ser readicionado manualmente toda vez que o
   prebuild regenerar `build.gradle` do zero** — não sobrevive ao CNG sozinho. Isso não bloqueia builds de
-  debug (usados pra validar a migração). O caminho recomendado daqui pra frente é EAS Build (guarda a
-  keystore de forma gerenciada, sem precisar reaplicar esse patch a cada prebuild) — ainda não configurado
-  neste repo (sem `eas.json`), fica como próxima etapa deliberada por mexer com credencial de produção.
+  debug (usados pra validar a migração). O caminho recomendado — e já configurado neste repo — é o
+  **EAS Build**: `apps/mobile/eas.json` tem os perfis `development`/`preview`/`production`
+  (`appVersionSource: "remote"`, com `autoIncrement` no perfil `production` — o `versionCode` não mora
+  mais no `app.json`, é controlado pelo EAS; use `npx eas-cli build:version:get/set -p android` pra
+  consultar/ajustar). A keystore de produção já foi enviada pro credential manager do EAS (conta pessoal
+  `csjhonathan`, projeto `myfinance`) — conferido que bate com o fingerprint de **upload key** da Play
+  Console (Play App Signing está ativo, então é o upload key que precisa bater, não o app signing key).
+  **EAS Submit** também está configurado (`eas.json` → `submit.production.android`, aponta pra
+  `apps/mobile/google-service-account.json`, gitignored — chave de uma conta de serviço do Google Cloud
+  com permissão **apenas** de "Liberar apps para as faixas de teste" na Play Console, propositalmente sem
+  acesso a produção): `eas build --platform android --profile production --auto-submit` builda e já sobe
+  pra track de teste interno sozinho. Ideia futura, ainda não implementada: um workflow de GitHub Actions
+  rodando isso automaticamente a cada push relevante em `main` (precisa filtrar por path
+  `apps/mobile/**`, já que é monorepo, e decidir se é todo push ou só releases/tags — publicar sem gate
+  nenhum é arriscado).
+- **EAS Update (OTA) ainda não está configurado** — só temos EAS Build/Submit (binário nativo novo,
+  passa pela loja). OTA push só bundle JS/assets pros apps já instalados, sem passar pela revisão da
+  loja, mas só funciona pra mudança 100% JS — qualquer coisa nativa (lib nova, upgrade de SDK do Expo,
+  permissão/config nativa) ainda exige um build normal. Ideia futura, adiada de propósito porque essa
+  rodada de mudanças foi toda nativa (migração pro Expo) e já ia precisar de EAS Build de qualquer jeito.
+  Se configurar depois: instalar `expo-updates`, definir canais (`production`/`preview`) e a política de
+  `runtimeVersion` no `app.json`.
 
 - O ponto de entrada `App.tsx` aninha providers: `QueryClientProvider` (TanStack Query v5, fixado
   exatamente em `5.80.6` — ver abaixo) → `ThemeProvider` → `CurrentUserProvider` → `WalletUserProvider`

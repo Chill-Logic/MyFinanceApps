@@ -68,6 +68,8 @@ npm run mobile:ios
 npm run mobile:lint
 npm run mobile:test
 npm run mobile:typecheck
+npm run mobile:build         # eas build de produção
+npm run mobile:build:submit  # eas build + envio automático pro teste interno da Play Store
 
 # web
 npm run webapp:dev
