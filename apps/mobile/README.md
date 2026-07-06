@@ -121,6 +121,14 @@ desta configuração já é "OTA-ready").
 nativa, suba esse `version`** (ex: `0.1.0` → `0.2.0`) antes do próximo build — esquecer disso pode fazer
 o EAS tentar aplicar um OTA pensado pra um runtime novo em cima de um binário antigo incompatível.
 
+## CD automático (GitHub Actions)
+
+`.github/workflows/mobile-cd.yml` dispara sozinho quando um PR que mexeu em `apps/mobile/**` é
+**mesclado** na `main` (nunca em push solto). Ele calcula o fingerprint do projeto, compara com o
+último build de produção e decide sozinho entre publicar um OTA ou disparar um build+submit nativo —
+atrás de um gate de aprovação manual (GitHub Environment `production`). Requer os secrets `EXPO_TOKEN`
+e `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` configurados no repositório. Detalhes completos no `CLAUDE.md`.
+
 ## Testes e lint
 
 ```bash

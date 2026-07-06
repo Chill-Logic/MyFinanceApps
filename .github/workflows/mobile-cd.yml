@@ -1,0 +1,107 @@
+name: Mobile CD (EAS)
+
+# Dispara só quando um PR que mexeu em apps/mobile é MESCLADO na main (nunca em push solto,
+# porque o evento é pull_request, não push).
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+
+jobs:
+  decide:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      needs_native_build: ${{ steps.fingerprint.outputs.needs_native_build }}
+    steps:
+      - name: Checkout commit mesclado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instala dependencias (raiz do monorepo)
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Compara fingerprint com o ultimo build de producao
+        id: fingerprint
+        working-directory: apps/mobile
+        run: |
+          BUILD_ID=$(npx eas-cli build:list --platform android --channel production --status finished --limit 1 --non-interactive --json | node -e "process.stdin.resume();process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log(j[0]?.id||'')})")
+
+          if [ -z "$BUILD_ID" ]; then
+            echo "Nenhum build anterior encontrado no canal production - build nativo necessario."
+            echo "needs_native_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Comparando fingerprint atual com o build $BUILD_ID"
+          COMPARE=$(npx eas-cli fingerprint:compare --build-id "$BUILD_ID" --json --non-interactive)
+          SAME=$(echo "$COMPARE" | node -e "process.stdin.resume();process.stdin.setEncoding('utf8');let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);console.log(j.fingerprint1.hash === j.fingerprint2.hash)})")
+
+          if [ "$SAME" = "true" ]; then
+            echo "Fingerprint identico - OTA e suficiente."
+            echo "needs_native_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Fingerprint mudou - precisa de build nativo."
+            echo "needs_native_build=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+  publish:
+    needs: decide
+    runs-on: ubuntu-latest
+    # Gate manual: precisa configurar um Environment chamado "production" em
+    # Settings -> Environments do repo, com "Required reviewers" marcado.
+    # O workflow para aqui e espera aprovacao antes de publicar de verdade.
+    environment: production
+    steps:
+      - name: Checkout commit mesclado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instala dependencias (raiz do monorepo)
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Restaura a chave da conta de servico do Google
+        working-directory: apps/mobile
+        run: echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 -d > google-service-account.json
+
+      - name: Publica OTA (fingerprint identico ao ultimo build nativo)
+        if: needs.decide.outputs.needs_native_build == 'false'
+        working-directory: apps/mobile
+        run: npx eas-cli update --channel production --environment production --non-interactive -m "${{ github.event.pull_request.title }}"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Builda e envia binario nativo (fingerprint mudou)
+        if: needs.decide.outputs.needs_native_build == 'true'
+        working-directory: apps/mobile
+        run: npx eas-cli build --platform android --profile production --auto-submit --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

@@ -227,10 +227,23 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   `apps/mobile/google-service-account.json`, gitignored — chave de uma conta de serviço do Google Cloud
   com permissão **apenas** de "Liberar apps para as faixas de teste" na Play Console, propositalmente sem
   acesso a produção): `eas build --platform android --profile production --auto-submit` builda e já sobe
-  pra track de teste interno sozinho. Ideia futura, ainda não implementada: um workflow de GitHub Actions
-  rodando isso automaticamente a cada push relevante em `main` (precisa filtrar por path
-  `apps/mobile/**`, já que é monorepo, e decidir se é todo push ou só releases/tags — publicar sem gate
-  nenhum é arriscado).
+  pra track de teste interno sozinho.
+- **CD automático está implementado** em `.github/workflows/mobile-cd.yml`. Dispara só em **PR mesclado**
+  na `main` que mexeu em `apps/mobile/**` (evento `pull_request: closed` + `if: merged == true` — nunca
+  em push solto, que é um evento diferente). Dois jobs:
+  - `decide`: calcula o fingerprint do commit mesclado (`npx eas-cli fingerprint:compare --build-id
+    <último build finished do channel production>`) e decide se um update JS-only (OTA) basta, ou se
+    precisa de build nativo — mesma lógica do "EAS Update" descrita abaixo.
+  - `publish`: atrás de um **gate de aprovação manual** (`environment: production` — precisa configurar
+    esse Environment em Settings → Environments do GitHub, com "Required reviewers" marcado; não é algo
+    que dá pra versionar em arquivo). Publica `eas update` (canal `production`) ou
+    `eas build --auto-submit`, dependendo da decisão do job anterior.
+  - Precisa de dois secrets no repo (`Settings → Secrets and variables → Actions`): `EXPO_TOKEN` (gerado
+    em expo.dev → Access Tokens) e `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` (o
+    `apps/mobile/google-service-account.json` em base64, decodificado de volta pro arquivo dentro do
+    job `publish`).
+  - Se não existir nenhum build `finished` no canal `production` ainda, o job `decide` força build nativo
+    (não assume OTA sem ter uma baseline confiável pra comparar).
 - **EAS Update (OTA) está configurado** (`expo-updates` instalado, `npx eas-cli update:configure`
   rodado): `app.json` tem `updates.url` e `runtimeVersion: { policy: "appVersion" }`; cada perfil do
   `eas.json` (`development`/`preview`/`production`) ganhou um `channel` de mesmo nome. Só funciona pra
