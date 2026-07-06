@@ -1,50 +1,48 @@
-# React + TypeScript + Vite
+# @myfinance/web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Webapp do MyFinance, em Vite + React + TypeScript. Faz parte do monorepo `MyFinanceApps` — rode os
+comandos a partir da raiz sempre que possível (aliases `webapp:*` no `package.json` da raiz).
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Instale as dependências a partir da **raiz do monorepo** (não rode `npm install` aqui dentro):
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm install
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+## Rodando o app
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+Da raiz do monorepo:
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+```bash
+npm run webapp:dev          # vite dev server
+npm run webapp:build        # tsc && vite build
+npm run webapp:lint
+npm run webapp:test         # jest
+npm run webapp:storybook    # storybook dev, porta 6006
 ```
+
+Ou, de dentro de `apps/web`, os mesmos comandos sem o prefixo `webapp:` (`npm run dev`, `npm run build`,
+etc.).
+
+## Stack
+
+- **Vite + React + TypeScript**, roteamento com `react-router-dom` (rotas declaradas em
+  `src/router/routes`, agrupadas por feature).
+- **Tailwind CSS** + `@material-tailwind/react` pra estilização; design tokens em `src/util`
+  (compartilha a paleta de marca com o mobile via `@myfinance/shared`).
+- **TanStack Query** pra data-fetching (mesma versão fixada do mobile, `5.80.6`) — ao consumir a API,
+  use os fetchers de `@myfinance/shared` em vez de bater no axios direto.
+- **i18next/react-i18next** pra internacionalização.
+- **Storybook** pros componentes de `src/components`.
+- **`@casl/ability`** já está instalado mas ainda não integrado em nenhum componente.
+
+Imports absolutos (`@/...`) são obrigatórios por lint fora da mesma pasta (alias `@` → `src`, ver
+`vite.config.ts`).
+
+## Arquitetura
+
+Ver `CLAUDE.md` na raiz do monorepo — cobre estrutura de rotas, padrão de tipos (`@/types` reexporta
+`@myfinance/shared` + tipos próprios de UI) e detalhes de configuração do TypeScript específicos deste
+app.

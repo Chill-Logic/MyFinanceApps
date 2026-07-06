@@ -7,7 +7,7 @@ Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar neste repositó
 Monorepo com npm workspaces (sem pnpm/yarn, sem Turborepo) com dois apps que compartilham o mesmo backend:
 
 ```
-apps/mobile/     @myfinance/mobile — app React Native (RN CLI puro, sem Expo)
+apps/mobile/     @myfinance/mobile — app React Native + Expo (SDK 57, Continuous Native Generation)
 apps/web/        @myfinance/web    — app web em Vite + React
 packages/shared/ @myfinance/shared — tipos de domínio, contratos de API e rotas do backend, compartilhados
 ```
@@ -47,8 +47,8 @@ A raiz tem aliases prontos pra cada app, sem precisar lembrar da flag `--workspa
 
 ```bash
 # mobile (apps/mobile, pacote @myfinance/mobile)
-npm run mobile:start        # Metro dev server
-npm run mobile:android
+npm run mobile:start        # expo start --clear
+npm run mobile:android      # expo run:android (builda nativo + instala + abre)
 npm run mobile:ios
 npm run mobile:lint
 npm run mobile:test         # jest
@@ -73,20 +73,36 @@ ver `apps/mobile/README.md`.
 `apps/mobile/env.ts` (gitignored) é uma alternativa mantida à mão pro `react-native-dotenv`, que a
 equipe achou pouco confiável nesse projeto (cache do Metro não invalidando, falhas silenciosas).
 Exporta um objeto simples (`{ API_URL: "..." }`) importado via `@env`, tipado em `env.d.ts`. Não existe
-num clone novo — recrie localmente. A expectativa é substituir isso por env vars do EAS se/quando o
-mobile migrar pra Expo.
+num clone novo — recrie localmente. Continua assim mesmo depois da migração pro Expo (SDK 57); a
+expectativa de substituir isso por env vars do EAS segue de pé, mas ainda não foi feita.
+
+### Build nativo local (mobile, pós-Expo)
+
+`apps/mobile/android/` e `apps/mobile/ios/` **não são versionados** — são gerados via Continuous Native
+Generation (`npx expo prebuild --platform android`, disparado automaticamente também por
+`npm run mobile:android` / `expo run:android` se a pasta não existir). Isso significa que, numa máquina
+nova (ou depois de apagar `android/` de propósito), alguns arquivos específicos da máquina somem e
+precisam ser recriados:
+- `android/local.properties` (`sdk.dir=...`, aponta pro Android SDK local) — não é gerado pelo
+  `prebuild`. Sem ele o Gradle falha com `SDK location not found`. Abrir o projeto uma vez no Android
+  Studio cria esse arquivo sozinho; senão, crie à mão com `sdk.dir=<caminho do Android SDK>` (Windows:
+  tipicamente `C:\Users\<usuário>\AppData\Local\Android\Sdk`), ou configure a variável de ambiente
+  `ANDROID_HOME`/`ANDROID_SDK_ROOT` do Windows (essa sim sobrevive a qualquer prebuild futuro, em vez de
+  precisar recriar o arquivo toda vez).
+- Keystore de release (`my-release-key.keystore`) e `release.properties`, além do bloco
+  `signingConfigs.release` no `build.gradle` que os usa — ver "Migração pro Expo SDK 57" na seção de
+  Arquitetura abaixo.
 
 ## Arquitetura
 
-### apps/mobile (React Native, CLI puro)
+### apps/mobile (React Native + Expo SDK 57)
 
-RN está em migração faseada até o Expo (rodando hoje: `0.86.0`, a última etapa antes do Expo SDK 57).
-Ordem: `0.79 → 0.80 → 0.83 → 0.86` (todas feitas, 2026-07) `→ Expo SDK 57` (próxima). Metodologia usada
-em todas as etapas: comparar arquivo-a-arquivo com o template oficial do
+RN passou por uma migração faseada até o Expo, feita nesta ordem (todas em 2026-07):
+`0.79 → 0.80 → 0.83 → 0.86` (upgrade puro de RN) `→ Expo SDK 57` (migração pro Expo, CNG). Metodologia
+usada em todas as etapas do upgrade de RN: comparar arquivo-a-arquivo com o template oficial do
 [rn-diff-purge](https://github.com/react-native-community/rn-diff-purge) (`RnDiffApp/` na tag
 `release/<versão>`) antes de aplicar qualquer coisa — isso evita reaplicar patches de monorepo
-desnecessariamente e mostra exatamente o que realmente mudou. Reaplique essa metodologia pra migração
-do Expo também.
+desnecessariamente e mostra exatamente o que realmente mudou.
 
 0.79→0.80 mudou só `kotlinVersion` (2.0.21→2.1.20) e o Gradle wrapper (8.13→8.14.1). 0.80→0.83 foi bem
 mais denso — problemas encontrados e como foram resolvidos, prováveis de reaparecer em upgrades
@@ -161,6 +177,47 @@ futuros:
   já estarem corrigidos, simplesmente porque o Metro de uma sessão anterior continuava rodando com
   cache antigo.
 
+**Migração pro Expo SDK 57** (depois do upgrade de RN acima, mesmo mês): trocou
+`react-native-vector-icons` → `@expo/vector-icons` e `@react-native-community/checkbox` →
+`expo-checkbox` (permite rodar em Expo Go puro, sem Development Build, no dia a dia), `babel.config.js`
+→ `babel-preset-expo`, `metro.config.js` → `expo/metro-config` (resolve hoisting de monorepo sozinho
+desde o SDK 52, não precisa mais do `watchFolders`/`nodeModulesPaths` manual), `index.js` →
+`registerRootComponent` do pacote `expo`. Rodar `npx expo install --check`/`--fix` depois de qualquer
+mudança de dependência nativa vira o novo jeito de manter as libs alinhadas com a versão do SDK (substitui
+o pin manual por versão exata que fazíamos durante o upgrade de RN puro — inclusive resolveu o
+`react-native-screens`, que subiu de `4.16.0` pra `4.25.2`, a versão que tinha o bug do `insetType` com RN
+0.83 mas que já é segura agora com RN 0.86/SDK 57).
+
+Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Generation — regenera
+`android/`/`ios/` do zero a partir do `app.json`; essas pastas **não são mais versionadas**, ver seção
+"Build nativo local" acima). Armadilhas encontradas nesse processo, prováveis de reaparecer se o
+`app.json` for reestruturado no futuro:
+- **`app.json`: `android.usesCleartextTraffic` não existe** como campo nativo do schema do Expo (mesmo
+  parecendo razoável) — só teve efeito depois de mover pra dentro do plugin `expo-build-properties`
+  (`plugins: [["expo-build-properties", { android: { usesCleartextTraffic: true } }]]`). Sem isso, o
+  `AndroidManifest.xml` gerado simplesmente não ganha o atributo, silenciosamente.
+- **`app.json`: o ícone não pode apontar pra um arquivo dentro de `android/`** (ex:
+  `./android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`, que era o placeholder usado antes do
+  prebuild) — o primeiro passo do `prebuild` é limpar `android/` inteiro, então o arquivo fonte deixa de
+  existir bem antes da etapa que gera os ícones a partir dele (`ENOENT`). O ícone fonte precisa morar em
+  algum lugar estável fora de `android/`/`ios/`, ex. `apps/mobile/assets/icon.png`.
+- **`userInterfaceStyle: "automatic"`** precisa do pacote `expo-system-ui` instalado, senão o prebuild só
+  avisa e ignora a opção (não dá erro, só não aplica).
+- **`MainActivity.kt` gerado agora usa `getMainComponentName() = "main"`**, compatível com
+  `registerRootComponent` (que sempre registra como `"main"`). Antes do prebuild, o `MainActivity.kt` do
+  RN CLI antigo esperava `"MyFinance"` — rodar `expo run:android`/build nativo real **antes** do prebuild
+  quebra com "Unable to find main component". Só testar via Expo Go (que não usa `android/` nenhuma)
+  funciona nesse meio-tempo.
+- **O template de `build.gradle` gerado pelo prebuild não tem `signingConfigs.release` nenhum** — o
+  `buildTypes.release` usa `signingConfigs.debug` por padrão. A keystore de produção
+  (`android/app/my-release-key.keystore`) e o `release.properties` (mesmo caminho, `android/app/`, dessa
+  vez sem o mismatch de path que tínhamos antes do Expo) foram restaurados no lugar, mas o bloco de
+  `signingConfigs.release` que lia esse arquivo **precisa ser readicionado manualmente toda vez que o
+  prebuild regenerar `build.gradle` do zero** — não sobrevive ao CNG sozinho. Isso não bloqueia builds de
+  debug (usados pra validar a migração). O caminho recomendado daqui pra frente é EAS Build (guarda a
+  keystore de forma gerenciada, sem precisar reaplicar esse patch a cada prebuild) — ainda não configurado
+  neste repo (sem `eas.json`), fica como próxima etapa deliberada por mexer com credencial de produção.
+
 - O ponto de entrada `App.tsx` aninha providers: `QueryClientProvider` (TanStack Query v5, fixado
   exatamente em `5.80.6` — ver abaixo) → `ThemeProvider` → `CurrentUserProvider` → `WalletUserProvider`
   → `RefreshProvider` → `MainStack` (React Navigation native-stack).
@@ -205,24 +262,28 @@ futuros:
 - Imports são relativos (sem alias de path configurado/imposto no mobile), agrupados e ordenados
   alfabeticamente pelo `eslint-plugin-import-helpers` (react → módulos externos → hooks →
   util/services/context → types → components → parent/sibling/index).
-- O Metro está configurado pro monorepo (`metro.config.js`): `watchFolders` inclui a raiz do repo e
-  `resolver.nodeModulesPaths` lista explicitamente tanto `apps/mobile/node_modules` quanto o
-  `node_modules` da raiz, com `disableHierarchicalLookup: true`. Ao adicionar um novo pacote de
-  workspace, ele precisa resolver por um desses caminhos.
+- `metro.config.js` é só `getDefaultConfig(__dirname)` de `expo/metro-config` — desde o SDK 52 ele já
+  resolve hoisting de monorepo (workspaces, `node_modules` da raiz) sozinho, sem precisar declarar
+  `watchFolders`/`resolver.nodeModulesPaths` à mão como fazíamos antes do Expo.
 - `tsconfig.json` estende `@react-native/typescript-config` e sobrescreve `typeRoots` pra incluir
   explicitamente o `node_modules/@types` hoisted na raiz (`../../node_modules/@types`) — necessário
   porque o npm hoisteia a maioria dos pacotes `@types/*` pra raiz do repo em vez de
   `apps/mobile/node_modules`.
-- Algumas dependências estão fixadas numa versão exata em vez de um range com `^`, porque versões mais
-  novas compatíveis por semver quebraram algo assim que o lockfile do repo original (standalone) deixou
-  de existir: `react-native-reanimated` (4.0.1), `react-native-screens` (4.11.1) e
-  `@tanstack/react-query` (5.80.6 — versões 5.x mais novas degradam silenciosamente os genéricos de
-  `useQuery`/`useMutation` pra `any` sob a versão de TypeScript deste projeto). Não solte esses ranges
-  de volta pra `^` sem checar compatibilidade de peer/tipos antes.
-- **Build Android nativo no monorepo**: o Gradle não sabe nada sobre hoisting de workspace — qualquer
-  caminho relativo hardcoded pro `node_modules` que assumia `apps/mobile/node_modules/...` quebra
-  quando o pacote sobe pra raiz do monorepo. Já corrigimos três pontos (confirmados rodando
-  `assembleDebug`/`installDebug` de verdade, não só typecheck):
+- `react-native-reanimated`, `react-native-safe-area-context`, `react-native-screens`,
+  `react-native-worklets` e `typescript` são mantidos alinhados à versão que `npx expo install --check`
+  espera pro SDK instalado (rode `npx expo install --fix` depois de qualquer mudança nessas
+  dependências) — isso substituiu o pin manual por versão exata que fazíamos durante o upgrade de RN
+  puro. `@tanstack/react-query` continua fixado à mão em `5.80.6` (fora do radar do `expo install`,
+  já que não é uma lib nativa) — versões 5.x mais novas degradam silenciosamente os genéricos de
+  `useQuery`/`useMutation` pra `any` sob a versão de TypeScript deste projeto. Não solte esse range de
+  volta pra `^` sem checar compatibilidade de tipos antes.
+- **Build Android nativo no monorepo (histórico, pré-Expo)**: o Gradle não sabe nada sobre hoisting de
+  workspace — qualquer caminho relativo hardcoded pro `node_modules` que assumia
+  `apps/mobile/node_modules/...` quebra quando o pacote sobe pra raiz do monorepo. Isso foi relevante
+  enquanto `android/` era versionado e mantido à mão; agora que o Expo prebuild regenera essa pasta do
+  zero a cada vez (ver "Migração pro Expo SDK 57" acima), os pontos abaixo já não existem mais nos
+  arquivos gerados (o plugin Gradle do Expo resolve isso sozinho) — mantidos aqui só como referência
+  caso outra lib nativa volte a hardcodear caminho relativo de `node_modules` no futuro:
   - `android/settings.gradle`: `pluginManagement { includeBuild(...) }` e o `includeBuild(...)` do
     `@react-native/gradle-plugin` apontam pra `../../../node_modules/@react-native/gradle-plugin`
     (raiz do monorepo), não `../node_modules/...`. Repare que dentro do bloco `pluginManagement {}` o
@@ -238,15 +299,13 @@ futuros:
     isso que está declarado em `android/app/build.gradle` logo antes do `apply from:` do
     `fonts.gradle`. Sem esse override, a task `copyReactNativeVectorIconFonts` roda como `NO-SOURCE` e
     nenhuma fonte é empacotada no app.
-  - Esses três pontos precisam ser reconferidos manualmente sempre que o Upgrade Helper do React
-    Native (ou uma futura migração pro Expo) regenerar `settings.gradle`/`app/build.gradle` do zero —
-    o diff oficial não sabe que isso é um monorepo.
-- `android/app/src/main/res/values/styles.xml` tem `android:forceDarkAllowed="false"` no `AppTheme`
-  (que estende `Theme.AppCompat.DayNight.NoActionBar`). Sem isso, o Android tenta "consertar" contraste
-  sozinho em builds API 29+ — mas isso **não foi a causa** de um artefato visual parecido que
-  encontramos (ver o ponto do `ThemedView` acima); vale manter o `forceDarkAllowed=false` de qualquer
-  forma já que o app gerencia o próprio tema em JS e nunca declarou suporte real a light/dark pro
-  Android (não existe pasta `values-night`).
+  - `react-native-vector-icons` foi removido na migração pro Expo (trocado por `@expo/vector-icons`,
+    que não precisa desse tipo de override), então o item de fontes acima também deixou de existir.
+- `android/app/src/main/res/values/styles.xml` tinha `android:forceDarkAllowed="false"` no `AppTheme`
+  antes do Expo prebuild (evita o Android "consertar" contraste sozinho em builds API 29+) — **não foi a
+  causa** de um artefato visual parecido que encontramos (ver o ponto do `ThemedView` acima). O template
+  gerado pelo Expo prebuild não declara esse atributo; se algum artefato visual parecido reaparecer em
+  builds novos, esse é o primeiro lugar a checar.
 
 ### apps/web (Vite + React)
 

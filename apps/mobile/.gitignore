@@ -81,3 +81,8 @@ env.ts
 
 # Expo
 .expo/
+
+# Continuous Native Generation - android/ e ios/ sao gerados via `npx expo prebuild`
+# a partir do app.json, nao versionamos o resultado.
+/android/
+/ios/

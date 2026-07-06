@@ -1,97 +1,104 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# @myfinance/mobile
 
-# Getting Started
+App mobile do MyFinance, em React Native + Expo (SDK 57, Continuous Native Generation). Faz parte do
+monorepo `MyFinanceApps` — rode os comandos a partir da raiz sempre que possível (aliases `mobile:*` no
+`package.json` da raiz).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Setup
 
-## Step 1: Start Metro
+Instale as dependências a partir da **raiz do monorepo** (não rode `npm install` aqui dentro):
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+```bash
+npm install
 ```
 
-## Step 2: Build and run your app
+### Variável de ambiente da API
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+Crie `apps/mobile/env.ts` (gitignored, não existe num clone novo):
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```ts
+export const ENV = {
+  API_URL: 'http://sua-api-local:porta',
+};
 ```
+
+Tipado em `env.d.ts`, importado via `@env` (`react-native-dotenv`). Se mudar esse arquivo, reinicie o
+Metro com cache limpo (`npm run mobile:start`, que já roda `--clear`).
+
+### Android SDK local
+
+`apps/mobile/android/` **não é versionado** — é gerado via `npx expo prebuild` (disparado
+automaticamente se não existir, tanto por `npm run mobile:android` quanto por `expo run:android`
+direto). Isso significa que numa máquina nova falta um arquivo que o Gradle precisa,
+`android/local.properties` (`sdk.dir=...`), até você fazer uma das duas coisas:
+
+- Abrir o projeto uma vez no Android Studio (ele cria o arquivo sozinho); ou
+- Configurar a variável de ambiente `ANDROID_HOME` (ou `ANDROID_SDK_ROOT`) do Windows/macOS/Linux
+  apontando pro seu Android SDK — essa sobrevive a qualquer `prebuild` futuro.
+
+Sem isso, `expo run:android` falha com `SDK location not found`.
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+Só é possível buildar/rodar de verdade num Mac (CocoaPods + Xcode). Depois de um `expo prebuild
+--platform ios`, os passos são os padrão do Expo/RN:
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
+```bash
 bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
 bundle exec pod install
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Rodando o app
 
-```sh
-# Using npm
-npm run ios
+Da raiz do monorepo:
 
-# OR using Yarn
-yarn ios
+```bash
+npm run mobile:start        # expo start --clear — só o Metro, escaneie o QR code no Expo Go
+npm run mobile:android      # expo run:android — builda nativo, instala e abre no emulador/dispositivo
+npm run mobile:ios          # expo run:ios (só Mac)
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Ou, de dentro de `apps/mobile`, os mesmos comandos sem o prefixo `mobile:` (`npm run start`,
+`npm run android`, `npm run ios`).
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### Expo Go vs. build nativo
 
-## Step 3: Modify your app
+O dia a dia dá pra ser todo feito no **Expo Go** (`npm run mobile:start`, depois escanear o QR code no
+app Expo Go do celular ou apertar `a` com um emulador aberto) — não precisa de Android Studio pra isso.
+Só é necessário buildar nativo (`expo run:android`/Android Studio) quando:
 
-Now that you have successfully run the app, let's make changes!
+- for testar de verdade num APK/instalação real (não Expo Go);
+- adicionar uma lib com código nativo não suportado pelo Expo Go padrão.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+**Importante**: a versão do Expo Go instalada no celular/emulador precisa suportar o SDK do projeto
+(hoje, SDK 57). Se aparecer "Project is incompatible with this version of Expo Go" mesmo com o app
+"atualizado" pela Play Store, baixe a versão certa direto em
+[expo.dev/go](https://expo.dev/go) — o rollout da Play Store costuma atrasar alguns dias depois de um
+SDK novo sair.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Build de release assinado (Play Store)
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+O template gerado pelo `expo prebuild` não vem com `signingConfigs.release` configurado — builds de
+release usam a assinatura de debug por padrão. A keystore de produção
+(`android/app/my-release-key.keystore` + `android/app/release.properties`, ambos gitignored) existe no
+projeto, mas o bloco de signing config no `build.gradle` precisa ser readicionado manualmente toda vez
+que o `prebuild` regenerar esse arquivo do zero (não sobrevive ao CNG sozinho).
 
-## Congratulations! :tada:
+O caminho recomendado daqui pra frente é **EAS Build** (builda na nuvem, guarda a keystore de forma
+gerenciada, e destrava build de iOS sem precisar de Mac) — ainda não configurado neste repo
+(`eas.json` não existe). Antes de configurar, confirme na Play Console
+(**Configuração do app → Integridade do app → Assinatura do app**) que o fingerprint da keystore local
+bate com o que já assina o app publicado.
 
-You've successfully run and modified your React Native App. :partying_face:
+## Testes e lint
 
-### Now what?
+```bash
+npm run mobile:test         # jest
+npm run mobile:lint         # eslint
+npm run mobile:typecheck    # tsc --noEmit
+```
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Arquitetura
 
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Ver `CLAUDE.md` na raiz do monorepo — cobre estrutura de pastas, padrão de hooks/fetchers, tema,
+histórico da migração de RN CLI pro Expo e as armadilhas conhecidas do build nativo no monorepo.
