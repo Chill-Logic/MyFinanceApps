@@ -103,6 +103,24 @@ npx eas-cli build:version:get --platform android
 npx eas-cli build:version:set --platform android
 ```
 
+## Atualização OTA (EAS Update)
+
+Mudanças **100% JS** (sem lib nativa nova, sem upgrade de SDK do Expo, sem mexer em config nativa) podem
+ir direto pra quem já tem o app instalado, sem passar pela Play Store:
+
+```bash
+npm run mobile:ota:production -- -m "mensagem descrevendo o update"
+```
+
+O `-m` é obrigatório. Isso publica no canal `production`, que só chega em builds nativos que também
+foram feitos com esse canal (todo build feito com `npm run mobile:build`/`mobile:build:submit` depois
+desta configuração já é "OTA-ready").
+
+**Atenção**: a compatibilidade do OTA é baseada no campo `version` do `app.json`
+(`runtimeVersion: { policy: "appVersion" }`), não no `versionCode`. **Sempre que fizer uma mudança
+nativa, suba esse `version`** (ex: `0.1.0` → `0.2.0`) antes do próximo build — esquecer disso pode fazer
+o EAS tentar aplicar um OTA pensado pra um runtime novo em cima de um binário antigo incompatível.
+
 ## Testes e lint
 
 ```bash

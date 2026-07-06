@@ -1,6 +1,6 @@
 {
   "name": "@myfinance/mobile",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "android": "expo run:android",
@@ -10,7 +10,8 @@
     "start": "expo start --clear",
     "test": "jest",
     "build": "eas build --platform android --profile production",
-    "build:submit": "eas build --platform android --profile production --auto-submit"
+    "build:submit": "eas build --platform android --profile production --auto-submit",
+    "ota:production": "eas update --channel production --environment production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -25,7 +26,9 @@
     "expo": "~57.0.2",
     "expo-build-properties": "~57.0.3",
     "expo-checkbox": "~57.0.0",
+    "expo-constants": "~57.0.3",
     "expo-system-ui": "~57.0.0",
+    "expo-updates": "~57.0.6",
     "npm": "^10.9.2",
     "react": "19.2.3",
     "react-native": "0.86.0",

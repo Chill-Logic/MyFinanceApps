@@ -2,7 +2,7 @@
   "expo": {
     "name": "MyFinance",
     "slug": "myfinance",
-    "version": "0.0.9",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -28,6 +28,12 @@
         "projectId": "2c58d5d6-610a-4651-b352-295fe6367b0a"
       }
     },
-    "owner": "csjhonathan"
+    "owner": "csjhonathan",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2c58d5d6-610a-4651-b352-295fe6367b0a"
+    }
   }
 }

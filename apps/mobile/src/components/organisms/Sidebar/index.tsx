@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
+import Constants from 'expo-constants';
 
 import { useIndexWallets } from '../../../hooks/api/wallets/useIndexWallets';
 
@@ -15,7 +16,7 @@ import { Loader } from '../../atoms/Loader';
 import { ThemedText } from '../../atoms/ThemedText';
 import { ThemedView } from '../../atoms/ThemedView';
 
-import { version } from '../../../../package.json';
+const version = Constants.expoConfig?.version;
 
 export interface IMenuOption {
 	id: string;

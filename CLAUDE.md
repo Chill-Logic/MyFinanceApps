@@ -231,13 +231,26 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   rodando isso automaticamente a cada push relevante em `main` (precisa filtrar por path
   `apps/mobile/**`, já que é monorepo, e decidir se é todo push ou só releases/tags — publicar sem gate
   nenhum é arriscado).
-- **EAS Update (OTA) ainda não está configurado** — só temos EAS Build/Submit (binário nativo novo,
-  passa pela loja). OTA push só bundle JS/assets pros apps já instalados, sem passar pela revisão da
-  loja, mas só funciona pra mudança 100% JS — qualquer coisa nativa (lib nova, upgrade de SDK do Expo,
-  permissão/config nativa) ainda exige um build normal. Ideia futura, adiada de propósito porque essa
-  rodada de mudanças foi toda nativa (migração pro Expo) e já ia precisar de EAS Build de qualquer jeito.
-  Se configurar depois: instalar `expo-updates`, definir canais (`production`/`preview`) e a política de
-  `runtimeVersion` no `app.json`.
+- **EAS Update (OTA) está configurado** (`expo-updates` instalado, `npx eas-cli update:configure`
+  rodado): `app.json` tem `updates.url` e `runtimeVersion: { policy: "appVersion" }`; cada perfil do
+  `eas.json` (`development`/`preview`/`production`) ganhou um `channel` de mesmo nome. Só funciona pra
+  mudança **100% JS** — qualquer coisa nativa (lib nova, upgrade de SDK do Expo, permissão/config nativa)
+  ainda exige um build normal (`npm run mobile:build`/`mobile:build:submit`).
+  - **`runtimeVersion: "appVersion"` significa que a compatibilidade do OTA é amarrada ao campo
+    `version` do `app.json`** — não ao `versionCode`. Isso exige disciplina manual: **toda vez que uma
+    mudança nativa for feita, bump o `version`** (ex: `0.1.0` → `0.2.0`), senão o EAS pode tentar aplicar
+    um update OTA feito pra um runtime novo em cima de um binário nativo antigo incompatível. Builds
+    feitos antes de instalar o `expo-updates` (ex: o primeiro submetido nesta migração, `versionCode 11`,
+    `version 0.0.9`) não têm a capacidade de receber OTA — só builds novos, feitos depois dessa
+    configuração, são "OTA-ready".
+  - Publicar um update: `npm run mobile:ota:production -- -m "mensagem do update"` (o `-m` é obrigatório
+    pelo `eas update`; passe depois de `--` pro npm repassar o argumento pro script de dentro do
+    workspace). Publica no canal `production`, que só chega em builds nativos que também foram feitos com
+    `channel: "production"` (perfil `production` do `eas.json`).
+  - `src/components/organisms/Sidebar/index.tsx` mostra a versão do app lendo
+    `Constants.expoConfig?.version` (de `expo-constants`) — **não** o `version` do `package.json` (que
+    existe só por convenção do npm/workspace, mas não é o que aparece pro usuário nem o que o
+    `runtimeVersion` usa).
 
 - O ponto de entrada `App.tsx` aninha providers: `QueryClientProvider` (TanStack Query v5, fixado
   exatamente em `5.80.6` — ver abaixo) → `ThemeProvider` → `CurrentUserProvider` → `WalletUserProvider`
