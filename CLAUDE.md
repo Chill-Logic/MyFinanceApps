@@ -72,11 +72,17 @@ ver `apps/mobile/README.md`.
 
 ### Configuração de ambiente local (mobile)
 
-`apps/mobile/env.ts` (gitignored) é uma alternativa mantida à mão pro `react-native-dotenv`, que a
-equipe achou pouco confiável nesse projeto (cache do Metro não invalidando, falhas silenciosas).
-Exporta um objeto simples (`{ API_URL: "..." }`) importado via `@env`, tipado em `env.d.ts`. Não existe
-num clone novo — recrie localmente. Continua assim mesmo depois da migração pro Expo (SDK 57); a
-expectativa de substituir isso por env vars do EAS segue de pé, mas ainda não foi feita.
+**Atualizado em 2026-07-06**: `env.ts`/`env.d.ts`/`react-native-dotenv` foram removidos. A API URL
+agora é `process.env.EXPO_PUBLIC_API_URL` (suporte nativo do Metro/`babel-preset-expo` a variáveis
+`EXPO_PUBLIC_*` — nenhuma lib extra necessária). Localmente, vem de `apps/mobile/.env` (gitignored,
+não existe num clone novo — copie de `.env.example`). Em produção, vem de uma **EAS Environment
+Variable** (`npx eas-cli env:list production`), injetada automaticamente durante `eas build`/
+`eas update --environment production` — não precisa de nenhum passo manual no CD pra isso.
+Motivo da migração: o `env.ts` manual funcionava bem localmente, mas não existia (por ser gitignored)
+no checkout limpo do GitHub Actions, quebrando o CD (`Unable to resolve module ../../../../env`); um
+`.easignore` chegou a ser tentado pra forçar a inclusão desse arquivo no pacote do EAS Build, mas não
+resolveu (o build remoto seguia sem o arquivo) — trocar pra env var nativa do Expo eliminou o problema
+na raiz em vez de continuar contornando.
 
 ### Build nativo local (mobile, pós-Expo)
 

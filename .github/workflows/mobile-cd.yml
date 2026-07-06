@@ -95,15 +95,6 @@ jobs:
         working-directory: apps/mobile
         run: echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 -d > google-service-account.json
 
-      - name: Gera env.ts (gitignored, nao existe no checkout do CI)
-        working-directory: apps/mobile
-        run: |
-          cat > env.ts << EOF
-          export const ENV = {
-            API_URL: '${{ secrets.MOBILE_ENV_API_URL }}',
-          };
-          EOF
-
       - name: Publica OTA (fingerprint identico ao ultimo build nativo)
         if: needs.decide.outputs.needs_native_build == 'false'
         working-directory: apps/mobile

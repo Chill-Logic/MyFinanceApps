@@ -3,13 +3,11 @@ import axios from 'axios';
 
 import { LocalStorage } from '../../../services/storage';
 
-import env from '../../../../env';
-
 export const getAxiosInstance = async() => {
 	const token = await LocalStorage.getItem('token');
 
 	const axiosInstance = axios.create({
-		baseURL: env.API_URL,
+		baseURL: process.env.EXPO_PUBLIC_API_URL,
 		headers: {
 			'Access-Control-Allow-Origin': '*',
 		},
