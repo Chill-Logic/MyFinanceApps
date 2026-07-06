@@ -1,25 +1,28 @@
 name: Mobile CD (EAS)
 
-# Dispara só quando um PR que mexeu em apps/mobile é MESCLADO na main (nunca em push solto,
-# porque o evento é pull_request, não push).
+# Dispara automaticamente só quando um PR que mexeu em apps/mobile é MESCLADO na main (nunca em
+# push solto, porque o evento é pull_request, não push). Também aceita disparo manual
+# (workflow_dispatch) pra testar o pipeline sem precisar de um PR real tocando em apps/mobile/**
+# (o filtro de path abaixo só se aplica ao evento pull_request).
 on:
   pull_request:
     types: [closed]
     branches: [main]
     paths:
       - "apps/mobile/**"
+  workflow_dispatch: {}
 
 jobs:
   decide:
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       needs_native_build: ${{ steps.fingerprint.outputs.needs_native_build }}
     steps:
-      - name: Checkout commit mesclado
+      - name: Checkout commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -69,10 +72,10 @@ jobs:
     # O workflow para aqui e espera aprovacao antes de publicar de verdade.
     environment: production
     steps:
-      - name: Checkout commit mesclado
+      - name: Checkout commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -104,7 +107,7 @@ jobs:
       - name: Publica OTA (fingerprint identico ao ultimo build nativo)
         if: needs.decide.outputs.needs_native_build == 'false'
         working-directory: apps/mobile
-        run: npx eas-cli update --channel production --environment production --non-interactive -m "${{ github.event.pull_request.title }}"
+        run: npx eas-cli update --channel production --environment production --non-interactive -m "${{ github.event.pull_request.title || 'Disparo manual (workflow_dispatch)' }}"
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
