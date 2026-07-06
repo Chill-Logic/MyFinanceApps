@@ -244,6 +244,13 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     job `publish`).
   - Se não existir nenhum build `finished` no canal `production` ainda, o job `decide` força build nativo
     (não assume OTA sem ter uma baseline confiável pra comparar).
+  - **Observação (2026-07-06)**: o `eas fingerprint:generate`/`compare` local já mostrou um resultado
+    "diferente" isolado, uma única vez, num teste manual onde nada de nativo tinha mudado de verdade
+    (não reproduzido em 4 tentativas seguidas depois) — possível flutuação por cache/processo em segundo
+    plano. Não é perigoso pro CD: o pior caso é disparar um build nativo desnecessário à toa (gasta
+    minutos), nunca aplicar um OTA incompatível, já que a lógica só assume OTA quando os hashes batem
+    exatamente. Se o CD parecer "nervoso" (build nativo disparando com frequência maior que o esperado
+    pra mudanças que são só JS), comece a investigação por aqui.
 - **EAS Update (OTA) está configurado** (`expo-updates` instalado, `npx eas-cli update:configure`
   rodado): `app.json` tem `updates.url` e `runtimeVersion: { policy: "appVersion" }`; cada perfil do
   `eas.json` (`development`/`preview`/`production`) ganhou um `channel` de mesmo nome. Só funciona pra

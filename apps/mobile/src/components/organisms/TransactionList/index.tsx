@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { Alert, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
+import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
 
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
@@ -227,6 +228,7 @@ const TransactionsList = () => {
 						setIsModalVisible(true);
 					}}
 				>
+					<Icon name='add' size={20} color='white' />
 					<ThemedText style={styles.actionButtonText}>
             Novo Registro
 					</ThemedText>
@@ -331,8 +333,10 @@ const styles = StyleSheet.create({
 		height: 50,
 		backgroundColor: colors['brand-secondary'],
 		borderRadius: 5,
+		flexDirection: 'row',
 		justifyContent: 'center',
 		alignItems: 'center',
+		gap: 6,
 	},
 	actionButtonText: {
 		color: 'white',
