@@ -1,4 +1,19 @@
 {
-  "name": "MyFinance",
-  "displayName": "MyFinance"
+  "expo": {
+    "name": "MyFinance",
+    "slug": "myfinance",
+    "version": "0.0.9",
+    "orientation": "portrait",
+    "icon": "./android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.chilllogic.myfinance.app",
+      "versionCode": 9,
+      "usesCleartextTraffic": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.chilllogic.myfinance.app"
+    }
+  }
 }

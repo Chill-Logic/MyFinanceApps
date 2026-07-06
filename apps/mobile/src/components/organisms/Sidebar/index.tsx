@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+
+import Icon from '@expo/vector-icons/MaterialIcons';
 
 import { useIndexWallets } from '../../../hooks/api/wallets/useIndexWallets';
 
@@ -93,7 +94,7 @@ const Sidebar = ({ onClose, options, navigate }: ISidebarProps) => {
 							item.onClick();
 						}}
 					>
-						<Icon name={item.icon} size={24} color='#666' style={styles.menuIcon} />
+						<Icon name={item.icon as any} size={24} color='#666' style={styles.menuIcon} />
 						<ThemedText style={styles.menuText}>{item.title}</ThemedText>
 						{item.metadata}
 					</TouchableOpacity>

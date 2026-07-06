@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
 
 import { useUpdateWallets } from '../../hooks/api/wallets/useUpdateWallets';

@@ -1,24 +1,12 @@
-const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
-const path = require('path');
-
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
+const { getDefaultConfig } = require('expo/metro-config');
 
 /**
  * Metro configuration
- * https://reactnative.dev/docs/metro
+ * https://docs.expo.dev/guides/customizing-metro
  *
- * @type {import('@react-native/metro-config').MetroConfig}
+ * expo/metro-config already handles npm workspace monorepo hoisting automatically since SDK 52 —
+ * no need for the manual watchFolders/nodeModulesPaths setup the bare RN CLI setup required.
+ *
+ * @type {import('expo/metro-config').MetroConfig}
  */
-const config = {
-	watchFolders: [ workspaceRoot ],
-	resolver: {
-		nodeModulesPaths: [
-			path.resolve(projectRoot, 'node_modules'),
-			path.resolve(workspaceRoot, 'node_modules'),
-		],
-		disableHierarchicalLookup: true,
-	},
-};
-
-module.exports = mergeConfig(getDefaultConfig(projectRoot), config);
+module.exports = getDefaultConfig(__dirname);

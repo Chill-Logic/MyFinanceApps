@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, TouchableOpacity, Modal, View, ScrollView } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+
+import Icon from '@expo/vector-icons/MaterialIcons';
 
 import { ThemedText } from '../ThemedText';
 import { ThemedView } from '../ThemedView';

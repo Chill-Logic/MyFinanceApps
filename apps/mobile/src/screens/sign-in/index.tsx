@@ -4,10 +4,10 @@ import {
 	TouchableOpacity,
 } from 'react-native';
 import { Alert } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
-import CheckBox from '@react-native-community/checkbox';
+import Checkbox from 'expo-checkbox';
 
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
 
@@ -116,11 +116,11 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 				</TouchableOpacity>
 
 				<ThemedView style={styles.checkboxContainer}>
-					<CheckBox
+					<Checkbox
 						disabled={is_sign_in_pending}
 						value={keep_logged_in}
 						onValueChange={(newValue: boolean) => setKeepLoggedIn(newValue)}
-						tintColors={{ true: colors['brand-secondary'], false: '#666' }}
+						color={keep_logged_in ? colors['brand-secondary'] : undefined}
 					/>
 					<ThemedText style={styles.linkText}>Manter logado?</ThemedText>
 				</ThemedView>

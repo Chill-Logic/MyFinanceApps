@@ -124,11 +124,3 @@ dependencies {
         implementation jscFlavor
     }
 }
-
-// fonts.gradle hardcodes a relative iconFontsDir assuming node_modules is local (not hoisted to the
-// monorepo root by npm workspaces), so it must be overridden here or copyReactNativeVectorIconFonts
-// runs as NO-SOURCE and no icon fonts get bundled into the app.
-project.ext.vectoricons = [
-    iconFontsDir: "../../../../node_modules/react-native-vector-icons/Fonts"
-]
-apply from: "../../../../node_modules/react-native-vector-icons/fonts.gradle"

@@ -1,7 +1,7 @@
 import { TouchableOpacity, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import Toast from 'react-native-toast-message';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
+import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
 
 import { useAcceptInvites } from '../../hooks/api/user-wallets/useAcceptInvites';
