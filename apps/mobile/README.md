@@ -14,16 +14,20 @@ npm install
 
 ### Variável de ambiente da API
 
-Crie `apps/mobile/env.ts` (gitignored, não existe num clone novo):
+Crie `apps/mobile/.env` (gitignored, não existe num clone novo, veja `.env.example`):
 
-```ts
-export const ENV = {
-  API_URL: 'http://sua-api-local:porta',
-};
+```
+EXPO_PUBLIC_API_URL=http://sua-api-local:porta
 ```
 
-Tipado em `env.d.ts`, importado via `@env` (`react-native-dotenv`). Se mudar esse arquivo, reinicie o
-Metro com cache limpo (`npm run mobile:start`, que já roda `--clear`).
+O prefixo `EXPO_PUBLIC_` é obrigatório — é assim que o Metro sabe que essa variável deve ser embutida
+no bundle e fica acessível via `process.env.EXPO_PUBLIC_API_URL` no código. Não precisa de nenhuma lib
+extra (`react-native-dotenv` foi removido) nem de reiniciar nada com flag especial — só um
+`npm run mobile:start` normal já pega o valor novo.
+
+Em produção, essa variável não vem de arquivo nenhum — é uma **EAS Environment Variable**
+(`npx eas-cli env:list production`), injetada automaticamente durante `eas build`/`eas update
+--environment production`.
 
 ### Android SDK local
 
@@ -124,10 +128,13 @@ o EAS tentar aplicar um OTA pensado pra um runtime novo em cima de um binário a
 ## CD automático (GitHub Actions)
 
 `.github/workflows/mobile-cd.yml` dispara sozinho quando um PR que mexeu em `apps/mobile/**` é
-**mesclado** na `main` (nunca em push solto). Ele calcula o fingerprint do projeto, compara com o
+**mesclado** na `main` (nunca em push solto) — ou manualmente via `workflow_dispatch`
+(`gh workflow run mobile-cd.yml --ref dev`). Ele calcula o fingerprint do projeto, compara com o
 último build de produção e decide sozinho entre publicar um OTA ou disparar um build+submit nativo —
 atrás de um gate de aprovação manual (GitHub Environment `production`). Requer os secrets `EXPO_TOKEN`
-e `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` configurados no repositório. Detalhes completos no `CLAUDE.md`.
+e `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` configurados no repositório. `EXPO_PUBLIC_API_URL` não é secret
+do GitHub — é uma EAS Environment Variable, injetada automaticamente pelo próprio `eas build`/
+`eas update`. Detalhes completos no `CLAUDE.md`.
 
 ## Testes e lint
 
