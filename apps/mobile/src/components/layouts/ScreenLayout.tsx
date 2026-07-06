@@ -1,20 +1,23 @@
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+import { colors } from '@myfinance/shared';
 
 import { ThemedView } from '../atoms/ThemedView';
 
 const ScreenLayout = ({ children }: { children: React.ReactNode }) => {
 	return (
-		<SafeAreaView style={styles.container}>
+		<View style={styles.container}>
 			<ThemedView style={styles.content}>
 				{children}
 			</ThemedView>
-		</SafeAreaView>
+		</View>
 	);
 };
 
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
+		backgroundColor: colors['background-default'],
 	},
 	content: {
 		flex: 1,

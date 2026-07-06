@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SafeAreaView, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, View, Modal, TouchableOpacity, Animated } from 'react-native';
 
 import { colors } from '@myfinance/shared';
 
@@ -83,7 +83,7 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 	}, [ current_user_data, current_user, setCurrentUser ]);
 
 	return (
-		<SafeAreaView style={styles.container} {...refreshControlProps}>
+		<View style={styles.container} {...refreshControlProps}>
 			<Header
 				handleLogout={handleLogout}
 				onOpenSidebar={handleOpenSidebar}
@@ -129,13 +129,14 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 				onClose={() => setIsWalletFormModalVisible(false)}
 				onSuccess={() => setIsWalletFormModalVisible(false)}
 			/>
-		</SafeAreaView>
+		</View>
 	);
 };
 
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
+		backgroundColor: colors['background-default'],
 	},
 	content: {
 		flex: 1,

@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { RefreshControlProps } from 'react-native';
 
-import { queryClient } from '../../App';
+import { queryClient } from '../services/query-client';
+
 import { QUERY_KEYS } from '../constants/QueryKeys';
 import { useCurrentUserContext } from './current_user';
 

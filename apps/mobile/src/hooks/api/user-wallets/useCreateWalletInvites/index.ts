@@ -1,10 +1,11 @@
 import { createWalletInvite, QUERY_KEYS } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
+import { queryClient } from '../../../../services/query-client';
+
 import { TMutationParams, TUserWalletInviteBody } from '../../../../types/api';
 import { TInvite } from '../../../../types/models';
 
-import { queryClient } from '../../../../../App';
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 export const useCreateWalletInvites = () => {

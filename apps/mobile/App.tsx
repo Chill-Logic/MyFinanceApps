@@ -3,23 +3,15 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 
 import CurrentUserProvider from './src/context/current_user';
 import RefreshProvider from './src/context/refresh';
 import { ThemeProvider } from './src/context/theme';
 import WalletUserProvider from './src/context/wallet';
+import { queryClient } from './src/services/query-client';
 
 import MainStack from './src/navigation';
-
-export const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			refetchOnWindowFocus: false,
-			retry: false,
-		},
-	},
-});
 
 function App(): React.JSX.Element {
 	return (

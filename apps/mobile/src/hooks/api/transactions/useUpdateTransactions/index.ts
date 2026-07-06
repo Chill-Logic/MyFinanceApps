@@ -1,9 +1,10 @@
 import { updateTransaction, QUERY_KEYS } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
+import { queryClient } from '../../../../services/query-client';
+
 import { TMutationParams, TListTransactionsResponse, TUpdateTransactionBody } from '../../../../types/api';
 
-import { queryClient } from '../../../../../App';
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 export const useUpdateTransactions = () => {

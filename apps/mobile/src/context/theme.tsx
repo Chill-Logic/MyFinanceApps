@@ -25,7 +25,7 @@ const ThemeContext = createContext<ThemeContextData>({} as ThemeContextData);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	return (
 		<ThemeContext.Provider value={{ theme: darkTheme }}>
-			<SafeAreaView style={{ flex: 1 }}>
+			<SafeAreaView style={{ flex: 1, backgroundColor: SharedTheme.dark.background }}>
 				{children}
 			</SafeAreaView>
 		</ThemeContext.Provider>
