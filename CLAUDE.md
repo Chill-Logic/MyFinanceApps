@@ -488,6 +488,15 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     cola o modal nas bordas da tela inteira, sem nenhum arredondamento (só ganha isso a partir do
     desktop). Ajustado pra `w-[calc(100%-2rem)]` + `rounded-lg` sempre, dando a mesma margem/cantos em
     qualquer tamanho de tela — se usar esses primitivos em outro lugar, não reverta isso sem querer.
+  - **`useCurrentUserContext()`/`useWallet()` expõem `is_loading`** — nenhum dos dois expunha isso
+    originalmente, só `data`; quem consumia não tinha como distinguir "ainda carregando" de "carregou
+    e não tem nada", e a `TransactionList` chegou a disparar `useListTransactions` com `wallet_id: ''`
+    antes da carteira carregar (sem `enabled`), batendo na API errado antes de corrigir sozinho. O
+    `is_loading` da carteira usa `isFetched` da query (não só "ainda não tem dado"), pra não virar
+    loading infinito quando o usuário legitimamente não tem carteira nenhuma. Qualquer tela nova que
+    dependa de `current_user`/`user_wallet` deve conferir esse `is_loading` antes de assumir "vazio",
+    e qualquer `useQuery` cujo parâmetro dependa de outro dado assíncrono (ex: `wallet_id`) precisa do
+    `enabled` amarrado a esse dado, não só um fallback tipo `|| ''`.
 - `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
   navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via

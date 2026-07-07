@@ -11,6 +11,7 @@ import {
 	ArrowUpRight,
 	ChevronLeft,
 	ChevronRight,
+	Loader2,
 	MoreVertical,
 	Plus,
 	Receipt,
@@ -80,7 +81,7 @@ const sortTransactions = (transactions: TTransaction[], sort: TSortState) => {
 };
 
 const TransactionList = () => {
-	const { user_wallet } = useWallet();
+	const { user_wallet, is_loading: is_wallet_loading } = useWallet();
 	const { toast } = useToast();
 	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
@@ -91,13 +92,17 @@ const TransactionList = () => {
 
 	const { start_date, end_date } = DateUtils.getMonthRange(month_year.year, month_year.month);
 
-	const { data: data_transactions, isLoading: is_loading } = useListTransactions({
+	// `enabled` evita bater na API com wallet_id vazio antes da carteira carregar
+	const { data: data_transactions, isLoading: is_transactions_loading } = useListTransactions({
+		enabled: Boolean(user_wallet.data?.id),
 		params: {
 			wallet_id: user_wallet.data?.id || '',
 			start_date,
 			end_date,
 		},
 	});
+
+	const is_loading = is_wallet_loading || is_transactions_loading;
 
 	const { mutate: deleteTransactionMutation, isPending: is_delete_pending } = useDeleteTransactions();
 
@@ -380,7 +385,8 @@ const TransactionList = () => {
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel disabled={is_delete_pending}>Cancelar</AlertDialogCancel>
-						<AlertDialogAction onClick={handleConfirmDelete} disabled={is_delete_pending}>
+						<AlertDialogAction onClick={handleConfirmDelete} disabled={is_delete_pending} className='gap-2'>
+							{is_delete_pending && <Loader2 className='h-4 w-4 animate-spin' />}
 							Excluir
 						</AlertDialogAction>
 					</AlertDialogFooter>

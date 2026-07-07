@@ -3,10 +3,20 @@ import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 import { useWallet } from '@/context/wallet';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const WalletSwitcher = () => {
-	const { data: wallets } = useIndexWallets();
+	const { data: wallets, isLoading } = useIndexWallets();
 	const { user_wallet, setUserWallet } = useWallet();
+
+	if (isLoading) {
+		return (
+			<div className='flex flex-col gap-1'>
+				<span className='px-1 text-xs font-medium text-muted-foreground'>Visualizando a carteira</span>
+				<Skeleton className='h-9 w-full' />
+			</div>
+		);
+	}
 
 	if (!wallets?.length) return null;
 

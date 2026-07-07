@@ -15,25 +15,34 @@ interface IContextType {
 	user_wallet: TWalletState;
 	setUserWallet: Dispatch<SetStateAction<TWalletState>>;
 	setCanSearchForWallets: Dispatch<SetStateAction<boolean>>;
+	is_loading: boolean;
 }
 
 const initialValue: IContextType = {
 	user_wallet: { data: null },
 	setUserWallet: () => {},
 	setCanSearchForWallets: () => {},
+	is_loading: false,
 };
 
 const WalletUserContext = createContext(initialValue);
 
 export const WalletUserProvider = ({ children }: { children: ReactNode }) => {
-	const { current_user } = useCurrentUserContext();
+	const { current_user, is_loading: is_current_user_loading } = useCurrentUserContext();
 	const [ can_search_for_wallets, setCanSearchForWallets ] = useState(false);
 	const [ user_wallet, setUserWallet ] = useState<TWalletState>({ data: null });
 
-	const { data: main_wallet } = useGetMainWallet({
+	const { data: main_wallet, isFetched: is_wallet_fetched } = useGetMainWallet({
 		enabled: can_search_for_wallets && Boolean(current_user.data?.id),
 		params: { user_id: current_user.data?.id || '' },
 	});
+
+	/*
+	 * "Carregando" cobre duas fases: esperar o usuário atual (pré-requisito pra nem poder buscar a
+	 * carteira ainda) e esperar a própria busca da carteira terminar (sucesso ou erro, `isFetched`
+	 * evita loading infinito se o usuário legitimamente não tiver carteira nenhuma).
+	 */
+	const is_loading = Boolean(AuthStorage.getToken()) && !user_wallet.data && (is_current_user_loading || !is_wallet_fetched);
 
 	useEffect(() => {
 		if (AuthStorage.getToken() && !user_wallet.data) {
@@ -48,7 +57,7 @@ export const WalletUserProvider = ({ children }: { children: ReactNode }) => {
 	}, [ main_wallet ]);
 
 	return (
-		<WalletUserContext.Provider value={{ user_wallet, setUserWallet, setCanSearchForWallets }}>
+		<WalletUserContext.Provider value={{ user_wallet, setUserWallet, setCanSearchForWallets, is_loading }}>
 			{children}
 		</WalletUserContext.Provider>
 	);
