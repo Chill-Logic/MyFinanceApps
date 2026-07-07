@@ -137,7 +137,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate 
 						disabled={is_pending}
 					/>
 
-					<div className='flex gap-4'>
+					<div className='flex flex-col gap-4 sm:flex-row'>
 						<TextInput
 							type='text'
 							label='Valor'

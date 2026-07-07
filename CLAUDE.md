@@ -472,11 +472,22 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
-  - **Desktop ainda não tem tabela** — a lista de transações usa o mesmo componente (cards agrupados
-    por dia) em qualquer tamanho de tela; a ideia é trocar pra uma tabela (`ui/table.tsx` do shadcn,
-    sem lib nova — `react-data-table-component` já é uma dependência do projeto mas tem motor de
-    estilo próprio que não usa os tokens daqui, ficaria destoante) só no desktop, mantendo os cards
-    agrupados por dia no mobile (tabela não funciona bem em tela estreita).
+  - **Desktop usa tabela, mobile usa cards** — `TransactionList` renderiza os dois layouts (um
+    `hidden md:block`, o outro `md:hidden`) reaproveitando a mesma lógica de ícone por tipo e menu de
+    ações via funções auxiliares (`renderKindIcon`/`renderActionsMenu`), só a marcação (`<table>` vs
+    `<div>`) muda. A tabela (`ui/table.tsx`, HTML semântico puro, sem lib nova) tem ordenação por
+    coluna local (sem paginação/API, ordena o array já carregado do mês) — `react-data-table-component`
+    segue instalado mas sem uso (motor de estilo próprio, não usa os tokens daqui).
+  - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
+    `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
+    usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
+    filho pra funcionar), a ref se perdia no meio do caminho e o clique simplesmente não abria nada —
+    sem erro nenhum no console, silencioso. Qualquer átomo novo que possa ser usado como filho de
+    `asChild` (Radix `Slot`) precisa encaminhar a ref, não só as props.
+  - **`Dialog`/`AlertDialog` (shadcn) usam `w-full` + `sm:rounded-lg`** por padrão — no mobile isso
+    cola o modal nas bordas da tela inteira, sem nenhum arredondamento (só ganha isso a partir do
+    desktop). Ajustado pra `w-[calc(100%-2rem)]` + `rounded-lg` sempre, dando a mesma margem/cantos em
+    qualquer tamanho de tela — se usar esses primitivos em outro lugar, não reverta isso sem querer.
 - `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
   navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via

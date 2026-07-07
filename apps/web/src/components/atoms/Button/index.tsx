@@ -1,4 +1,4 @@
-import { ComponentPropsWithoutRef } from 'react';
+import { ComponentPropsWithoutRef, ElementRef, forwardRef } from 'react';
 
 import { Loader2 } from 'lucide-react';
 
@@ -11,15 +11,16 @@ interface IProps extends ComponentPropsWithoutRef<typeof UiButton> {
 	isLoading?: boolean;
 }
 
-const Button = (props: IProps) => {
+const Button = forwardRef<ElementRef<typeof UiButton>, IProps>((props, ref) => {
 	const { isLoading = false, disabled, children, ...props_rest } = props;
 
 	return (
-		<UiButton disabled={disabled || isLoading} {...props_rest}>
+		<UiButton ref={ref} disabled={disabled || isLoading} {...props_rest}>
 			{isLoading && <Loader2 className='animate-spin' />}
 			{children}
 		</UiButton>
 	);
-};
+});
+Button.displayName = 'Button';
 
 export default Button;
