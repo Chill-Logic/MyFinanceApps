@@ -376,13 +376,82 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   hook (`src/hooks/api/...`, mesmo padrão do mobile: wrapper fino em cima dos fetchers de
   `@myfinance/shared`) — não bata no axios direto em telas novas.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
-  cada entrada tem `{ id, path, element, template, isMainPath? }` com `element`/`template` como imports
-  `React.lazy`. As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`,
-  `auth`) e concatenadas em `src/router/routes/index.ts`, que também lança erro no carregamento do
+  cada entrada tem `{ id, path, element, template, isMainPath?, isPrivate?, isGuestOnly? }` com
+  `element` como import `React.lazy` **próprio da rota** (cada página só é montada uma vez mesmo, tudo
+  bem ter um `lazy()` por rota aqui) mas `template` **precisa vir de `src/router/routes/templates.ts`**
+  (`DefaultTemplate`/`AuthTemplate`, um `lazy()` só por template, reexportado) — nunca chame
+  `lazy(() => import('@/components/templates/...'))` direto dentro de um arquivo de grupo de rota.
+  **Motivo**: cada chamada de `lazy()` cria uma referência de componente nova pro React, mesmo
+  apontando pro mesmo arquivo; template chamado via `lazy()` separadamente em cada rota (ou pior,
+  em cada rota *dentro do mesmo grupo*, como `wallets/index.ts` tinha antes) faz o React tratar como
+  um componente diferente a cada navegação — desmontando e remontando o template inteiro (Sidebar,
+  BottomNav, qualquer state local deles) mesmo entre rotas que "deveriam" ficar estáveis. Sintoma bem
+  não óbvio: transições CSS que dependem de um valor de state mudar **dentro** de uma instância já
+  montada simplesmente nunca disparam (o componente sempre nasce já no estado final a cada remount) —
+  foi assim que a animação do botão central da bottom nav (abaixo) ficou "quebrada" até isso ser
+  descoberto.
+  As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`, `auth`,
+  `wallets`) e concatenadas em `src/router/routes/index.ts`, que também lança erro no carregamento do
   módulo se dois `id`s de rota colidirem. Pra adicionar rotas novas, estenda um desses arquivos de grupo
-  (ou crie um grupo novo e inclua no `Paths`). O `template` de cada rota (ex:
-  `components/templates/Auth`, `components/templates/Default`) envolve o layout/chrome da página.
-- `src/components` segue o padrão atoms/molecules/templates (sem organisms, diferente do mobile).
+  (ou crie um grupo novo e inclua no `Paths`).
+- **Padding lateral de página mora no template, não na página**: `components/templates/Default` tem
+  `container mx-auto px-4 py-6` (`pb-28` a mais no mobile, ver bottom nav abaixo) — isso é o que dá
+  espaçamento pras páginas que usam esse template (`Home`, `Carteiras`, `Convites`), nenhuma delas
+  precisa (nem deve) repetir isso na própria página. Já aconteceu de um "clean up" na `Home` remover
+  sem querer um `<div className='p-8'>` que a página tinha por conta própria — como o template não
+  fornecia padding nenhum na época, isso sumiu com o único respiro lateral que existia. Se alguma tela
+  nova parecer sem espaçamento, o lugar certo pra conferir é o template, não a página.
+- **Navegação** (`src/components/organisms/{NavLinks,Sidebar,BottomNav}`, `src/hooks/useNavItems`):
+  desktop usa `Sidebar` (lista colapsável, sem tratamento especial de ação central — só
+  `NavLinks` + toggle de colapsar); mobile usa `BottomNav`, uma "ilha" flutuante (`fixed`, não gruda na
+  borda) com até 3 destinos + botão de hambúrguer, mais uma ação central elevada (FAB) condicional por
+  rota. `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
+  (evita duplicar a lista em dois lugares) — inclui os destinos fixos, "Nova Carteira" (ação sempre
+  disponível, não amarrada a rota) e o toggle de tema/logout.
+  - `useNavItems` centraliza a lógica de "o que mostrar" separada da renderização — é a peça pensada
+    pra ficar fácil de portar pro mobile depois (lá a leitura da rota atual troca de `useLocation()`
+    do react-router-dom pra algo como `useRoute()` do React Navigation, mas a FORMA — destinos fixos +
+    uma ação central sensível a rota — deveria ficar igual). `centerAction` só existe (`!== null`) na
+    Início (`/`), que é sempre a visão da carteira selecionada no contexto (`useWallet()`, ainda não
+    implementado no web — ver nota de "próximos passos" abaixo); em qualquer outra rota o valor é
+    `null` e quem renderiza decide não mostrar nada elevado no lugar (não um espaço vazio reservado).
+  - O botão central da `BottomNav` fica **sempre montado** — anima `scale`/`opacity` (0↔100%) e o slot
+    ao redor anima `flex-grow` em vez de aparecer/sumir via `{condição && <div>}`, porque isso não dá
+    pra animar (não existe "de" um estado desmontado). Guarda a última ação conhecida num state local
+    só pra o ícone não sumir instantaneamente no meio da transição de saída.
+  - **Não tem animação de entrada na `BottomNav` em si** (barra inteira aparecendo/deslizando) —
+    tentamos com `tailwindcss-animate` (`animate-in slide-in-from-bottom-4`) e quebrou: a barra já usa
+    `-translate-x-1/2` (transform) pra se centralizar horizontalmente, e o `animate-in` do
+    `tailwindcss-animate` também controla `transform` durante toda a animação (seta
+    `translate3d(...) scale3d(...) rotate(...)` combinado, mesmo só usando `fade-in` sem slide/zoom
+    explícito) — os dois brigam pelo mesmo `transform` e o resultado visual é errado (parecia vir da
+    direita). Pra reintroduzir isso direito, precisaria separar a centralização (wrapper externo, sem
+    animação) do elemento que anima (interno, sem precisar de transform próprio).
+  - Ícones do hambúrguer usam `Popover` (`src/components/ui/popover.tsx`), não `Sheet`
+    (`src/components/ui/sheet.tsx`, criado primeiro mas trocado — o pedido era um menu "flutuante,
+    quase como uma tooltip saindo do botão", não um painel full-width vindo de baixo). O `Sheet` ficou
+    no repo como primitivo genérico pra outro uso futuro (ex: um filtro em tela cheia no mobile), não
+    está morto, só não é usado ainda.
+  - **`NavLink` sem a prop `end` casa por prefixo**: `/wallets` "contém" `/wallets/invites`, e pior,
+    `/` é prefixo de **qualquer** rota — sem `end`, o item "Início" ficaria sempre ativo em toda tela.
+    Todo `NavLink` renderizado a partir de `navItems` usa `end` (ver `NavLinks`/`BottomNav`) porque
+    nenhuma dessas rotas hoje tem sub-rota que precisaria do match por prefixo; se isso mudar no
+    futuro (uma rota pai com sub-rotas reais), reavaliar caso a caso, não remover `end` de todo mundo.
+  - **Conteúdo de `Popover`/`Sheet` (Radix) é renderizado num `Portal` direto no `<body>`**, fora da
+    árvore DOM de quem abriu — esconder o gatilho via CSS (`hidden md:flex`/`md:hidden`) não fecha um
+    popover/sheet que já estava aberto ao cruzar o breakpoint, ele fica "órfão" flutuando na tela
+    (não tem `md:hidden` nenhuma alcançando o conteúdo portado). Por isso `Sidebar`/`BottomNav` são
+    **desmontados de verdade** via `useMediaQuery('(min-width: 768px)')` (`src/hooks/useMediaQuery`)
+    em `DefaultTemplate`, não só escondidos via classe — desmontar o componente inteiro é a forma
+    confiável de garantir que nada portado sobrevive escondido.
+  - **Próximos passos conhecidos, ainda não implementados**: `useWallet()`/`WalletUserProvider`
+    (equivalente ao `context/wallet.tsx` do mobile) pra saber qual carteira está selecionada — é o que
+    a Início vai renderizar de fato, e o que torna `centerAction` ("Nova Transação") funcional de
+    verdade em vez de placeholder (`toast.info('Em breve')`); um seletor de carteira (`Select` do
+    shadcn — ainda não existe `ui/select.tsx`) dentro do `NavLinks`, espelhando o `Dropdown`
+    "Visualizando a carteira:" do `Sidebar` do mobile.
+- `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
+  navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via
   `vite-tsconfig-paths`). Imports absolutos `@/...` são obrigatórios por lint
   (`no-relative-import-paths/no-relative-import-paths`, `allowSameFolder: true`) — diferente do mobile,
