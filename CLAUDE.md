@@ -377,35 +377,40 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   `@myfinance/shared`) — não bata no axios direto em telas novas.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
   cada entrada tem `{ id, path, element, template, isMainPath?, isPrivate?, isGuestOnly? }` com
-  `element` como import `React.lazy` **próprio da rota** (cada página só é montada uma vez mesmo, tudo
-  bem ter um `lazy()` por rota aqui) mas `template` **precisa vir de `src/router/routes/templates.ts`**
-  (`DefaultTemplate`/`AuthTemplate`, um `lazy()` só por template, reexportado) — nunca chame
-  `lazy(() => import('@/components/templates/...'))` direto dentro de um arquivo de grupo de rota.
-  **Motivo**: cada chamada de `lazy()` cria uma referência de componente nova pro React, mesmo
-  apontando pro mesmo arquivo; template chamado via `lazy()` separadamente em cada rota (ou pior,
-  em cada rota *dentro do mesmo grupo*, como `wallets/index.ts` tinha antes) faz o React tratar como
-  um componente diferente a cada navegação — desmontando e remontando o template inteiro (Sidebar,
-  BottomNav, qualquer state local deles) mesmo entre rotas que "deveriam" ficar estáveis. Sintoma bem
-  não óbvio: transições CSS que dependem de um valor de state mudar **dentro** de uma instância já
-  montada simplesmente nunca disparam (o componente sempre nasce já no estado final a cada remount) —
-  foi assim que a animação do botão central da bottom nav (abaixo) ficou "quebrada" até isso ser
-  descoberto.
-  As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`, `auth`,
-  `wallets`) e concatenadas em `src/router/routes/index.ts`, que também lança erro no carregamento do
-  módulo se dois `id`s de rota colidirem. Pra adicionar rotas novas, estenda um desses arquivos de grupo
-  (ou crie um grupo novo e inclua no `Paths`).
+  `element`/`template` como **imports estáticos normais**, não `React.lazy`. As rotas são agrupadas por
+  feature em `src/router/routes/<grupo>` (atualmente `default`, `auth`, `wallets`) e concatenadas em
+  `src/router/routes/index.ts`, que também lança erro no carregamento do módulo se dois `id`s de rota
+  colidirem. Pra adicionar rotas novas, estenda um desses arquivos de grupo (ou crie um grupo novo e
+  inclua no `Paths`).
+  - **Histórico (pra não reintroduzir)**: chegou a existir `React.lazy()` por rota + um
+    `router/routes/templates.ts` só pra garantir uma referência de `lazy()` única por template (cada
+    chamada de `lazy()` cria uma referência de componente nova pro React, mesmo apontando pro mesmo
+    arquivo — chamar `lazy()` separadamente em cada rota fazia o React desmontar/remontar o template
+    inteiro a cada navegação, quebrando qualquer state local dele). Isso foi removido de vez, não só
+    corrigido: sem fallback de `<Suspense>`, trocar de rota mostrava tela em branco por um instante
+    enquanto baixava o chunk da página nova ("pisca" perceptível) — com o app ainda pequeno, o ganho de
+    code-splitting não compensa esse custo de UX. `router/routes/templates.ts` não existe mais;
+    `element`/`template` de cada rota são import direto (que já é singleton por módulo, sem truque
+    nenhum, e essa é a razão de ainda funcionar sem remount mesmo sem o `lazy()`).
 - **Padding lateral de página mora no template, não na página**: `components/templates/Default` tem
-  `container mx-auto px-4 py-6` (`pb-28` a mais no mobile, ver bottom nav abaixo) — isso é o que dá
-  espaçamento pras páginas que usam esse template (`Home`, `Carteiras`, `Convites`), nenhuma delas
-  precisa (nem deve) repetir isso na própria página. Já aconteceu de um "clean up" na `Home` remover
-  sem querer um `<div className='p-8'>` que a página tinha por conta própria — como o template não
-  fornecia padding nenhum na época, isso sumiu com o único respiro lateral que existia. Se alguma tela
-  nova parecer sem espaçamento, o lugar certo pra conferir é o template, não a página.
+  `container mx-auto px-4 py-6` — isso é o que dá espaçamento pras páginas que usam esse template
+  (`Home`, `Carteiras`, `Convites`), nenhuma delas precisa (nem deve) repetir isso na própria página.
+  Já aconteceu de um "clean up" na `Home` remover sem querer um `<div className='p-8'>` que a página
+  tinha por conta própria — como o template não fornecia padding nenhum na época, isso sumiu com o
+  único respiro lateral que existia. Se alguma tela nova parecer sem espaçamento, o lugar certo pra
+  conferir é o template, não a página.
 - **Navegação** (`src/components/organisms/{NavLinks,Sidebar,BottomNav}`, `src/hooks/useNavItems`):
   desktop usa `Sidebar` (lista colapsável, sem tratamento especial de ação central — só
-  `NavLinks` + toggle de colapsar); mobile usa `BottomNav`, uma "ilha" flutuante (`fixed`, não gruda na
-  borda) com até 3 destinos + botão de hambúrguer, mais uma ação central elevada (FAB) condicional por
-  rota. `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
+  `NavLinks` + toggle de colapsar); mobile usa `BottomNav`, **grudada na borda** (`relative`, parte do
+  fluxo normal do flex do `DefaultTemplate`, não `fixed`) com até 3 destinos + botão de hambúrguer, mais
+  uma ação central elevada (FAB) condicional por rota.
+  - **Histórico (pra não reintroduzir)**: chegou a existir uma versão flutuante (`fixed bottom-4`, com
+    margens e cantos arredondados, "ilha" separada da borda) — foi revertida porque exigia calcular um
+    `padding-bottom` exato no conteúdo rolável pra não tampar a última transação da lista, e esse
+    padding fica errado sempre que a altura da barra muda (ex: FAB condicional aparecendo/sumindo).
+    Docked, a barra reserva o próprio espaço no flex — fica estruturalmente impossível esconder
+    conteúdo atrás dela, então não existe padding nenhum pra manter sincronizado.
+  `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
   (evita duplicar a lista em dois lugares) — inclui os destinos fixos, "Nova Carteira" (ação sempre
   disponível, não amarrada a rota) e o toggle de tema/logout.
   - `useNavItems` centraliza a lógica de "o que mostrar" separada da renderização — é a peça pensada
@@ -419,14 +424,16 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     ao redor anima `flex-grow` em vez de aparecer/sumir via `{condição && <div>}`, porque isso não dá
     pra animar (não existe "de" um estado desmontado). Guarda a última ação conhecida num state local
     só pra o ícone não sumir instantaneamente no meio da transição de saída.
-  - **Não tem animação de entrada na `BottomNav` em si** (barra inteira aparecendo/deslizando) —
-    tentamos com `tailwindcss-animate` (`animate-in slide-in-from-bottom-4`) e quebrou: a barra já usa
-    `-translate-x-1/2` (transform) pra se centralizar horizontalmente, e o `animate-in` do
-    `tailwindcss-animate` também controla `transform` durante toda a animação (seta
+  - **Não tem animação de entrada na `BottomNav` em si** (barra inteira aparecendo/deslizando) — chegou
+    a ser tentado com `tailwindcss-animate` (`animate-in slide-in-from-bottom-4`) na época em que a
+    barra ainda era flutuante e usava `-translate-x-1/2` (transform) pra se centralizar horizontalmente;
+    quebrou porque o `animate-in` também controla `transform` durante toda a animação (seta
     `translate3d(...) scale3d(...) rotate(...)` combinado, mesmo só usando `fade-in` sem slide/zoom
-    explícito) — os dois brigam pelo mesmo `transform` e o resultado visual é errado (parecia vir da
-    direita). Pra reintroduzir isso direito, precisaria separar a centralização (wrapper externo, sem
-    animação) do elemento que anima (interno, sem precisar de transform próprio).
+    explícito), e os dois brigavam pelo mesmo `transform`. Esse conflito específico não existe mais
+    (a barra é docked, sem transform próprio nenhum), mas a lição geral fica: não misture
+    `animate-in`/`slide-in-from-*` do `tailwindcss-animate` com um `transform` estático no mesmo
+    elemento — separe centralização/posicionamento (wrapper externo, sem animação) do elemento que
+    anima (interno).
   - Ícones do hambúrguer usam `Popover` (`src/components/ui/popover.tsx`), não `Sheet`
     (`src/components/ui/sheet.tsx`, criado primeiro mas trocado — o pedido era um menu "flutuante,
     quase como uma tooltip saindo do botão", não um painel full-width vindo de baixo). O `Sheet` ficou
@@ -465,6 +472,11 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     (`react-day-picker` — único caso no repo, `date-fns` já era dependência do `packages/shared`,
     mesma versão `^3.6.0`, sem conflito) dentro de um `Popover` em vez de campo de data digitado à mão
     como o mobile.
+  - **Seletor de mês + barra de Saldo/Entrada/Saída são `sticky top-0 z-10`** dentro do container
+    rolável da `TransactionList`, com fundo opaco (`bg-background-light dark:bg-background-default`,
+    igual o fundo da página) pra não deixar a lista "passando por baixo" transparente. Sem isso o
+    usuário perdia de vista o mês/saldo ao rolar a lista pra baixo — precisava voltar ao topo pra
+    conferir de novo.
   - **Botão "Nova Transação" só aparece no header em telas `md:` pra cima** — no mobile o "+" da
     `BottomNav` já cobre essa ação (via `context/newTransactionDialog.tsx`, que sincroniza os dois
     porque vivem em ramos diferentes da árvore — a `BottomNav` mora no `DefaultTemplate`, o diálogo
@@ -488,6 +500,15 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     cola o modal nas bordas da tela inteira, sem nenhum arredondamento (só ganha isso a partir do
     desktop). Ajustado pra `w-[calc(100%-2rem)]` + `rounded-lg` sempre, dando a mesma margem/cantos em
     qualquer tamanho de tela — se usar esses primitivos em outro lugar, não reverta isso sem querer.
+  - **`useCurrentUserContext()`/`useWallet()` expõem `is_loading`** — nenhum dos dois expunha isso
+    originalmente, só `data`; quem consumia não tinha como distinguir "ainda carregando" de "carregou
+    e não tem nada", e a `TransactionList` chegou a disparar `useListTransactions` com `wallet_id: ''`
+    antes da carteira carregar (sem `enabled`), batendo na API errado antes de corrigir sozinho. O
+    `is_loading` da carteira usa `isFetched` da query (não só "ainda não tem dado"), pra não virar
+    loading infinito quando o usuário legitimamente não tem carteira nenhuma. Qualquer tela nova que
+    dependa de `current_user`/`user_wallet` deve conferir esse `is_loading` antes de assumir "vazio",
+    e qualquer `useQuery` cujo parâmetro dependa de outro dado assíncrono (ex: `wallet_id`) precisa do
+    `enabled` amarrado a esse dado, não só um fallback tipo `|| ''`.
 - `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
   navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via

@@ -1,15 +1,15 @@
-import { lazy } from 'react';
-
-import { DefaultTemplate } from '@/router/routes/templates';
+import HomePage from '@/pages/home';
 
 import { IPath } from '@/types';
+
+import DefaultTemplate from '@/components/templates/Default';
 
 export const DefaultPaths: IPath[] = [
 	{
 		id: 'home',
 		display: 'Início',
 		path: '/',
-		element: lazy(() => import('@/pages/home')),
+		element: HomePage,
 		template: DefaultTemplate,
 		isMainPath: true,
 		isPrivate: true,

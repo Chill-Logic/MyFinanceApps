@@ -1,7 +1,5 @@
 import useMediaQuery from '@/hooks/useMediaQuery';
 
-import { cn } from '@/lib/utils';
-
 import { ITemplateProps } from '@/types';
 
 import BottomNav from '@/components/organisms/BottomNav';
@@ -22,15 +20,22 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 		<div className='flex h-screen bg-background-light dark:bg-background-default transition-all duration-300'>
 			{is_desktop && <Sidebar />}
 
-			<main className='flex-1 overflow-auto'>
-				{/* pb-28 abre espaço pra "ilha" flutuante da BottomNav não tampar o fim do conteúdo
-				    no scroll — ela é `fixed`, não empurra o layout sozinha como um item de flex normal */}
-				<div className={cn('container mx-auto h-full px-4 py-6', !is_desktop && 'pb-28')}>
-					{children}
-				</div>
-			</main>
+			<div className='flex flex-1 flex-col overflow-hidden'>
+				<main className='flex-1 overflow-auto'>
+					<div className='container mx-auto h-full px-4 py-6'>
+						{children}
+					</div>
+				</main>
 
-			{!is_desktop && <BottomNav />}
+				{/*
+				 * Docked (não flutuante) de propósito — uma versão flutuante anterior (fixed + margem)
+				 * dependia de acertar um padding-bottom exato no conteúdo pra não tampar a última
+				 * transação da lista, e isso é frágil (a barra muda de altura com a ação central
+				 * condicional). Docked, ela reserva o próprio espaço no flex — impossível esconder
+				 * conteúdo por trás dela.
+				 */}
+				{!is_desktop && <BottomNav />}
+			</div>
 		</div>
 	);
 };
