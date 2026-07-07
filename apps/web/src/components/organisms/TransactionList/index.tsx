@@ -188,9 +188,16 @@ const TransactionList = () => {
 	);
 
 	return (
-		<div className='flex flex-col gap-4'>
-			{/* sticky: fica visível ao rolar a lista pra baixo, sem precisar procurar o mês/saldo de novo */}
-			<div className='sticky top-0 z-10 flex flex-col gap-4 bg-background-light pb-4 dark:bg-background-default'>
+		<div className='flex h-full flex-col gap-4'>
+			{/*
+			 * Fora da área rolável de propósito (não é mais `sticky`) — dentro de um único
+			 * scroll container compartilhado com o resto da página, `sticky` dependia da
+			 * altura exata da cadeia de ancestrais (`main`/`.container`) pra saber até onde
+			 * "grudar", e na prática o resumo saía de vista ao rolar em vez de ficar fixo.
+			 * Isolando a lista no próprio scroll container abaixo, o resumo nunca entra
+			 * na área que rola, então não tem ambiguidade nenhuma pra resolver.
+			 */}
+			<div className='flex flex-col gap-4'>
 				<div className='flex flex-wrap items-center justify-center gap-3 md:justify-between'>
 					<div className='flex items-center gap-2'>
 						<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
@@ -246,130 +253,132 @@ const TransactionList = () => {
 				</div>
 			</div>
 
-			{is_loading && (
-				<div className='flex flex-col gap-2'>
-					{Array.from({ length: 6 }).map((_, index) => (
-						<Skeleton key={index} className='h-14 w-full' />
-					))}
-				</div>
-			)}
-
-			{!is_loading && transactions.length === 0 && (
-				<div className='flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-10 text-center'>
-					<Receipt className='h-10 w-10 text-muted-foreground' />
-					<div className='flex flex-col gap-1'>
-						<span className='font-medium'>Nenhuma transação neste mês</span>
-						<span className='text-sm text-muted-foreground'>Registre uma entrada ou saída pra começar</span>
+			<div className='flex-1 overflow-y-auto'>
+				{is_loading && (
+					<div className='flex flex-col gap-2'>
+						{Array.from({ length: 6 }).map((_, index) => (
+							<Skeleton key={index} className='h-14 w-full' />
+						))}
 					</div>
-					<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!user_wallet.data?.id} className='gap-2'>
-						<Plus className='h-4 w-4' />
-						Adicionar transação
-					</Button>
-				</div>
-			)}
+				)}
 
-			{/* Desktop: tabela ordenável — dados tabulares combinam melhor com a largura disponível */}
-			{!is_loading && transactions.length > 0 && (
-				<div className='hidden rounded-lg border border-border md:block'>
-					<Table>
-						<TableHeader>
-							<TableRow className='hover:bg-transparent'>
-								<TableHead className='w-32'>
-									<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 hover:text-foreground'>
-										Data {renderSortIcon('transaction_date')}
-									</button>
-								</TableHead>
-								<TableHead>
-									<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 hover:text-foreground'>
-										Descrição {renderSortIcon('description')}
-									</button>
-								</TableHead>
-								<TableHead className='w-32'>
-									<button type='button' onClick={() => toggleSort('kind')} className='flex items-center gap-1 hover:text-foreground'>
-										Tipo {renderSortIcon('kind')}
-									</button>
-								</TableHead>
-								<TableHead className='w-40 text-right'>
-									<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 hover:text-foreground'>
-										Valor {renderSortIcon('value')}
-									</button>
-								</TableHead>
-								<TableHead className='w-12' />
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{sorted_transactions.map((transaction_item) => {
-								const is_deposit = transaction_item.kind === 'deposit';
+				{!is_loading && transactions.length === 0 && (
+					<div className='flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-10 text-center'>
+						<Receipt className='h-10 w-10 text-muted-foreground' />
+						<div className='flex flex-col gap-1'>
+							<span className='font-medium'>Nenhuma transação neste mês</span>
+							<span className='text-sm text-muted-foreground'>Registre uma entrada ou saída pra começar</span>
+						</div>
+						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!user_wallet.data?.id} className='gap-2'>
+							<Plus className='h-4 w-4' />
+							Adicionar transação
+						</Button>
+					</div>
+				)}
 
-								return (
-									<TableRow key={transaction_item.id}>
-										<TableCell className='text-muted-foreground'>
-											{format(new Date(transaction_item.transaction_date), 'dd/MM/yyyy')}
-										</TableCell>
-										<TableCell>
-											<div className='flex flex-col'>
-												<span className='font-medium'>{transaction_item.description}</span>
-												{transaction_item.user?.name && (
-													<span className='text-xs text-muted-foreground'>{transaction_item.user.name}</span>
-												)}
-											</div>
-										</TableCell>
-										<TableCell>
-											<div className='flex items-center gap-2'>
-												{renderKindIcon(transaction_item)}
-												{is_deposit ? 'Entrada' : 'Saída'}
-											</div>
-										</TableCell>
-										<TableCell className={cn('text-right font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
-											{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-										</TableCell>
-										<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
-									</TableRow>
-								);
-							})}
-						</TableBody>
-					</Table>
-				</div>
-			)}
-
-			{/* Mobile: cards agrupados por dia — tabela não funciona bem em tela estreita */}
-			{!is_loading && groups.length > 0 && (
-				<div className='flex flex-col gap-4 md:hidden pb-6'>
-					{groups.map((group) => (
-						<div key={group.label} className='flex flex-col gap-2'>
-							<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>
-
-							<div className='flex flex-col gap-2'>
-								{group.items.map((transaction_item) => {
+				{/* Desktop: tabela ordenável — dados tabulares combinam melhor com a largura disponível */}
+				{!is_loading && transactions.length > 0 && (
+					<div className='hidden rounded-lg border border-border md:block'>
+						<Table>
+							<TableHeader>
+								<TableRow className='hover:bg-transparent'>
+									<TableHead className='w-32'>
+										<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 hover:text-foreground'>
+											Data {renderSortIcon('transaction_date')}
+										</button>
+									</TableHead>
+									<TableHead>
+										<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 hover:text-foreground'>
+											Descrição {renderSortIcon('description')}
+										</button>
+									</TableHead>
+									<TableHead className='w-32'>
+										<button type='button' onClick={() => toggleSort('kind')} className='flex items-center gap-1 hover:text-foreground'>
+											Tipo {renderSortIcon('kind')}
+										</button>
+									</TableHead>
+									<TableHead className='w-40 text-right'>
+										<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 hover:text-foreground'>
+											Valor {renderSortIcon('value')}
+										</button>
+									</TableHead>
+									<TableHead className='w-12' />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{sorted_transactions.map((transaction_item) => {
 									const is_deposit = transaction_item.kind === 'deposit';
 
 									return (
-										<div
-											key={transaction_item.id}
-											className='flex items-center gap-3 rounded-xl border border-border bg-card p-3'
-										>
-											{renderKindIcon(transaction_item)}
-
-											<div className='flex flex-1 flex-col overflow-hidden'>
-												<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
-												{transaction_item.user?.name && (
-													<span className='truncate text-xs text-muted-foreground'>{transaction_item.user.name}</span>
-												)}
-											</div>
-
-											<span className={cn('text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
+										<TableRow key={transaction_item.id}>
+											<TableCell className='text-muted-foreground'>
+												{format(new Date(transaction_item.transaction_date), 'dd/MM/yyyy')}
+											</TableCell>
+											<TableCell>
+												<div className='flex flex-col'>
+													<span className='font-medium'>{transaction_item.description}</span>
+													{transaction_item.user?.name && (
+														<span className='text-xs text-muted-foreground'>{transaction_item.user.name}</span>
+													)}
+												</div>
+											</TableCell>
+											<TableCell>
+												<div className='flex items-center gap-2'>
+													{renderKindIcon(transaction_item)}
+													{is_deposit ? 'Entrada' : 'Saída'}
+												</div>
+											</TableCell>
+											<TableCell className={cn('text-right font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
 												{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-											</span>
-
-											{renderActionsMenu(transaction_item)}
-										</div>
+											</TableCell>
+											<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
+										</TableRow>
 									);
 								})}
+							</TableBody>
+						</Table>
+					</div>
+				)}
+
+				{/* Mobile: cards agrupados por dia — tabela não funciona bem em tela estreita */}
+				{!is_loading && groups.length > 0 && (
+					<div className='flex flex-col gap-4 md:hidden'>
+						{groups.map((group) => (
+							<div key={group.label} className='flex flex-col gap-2'>
+								<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>
+
+								<div className='flex flex-col gap-2'>
+									{group.items.map((transaction_item) => {
+										const is_deposit = transaction_item.kind === 'deposit';
+
+										return (
+											<div
+												key={transaction_item.id}
+												className='flex items-center gap-3 rounded-xl border border-border bg-card p-3'
+											>
+												{renderKindIcon(transaction_item)}
+
+												<div className='flex flex-1 flex-col overflow-hidden'>
+													<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
+													{transaction_item.user?.name && (
+														<span className='truncate text-xs text-muted-foreground'>{transaction_item.user.name}</span>
+													)}
+												</div>
+
+												<span className={cn('text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
+													{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
+												</span>
+
+												{renderActionsMenu(transaction_item)}
+											</div>
+										);
+									})}
+								</div>
 							</div>
-						</div>
-					))}
-				</div>
-			)}
+						))}
+					</div>
+				)}
+			</div>
 
 			<TransactionFormDialog
 				open={isFormOpen}

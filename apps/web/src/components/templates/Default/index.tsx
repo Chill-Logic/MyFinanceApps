@@ -17,7 +17,14 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	const is_desktop = useMediaQuery('(min-width: 768px)');
 
 	return (
-		<div className='flex h-screen bg-background-light dark:bg-background-default transition-all duration-300'>
+		/*
+		 * `h-dvh`, não `h-screen`: no mobile, `100vh` inclui a área coberta pela barra de
+		 * endereço do navegador mesmo quando ela está visível, deixando o layout mais alto
+		 * que o viewport realmente exibido — a BottomNav ficava empurrada pra fora da área
+		 * visível, só aparecendo depois de rolar a página inteira até o fim. `dvh` (dynamic
+		 * viewport height) acompanha o tamanho real e visível do viewport.
+		 */
+		<div className='flex h-dvh bg-background-light dark:bg-background-default transition-all duration-300'>
 			{is_desktop && <Sidebar />}
 
 			<div className='flex flex-1 flex-col overflow-hidden'>
