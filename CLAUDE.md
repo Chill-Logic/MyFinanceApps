@@ -455,6 +455,28 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     "só ícone" que faça sentido). `centerAction`/`newWalletAction` continuam placeholder
     (`toast.info('Em breve')`) — o contexto da carteira existe agora, mas criar carteira/transação de
     verdade ainda é o próximo fluxo, não esse.
+  - **Transações na Home** (`organisms/TransactionList`, `TransactionFormDialog`) — lista as transações
+    da carteira selecionada (`useWallet()`), com seletor de mês (setas + rótulo, sem modal como o
+    mobile tinha), uma barra leve de Saldo/Entrada/Saída (nada de card grande com número gigante — isso
+    já foi tentado e destoava do resto, ficou "bruto" — o mobile faz isso como texto simples lado a
+    lado, sem caixa, e é essa referência que vale seguir), lista agrupada por dia ("Hoje"/"Ontem"/data),
+    ícone de seta por tipo (`deposit`/`withdraw`), menu de ações (`DropdownMenu`) por transação e
+    confirmação de exclusão via `AlertDialog`. Formulário de nova/editar transação usa `Calendar`
+    (`react-day-picker` — único caso no repo, `date-fns` já era dependência do `packages/shared`,
+    mesma versão `^3.6.0`, sem conflito) dentro de um `Popover` em vez de campo de data digitado à mão
+    como o mobile.
+  - **Botão "Nova Transação" só aparece no header em telas `md:` pra cima** — no mobile o "+" da
+    `BottomNav` já cobre essa ação (via `context/newTransactionDialog.tsx`, que sincroniza os dois
+    porque vivem em ramos diferentes da árvore — a `BottomNav` mora no `DefaultTemplate`, o diálogo
+    mora dentro da `Home`); duplicar o botão ali seria redundante.
+  - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
+    mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
+    pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Desktop ainda não tem tabela** — a lista de transações usa o mesmo componente (cards agrupados
+    por dia) em qualquer tamanho de tela; a ideia é trocar pra uma tabela (`ui/table.tsx` do shadcn,
+    sem lib nova — `react-data-table-component` já é uma dependência do projeto mas tem motor de
+    estilo próprio que não usa os tokens daqui, ficaria destoante) só no desktop, mantendo os cards
+    agrupados por dia no mobile (tabela não funciona bem em tela estreita).
 - `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
   navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via

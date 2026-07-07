@@ -4,6 +4,8 @@ import { Mail, Plus, Wallet as WalletIcon, Home, type LucideIcon } from 'lucide-
 
 import useToast from '@/hooks/useToast';
 
+import { useNewTransactionDialog } from '@/context/newTransactionDialog';
+
 export type TNavItem = {
 	id: string;
 	label: string;
@@ -34,6 +36,7 @@ const NAV_ITEMS: TNavItem[] = [
 export const useNavItems = () => {
 	const { pathname } = useLocation();
 	const { toast } = useToast();
+	const { setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
 	/**
 	 * "Nova Carteira" não é sensível a rota — sempre acessível (menu + dentro da própria
@@ -58,7 +61,7 @@ export const useNavItems = () => {
 			id: 'new_transaction',
 			label: 'Nova Transação',
 			icon: Plus,
-			onClick: () => toast.info('Em breve'),
+			onClick: () => setIsNewTransactionOpen(true),
 		}
 		: null;
 
