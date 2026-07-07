@@ -444,12 +444,17 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
     **desmontados de verdade** via `useMediaQuery('(min-width: 768px)')` (`src/hooks/useMediaQuery`)
     em `DefaultTemplate`, não só escondidos via classe — desmontar o componente inteiro é a forma
     confiável de garantir que nada portado sobrevive escondido.
-  - **Próximos passos conhecidos, ainda não implementados**: `useWallet()`/`WalletUserProvider`
-    (equivalente ao `context/wallet.tsx` do mobile) pra saber qual carteira está selecionada — é o que
-    a Início vai renderizar de fato, e o que torna `centerAction` ("Nova Transação") funcional de
-    verdade em vez de placeholder (`toast.info('Em breve')`); um seletor de carteira (`Select` do
-    shadcn — ainda não existe `ui/select.tsx`) dentro do `NavLinks`, espelhando o `Dropdown`
-    "Visualizando a carteira:" do `Sidebar` do mobile.
+  - **Escopo de carteira** (`context/wallet.tsx`, `WalletUserProvider`/`useWallet()`) — equivalente ao
+    `context/wallet.tsx` do mobile, mesmo padrão: busca a carteira principal
+    (`hooks/api/wallets/useGetMainWallet`) assim que existe token + usuário carregado, guarda em
+    `user_wallet`. `organisms/WalletSwitcher` (`Select` do shadcn, `ui/select.tsx`) é o equivalente do
+    `Dropdown` "Visualizando a carteira:" do `Sidebar` do mobile — fica dentro do `NavLinks`
+    (aparece no Sidebar e no popover do hambúrguer de graça), alimentado por
+    `hooks/api/wallets/useIndexWallets`, escrevendo em `setUserWallet` ao trocar. Só renderiza quando
+    `showLabels` é `true` (escondido com o Sidebar colapsado — um `Select` não tem um modo
+    "só ícone" que faça sentido). `centerAction`/`newWalletAction` continuam placeholder
+    (`toast.info('Em breve')`) — o contexto da carteira existe agora, mas criar carteira/transação de
+    verdade ainda é o próximo fluxo, não esse.
 - `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
   navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via

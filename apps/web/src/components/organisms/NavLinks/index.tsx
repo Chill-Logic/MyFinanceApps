@@ -8,6 +8,8 @@ import { useCurrentUserContext } from '@/context/current_user';
 import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
+import WalletSwitcher from '@/components/organisms/WalletSwitcher';
+
 interface IProps {
 	onNavigate?: ()=> void;
 	showLabels?: boolean;
@@ -22,6 +24,13 @@ const NavLinks = ({ onNavigate, showLabels = true }: IProps) => {
 
 	return (
 		<nav className='flex flex-col gap-1'>
+			{showLabels && (
+				<>
+					<WalletSwitcher />
+					<div className='my-2 border-t border-border' />
+				</>
+			)}
+
 			{navItems.map(({ id, label, path, icon: Icon }) => (
 				<NavLink
 					key={id}

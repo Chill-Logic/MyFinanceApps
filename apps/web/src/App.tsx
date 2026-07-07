@@ -4,6 +4,7 @@ import { Router } from './router';
 
 import CurrentUserProvider from '@/context/current_user';
 import ThemeProvider from '@/context/theme';
+import WalletUserProvider from '@/context/wallet';
 
 import Toaster from '@/components/ui/sonner';
 
@@ -21,8 +22,10 @@ function App() {
 		<QueryClientProvider client={queryClient}>
 			<ThemeProvider>
 				<CurrentUserProvider>
-					<Router/>
-					<Toaster />
+					<WalletUserProvider>
+						<Router/>
+						<Toaster />
+					</WalletUserProvider>
 				</CurrentUserProvider>
 			</ThemeProvider>
 		</QueryClientProvider>
