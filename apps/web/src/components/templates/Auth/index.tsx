@@ -1,29 +1,37 @@
-import { useEffect } from 'react';
-
 import classNames from 'classnames';
+import { Moon, Sun } from 'lucide-react';
 
 import logo from '@/assets/Logo Full MyFinance Cortada.png';
 
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@/context/theme';
 
 import { ITemplateProps } from '@/types';
 
-const AuthTemplate = ({ children }: ITemplateProps) => {
-	const { toggleTheme, theme } = useTheme({ prevent_storage: true });
+import Button from '@/components/atoms/Button';
 
-	useEffect(() => {
-		if(theme === 'dark') toggleTheme();
-	}, []);
+const AuthTemplate = ({ children }: ITemplateProps) => {
+	const { theme, toggleTheme } = useTheme();
 
 	return (
-		<div 
+		<div
 			className={
 				classNames(
-					'h-screen overflow-auto py-8 transition-all duration-300',
+					'relative h-screen overflow-auto py-8 transition-all duration-300',
 					'bg-background-light dark:bg-background-default'
 				)
 			}
 		>
+			<Button
+				type='button'
+				variant='secondary'
+				size='icon'
+				className='fixed right-4 top-4'
+				onClick={toggleTheme}
+				aria-label='Alternar tema'
+			>
+				{theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
+			</Button>
+
 			<div className='flex flex-col w-full min-h-full items-center justify-center'>
 				<div className='w-[300px]'>
 					<img src={logo} alt='logo' className='mb-14' />

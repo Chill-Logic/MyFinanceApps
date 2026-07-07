@@ -371,8 +371,10 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
 
 - A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do
   `@tanstack/react-query`, mesma versão pinada do mobile (`5.80.6`) — os dois apps estão alinhados
-  aqui. Ainda não existe nenhuma tela no web consumindo dados via hook; quando isso começar, use os
-  fetchers de `@myfinance/shared` (ver seção do mobile acima) em vez de bater no axios direto.
+  aqui, seguido de `ThemeProvider` (`src/context/theme.tsx`) e `CurrentUserProvider`
+  (`src/context/current_user.tsx`). O fluxo de auth (`sign-in`/`sign-up`/home) já consome dados via
+  hook (`src/hooks/api/...`, mesmo padrão do mobile: wrapper fino em cima dos fetchers de
+  `@myfinance/shared`) — não bata no axios direto em telas novas.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
   cada entrada tem `{ id, path, element, template, isMainPath? }` com `element`/`template` como imports
   `React.lazy`. As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`,
@@ -385,9 +387,75 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   `vite-tsconfig-paths`). Imports absolutos `@/...` são obrigatórios por lint
   (`no-relative-import-paths/no-relative-import-paths`, `allowSameFolder: true`) — diferente do mobile,
   aqui um import relativo (`../../foo`) fora da mesma pasta falha no lint.
-- Estilização é Tailwind CSS + `@material-tailwind/react`; os design tokens ficam em `src/util`
-  (`Tokens`, referenciado por `src/types/index.ts` pra `TFontSize`/`TColor`/etc.). i18n via
-  `i18next`/`react-i18next`.
+- Estilização é Tailwind CSS + shadcn/ui (`@material-tailwind/react` foi removido — instalado mas
+  nunca usado em nenhum componente, e o preset dele conflitava com o do shadcn); os design tokens
+  "de app" (spacing, fontSize, etc.) ficam em `src/util` (`Tokens`, referenciado por
+  `src/types/index.ts` pra `TFontSize`/`TColor`/etc.). i18n via `i18next`/`react-i18next`.
+- **shadcn/ui**: `components.json` configura o CLI (`npx shadcn add <componente>` funciona direto,
+  sem precisar reconfigurar nada), `src/lib/utils.ts` tem o `cn()` (clsx + tailwind-merge). Os
+  primitivos ficam em `src/components/ui/*` (`button`, `input`, `label`, `checkbox`, `sonner`) — **eles
+  nunca são importados diretamente por página/feature**, só pelos átomos em
+  `src/components/atoms/*` (`Button`, `TextInput`), que são wrappers finos por cima. Ícones são
+  `lucide-react` (usado direto por páginas/componentes, não precisa de wrapper — já é a lib que o
+  shadcn usa internamente nos próprios componentes, então dá pra misturar sem gerar inconsistência
+  visual). Toast é `sonner` (trocou `react-toastify`), sempre através do hook `src/hooks/useToast`
+  (nunca `import { toast } from 'sonner'` direto numa página).
+- **Tema (light/dark)**: `src/context/theme.tsx` (`ThemeProvider`/`useTheme()`) é a única fonte de
+  verdade — antes existia um hook `useTheme` ad-hoc que criava um `useState` local por componente,
+  sincronizado só via `localStorage` lido no mount; qualquer toggle ficava "preso" ao componente que
+  clicou, sem refletir em outros lugares até um reload. Se precisar ler/trocar o tema em código novo,
+  sempre consuma o contexto, nunca reimplemente um state local pra isso.
+  - As variáveis CSS do shadcn (`--background`, `--primary`, `--secondary`, etc., em
+    `src/styles/index.css`, dentro de `:root`/`.dark`) são a paleta de marca de
+    `packages/shared/src/tokens.ts` **convertida pra HSL** (não é uma paleta nova) — se adicionar um
+    token de marca novo lá, recalcule o HSL e adicione aqui também, os dois lados não sincronizam
+    sozinhos.
+  - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
+    texto sem cor explícita (ex: `Label` do shadcn, que não define cor própria de propósito) herda o
+    preto padrão do browser em vez de acompanhar o tema — foi exatamente isso que quebrou as labels
+    dos inputs e do "manter conectado" na primeira versão do dark mode aqui.
+  - Ao adicionar uma paleta de cor nova (ex: `--secondary` de um tema), confira que ela não fique
+    visualmente parecida com `--primary`/`--accent` — já erramos isso uma vez usando `brand-tertiary`
+    (outro tom de verde) como `--secondary` do dark mode, fazendo os botões "Entrar" (primary) e
+    "Cadastre-se" (secondary) ficarem quase idênticos.
+  - **Telas de auth também precisam do toggle de tema** (`components/templates/Auth` tem o botão) —
+    existia um `useEffect` ali que forçava tema claro escondido sempre que a página montava; foi
+    removido, mas se voltar a implementar um template novo, não reintroduza esse tipo de forçamento.
+- **shadcn/sonner e classes Tailwind não se misturam bem pra cor**: o `sonner` aplica
+  background/borda/texto via `[data-sonner-toast][data-styled='true']` (dois seletores de atributo,
+  especificidade maior que qualquer classe Tailwind isolada) — `toastOptions.classNames` pra cor
+  **nunca vence** essa guerra de especificidade, não adianta tentar de novo com hex direto ou
+  `!important` na classe. As cores por tipo (`success`/`error`/etc.) também só existem sob
+  `[data-rich-colors='true']`, que precisa da prop `richColors` no `<Toaster>`. O jeito certo (já
+  implementado em `src/components/ui/sonner.tsx`) é sobrescrever as **variáveis CSS** que o próprio
+  sonner lê (`--normal-bg`, `--success-bg`, etc.) via `style` inline no `<Toaster>`, apontando pros
+  tokens `--toast-*` de `index.css`.
+- **React duplicado no monorepo afeta qualquer pacote hoisted na raiz, não só `react-router`**: o
+  problema documentado acima, na seção do mobile, pro `react-router-dom` (dedupe do npm pro React 19
+  do mobile em vez do React 18 do web) se repete pra **qualquer** pacote hoisted que dependa de React
+  como peer —
+  já apareceu de novo com `lucide-react` e os pacotes `@radix-ui/*` (usados pelos primitivos do
+  shadcn), sempre com o mesmo sintoma: erro de tipo tipo "X cannot be used as a JSX component" no
+  editor/`tsc`, mesmo com `npm run webapp:build` passando limpo. A causa: o editor e um `tsc` direto
+  usam `tsconfig.json`, que tem um redirect de tipos (`paths`: `react`/`react-dom` →
+  `../node_modules/@types/react`/`@types/react-dom`, a cópia local do `apps/web`) — mas esse mesmo
+  redirect quebraria o Vite em runtime se ele enxergasse (`@types/react` não é um pacote executável).
+  Por isso existe um `tsconfig.vite.json` separado (mesmo arquivo, sem esse redirect) e
+  `vite.config.ts` aponta `vite-tsconfig-paths({ projects: ['tsconfig.vite.json'] })` pra ele —
+  **não delete `tsconfig.vite.json` nem mova o redirect de volta pro `tsconfig.json` compartilhado sem
+  entender esse split**. `vite.config.ts` também tem `resolve.dedupe: ['react', 'react-dom']`, que
+  cobre a duplicação em runtime (bundle), separado do problema de tipos.
+- **Zumbi do Vite no Windows pode travar o cache** (`apps/web/node_modules/.vite`): `npm run
+  webapp:dev` roda via `cmd.exe /d /s /c vite --host` — um `Ctrl+C` no terminal nem sempre mata o
+  processo `esbuild` que o Vite mantém rodando em segundo plano (encadeamento
+  cmd.exe→node→esbuild.exe), sobretudo se você reinicia rápido no mesmo terminal. O zumbi segura um
+  lock de arquivo em `node_modules/.vite/deps` (nome fixo, não muda por tentativa), e qualquer
+  instância nova do Vite falha ao tentar renomear sua própria pasta temporária pra esse nome —
+  sintoma: erro tipo `Uncaught SyntaxError: ... does not provide an export named 'X'` depois de uma
+  mudança que não tem nada a ver com isso, e/ou pastas `deps_temp_*` órfãs (sem nenhuma `deps` final)
+  dentro de `node_modules/.vite`. Diagnóstico: `netstat -ano | findstr :5173` (ou a porta em uso) pra
+  achar o PID, `taskkill /PID <pid> /F /T` (o `/T` mata a árvore inteira, não só o processo pai), aí
+  sim limpar `node_modules/.vite` e subir de novo.
 - `@casl/ability` está instalado mas ainda não está integrado em nenhum componente — não existe lógica
   de permissão/ability ainda, caso você procure por isso.
 - `src/types/index.ts` reexporta tudo de `@myfinance/shared` junto com os tipos próprios de UI deste
@@ -415,3 +483,5 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
 
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
+- Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os
+  dois antes de considerar uma tela pronta, não só o layout desktop.

@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Fragment } from 'react/jsx-runtime';
 
+import { RouteGuard } from './guards';
 import { Paths } from './routes';
 
 export const Router = () => {
@@ -12,20 +12,23 @@ export const Router = () => {
 					Paths.map(({
 						path,
 						element: Element,
-						template: Template
+						template: Template,
+						isPrivate,
+						isGuestOnly,
 					}) => (
-						<Fragment key={path}>
-							<Route
-								path={path}
-								element={
-									<Suspense>
-										<Template>
+						<Route
+							key={path}
+							path={path}
+							element={
+								<Suspense>
+									<Template>
+										<RouteGuard isPrivate={isPrivate} isGuestOnly={isGuestOnly}>
 											<Element />
-										</Template>
-									</Suspense>
-								}
-							/>
-						</Fragment>
+										</RouteGuard>
+									</Template>
+								</Suspense>
+							}
+						/>
 					))
 				}
 			</Routes>

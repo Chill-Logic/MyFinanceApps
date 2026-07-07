@@ -2,6 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { Router } from './router';
 
+import CurrentUserProvider from '@/context/current_user';
+import ThemeProvider from '@/context/theme';
+
+import Toaster from '@/components/ui/sonner';
+
 export const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
@@ -14,7 +19,12 @@ export const queryClient = new QueryClient({
 function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<Router/>
+			<ThemeProvider>
+				<CurrentUserProvider>
+					<Router/>
+					<Toaster />
+				</CurrentUserProvider>
+			</ThemeProvider>
 		</QueryClientProvider>
 	);
 }
