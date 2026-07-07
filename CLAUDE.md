@@ -367,6 +367,142 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   gerado pelo Expo prebuild não declara esse atributo; se algum artefato visual parecido reaparecer em
   builds novos, esse é o primeiro lugar a checar.
 
+**Port das melhorias de navegação/transações do apps/web pro mobile** (2026-07-07): depois de construir
+bottom nav, layout com header fixo e UX de transações no web, essas peças foram portadas pro mobile —
+adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobile que o web tem.
+- **`components/organisms/BottomNav`** (novo) — **substitui o `Header` (nome da carteira + engrenagem
+  de configurações + logout) e o `Sidebar` em drawer lateral que existiam antes**, ambos removidos
+  (`organisms/Header` e `organisms/Sidebar` deletados por completo, não sobrou nada usando eles). 5
+  posições, igual o web: Início, Convites, FAB central elevado (Nova Transação, só na Home), Carteiras,
+  e um 5º botão de hambúrguer — a primeira versão desse port tinha ficado só com 3 destinos + FAB,
+  assumindo (errado) que o hambúrguer do `Header` antigo já cobria a função; como o `Header` também
+  precisava sumir (o web não tem nada equivalente fixo no topo), essa lacuna só apareceu depois. Nasce
+  **docked** desde o início (o web só chegou nesse formato depois de reverter uma versão flutuante que
+  escondia a última transação da lista — aqui não reproduzimos esse erro).
+  - `hooks/useNavItems.ts` (novo) espelha a mesma FORMA do equivalente em `apps/web`
+    (`hooks/useNavItems`), só troca `useLocation()` do react-router-dom por `useNavigationState()` do
+    React Navigation. Não portamos `newWalletAction`: no mobile "Nova Carteira" já é um fluxo real
+    (`WalletFormModal`), diferente do placeholder ("Em breve") que o web ainda tem.
+  - `context/newTransactionDialog.tsx` (novo, mesmo padrão do web) sincroniza o FAB da `BottomNav`
+    (vive no `AuthenticatedLayout`) com o modal de nova transação (vive dentro do `TransactionList`) —
+    ramos diferentes da árvore, sem esse contexto um não teria como acionar o outro.
+  - **`components/organisms/NavMenu`** (novo) é o menu flutuante aberto pelo hambúrguer — equivalente
+    ao `NavLinks` dentro do `Popover` do web (`side='top' align='end'`), não um drawer de tela inteira:
+    um `Modal transparent` com backdrop tocável (fecha ao tocar fora) e um card ancorado no canto
+    inferior direito, perto do próprio botão que abriu. Reúne o que antes estava espalhado entre
+    `Header` e `Sidebar`: nome/e-mail do usuário + refresh manual (topo), wallet switcher (`Dropdown`,
+    "Visualizando a carteira"), os mesmos 3 destinos da `BottomNav` (igual o web duplica os destinos
+    dentro do `NavLinks` do popover), Nova Carteira, Configurações (assumiu a navegação que era do
+    ícone de engrenagem do `Header`) e Sair (assumiu o ícone de logout do `Header`), com a versão do
+    app no rodapé.
+  - **FAB com a mesma animação de "redistribuição" do web**: lá, o slot central anima `flex-grow`
+    (`transition-[flex-grow]`) quando `centerAction` vira `null`, encolhendo a largura do slot e não só
+    a opacidade/escala do botão — os outros itens da barra se reaproximam de verdade, não é só o ícone
+    que desaparece no lugar. Portado com dois `Animated.Value` em paralelo (`Animated.parallel`): um pra
+    escala/opacidade do botão (`useNativeDriver: true`) e outro pra largura do slot (`useNativeDriver:
+    false` — `width` não anima no driver nativo).
+    - **O FAB precisa ser `position: 'absolute'` dentro do slot** (`fabAnchor`: `top: -22, left: 0,
+      right: 0, alignItems: 'center'`), **não** um filho normal com `marginTop` negativo pra "subir" —
+      chegamos a implementar assim (mais parecido com um hack rápido) e deu dois problemas em sequência:
+      (1) com `overflow: 'hidden'` no slot pra conter a animação de largura, a parte elevada do botão
+      (que "vaza" pra cima via a margem negativa) ficava cortada; (2) tirando o `overflow: 'hidden'` pra
+      resolver isso, sobrava uma faixa vazia em cima da barra inteira, porque um filho em fluxo normal
+      com margem negativa ainda conta (de forma estranha) pra altura automática do slot, esticando a
+      altura de toda a `nav` além do necessário. `position: 'absolute'` tira o botão do fluxo por
+      completo — o slot fica com altura zero (não contribui em nada pra altura da barra, que passa a
+      ser ditada só pelos outros itens) e o botão flutua livre por cima, sem empurrar nada.
+  - Integrado no `AuthenticatedLayout` como irmão do `ThemedView` de conteúdo (fora da área que rola),
+    reservando o próprio espaço no `flex` — mesma garantia estrutural do docked do web, "impossível
+    esconder conteúdo atrás dela".
+- **`TransactionList`**: layout dividido em bloco fixo (seletor de mês + resumo Saldo/Entrada/Saída,
+  saldo movido pra cima do resumo, igual o web) e `SectionList` com `flex: 1` logo abaixo — troca do
+  hack antigo (`FlatList` com `maxHeight: '95%'`) por um flex de verdade, mesmo princípio do fix de
+  scroll do web (só a lista rola, o resto fica fixo). O botão "Novo Registro" de largura total que
+  existia no rodapé foi **removido** — o FAB da `BottomNav` já cobre essa ação (mesmo raciocínio do
+  botão "Nova Transação" do web, escondido no mobile web por causa da bottom nav).
+  - **Agrupamento por dia** ("Hoje"/"Ontem"/data) via `SectionList` (trocou o `FlatList` plano). O
+    rótulo do dia usa um array próprio de nomes de mês em português (`MONTHS_LOWER`), não `date-fns`
+    direto nem `DateUtils.formateTo` — esse último não aceita locale, e sem isso o mês saía em inglês
+    (`"6 de July"`). Mesmo padrão hardcoded que `MonthYearSelector` já usava pros nomes de mês.
+  - **Ícone de seta colorido por tipo** (`arrow-upward`/`arrow-downward`, `@expo/vector-icons`), círculo
+    verde/vermelho com os tokens `feedback-success-*`/`feedback-danger-*` — antes só a cor do valor
+    monetário indicava o tipo.
+  - **Menu de ações (Editar/Excluir)**: botão "..." por item abre um `Modal` estilo bottom sheet com as
+    duas opções, substituindo o link de texto solto "Excluir" que ficava sempre visível. A confirmação
+    de exclusão continua via `Alert.alert` nativo (já era idiomático pro RN, não precisou virar dialog
+    customizado como no web).
+  - **Estado vazio ganhou CTA** ("Adicionar transação", abre o mesmo modal via contexto) — antes era só
+    uma mensagem de texto sem nenhuma ação.
+  - `ItemSeparatorComponent`/`SectionSeparatorComponent` do `SectionList` precisam ser referências
+    estáveis (componentes definidos fora do corpo do componente), não arrow functions inline — senão
+    o `react-hooks`/`react/no-unstable-nested-components` acusa (nova referência a cada render).
+  - **Trocar de mês arrastando a lista pros lados** (vantagem mobile, sem equivalente no web) — mesma
+    ação das setinhas do `MonthYearSelector`, só que via gesto. Implementado com `PanResponder` (nativo
+    do React Native, sem dependência nova) em vez de `react-native-gesture-handler` — esse último já é
+    dependência do projeto (via `@react-navigation`/`react-native-screens`), mas nunca foi configurado
+    (precisaria de um `GestureHandlerRootView` envolvendo o app inteiro, em `App.tsx`, algo maior pra
+    validar sem dispositivo em mãos). `onMoveShouldSetPanResponder` só assume o gesto quando o arrasto é
+    claramente mais horizontal que vertical (`Math.abs(dx) > Math.abs(dy) * 2`), pra não competir com o
+    scroll vertical da própria `SectionList` por baixo.
+    - **Arrasto anima de verdade, não só troca o mês no solto do dedo**: o conteúdo da lista
+      (`Animated.View` envolvendo skeleton/estado vazio/`SectionList`) segue o dedo em tempo real via
+      `Animated.event` no `onPanResponderMove`, e ao soltar passando do limiar desliza pra fora na
+      mesma direção do arrasto, troca o mês, reaparece do lado oposto e desliza de volta ao centro —
+      efeito de "página" entrando, não uma troca seca. **Todas** as animações desse `Animated.Value`
+      (arrasto, snap-back, slide de saída/entrada) usam `useNativeDriver: false`, mesmo as que
+      poderiam rodar no driver nativo (snap-back/slide) — a RN não deixa misturar driver nativo e JS
+      no mesmo `Animated.Value` entre chamadas diferentes, e o arrasto em si é obrigatoriamente
+      JS-driven (`onPanResponderMove` precisa ler `gestureState.dx`, que só existe em JS). `overflow:
+      'hidden'` no container pai evita que o conteúdo saindo/entrando vaze horizontalmente durante a
+      animação.
+    - **`changeMonth` precisa usar a forma funcional do `setState`** (`setMonthYearSelectorValues(prev
+      => ...)`), não ler `month_year_selector_values` como variável comum. Motivo não óbvio: o
+      `pan_responder` é criado uma única vez via `useRef(PanResponder.create({...})).current` — os
+      callbacks (`onPanResponderMove`/`onPanResponderRelease`) ficam "congelados" com as closures do
+      primeiro render pra sempre, já que `useRef` descarta os argumentos de renders seguintes. Com
+      `changeMonth` lendo o state direto, todo arrasto recalculava "mês do primeiro render ± 1" (ex:
+      sempre "julho ± 1"), nunca "mês atual ± 1" — sintoma: arrastar pra frente repetidas vezes ficava
+      preso alternando entre só dois meses (agosto/junho a partir de julho), nunca avançava de verdade.
+      A forma funcional (`prev => ...`) não depende de closure nenhuma — `setState` sempre invoca o
+      updater com o estado mais recente de verdade, não importa de qual render a função foi chamada.
+- **Date picker real no `TransactionFormModal`**: campo de texto com máscara manual (`DD/MM/AAAA`)
+  trocado por um `Calendar` de `react-native-calendars`. Decisões relevantes:
+  - **`react-native-calendars`, não `@react-native-community/datetimepicker`**: o community datetimepicker
+    é um módulo nativo de verdade, não incluído no Expo Go — instalar ele exigiria dev client/build
+    nativo pra qualquer teste, quebrando o fluxo de "testar via Expo Go" que o app usa no dia a dia.
+    `react-native-calendars` é 100% JS (usa `xdate`, não `moment` — não reintroduz a lib que foi
+    removida do projeto), funciona direto no Expo Go, sem prebuild.
+  - **O calendário troca de conteúdo dentro do MESMO `Modal` do formulário** (`is_calendar_visible`
+    decide se mostra os campos ou o `Calendar` + um header com botão de voltar), em vez de abrir um
+    **segundo** `<Modal transparent>` por cima do primeiro. Isso foi tentado primeiro e quebrou: dois
+    `Modal` nativos abertos ao mesmo tempo (RN monta cada `Modal` como uma `Window` própria no Android)
+    empilhavam os dois overlays semi-transparentes (o do form + o do calendário) e, na prática, cobriam
+    o app inteiro de forma muito mais escura/errada do que um simples bottom sheet por cima do form. Um
+    `Modal` só, com conteúdo condicional, evita esse empilhamento por completo.
+  - **Gatilho do campo de data não reaproveita o `rightComponent` do `ThemedTextInput`** — esse mecanismo
+    (`position: absolute, top: '50%'`) foi desenhado pro caso sem `label` (ver uso em `sign-in`, campo de
+    senha); com `label='Data da transação *'` acima, o "50%" passa a considerar a altura do label também,
+    descentralizando o ícone. O gatilho da data virou um componente próprio (`dateTrigger`, texto + ícone
+    lado a lado via `flexDirection: 'row'`), sem depender de posicionamento absoluto.
+  - **Conversão `dd/MM/yyyy` ↔ `yyyy-MM-dd` é só manipulação de string** (`split`/template literal),
+    de propósito **sem passar por `Date`/`toISOString()`** — evita qualquer risco de o fuso horário
+    deslocar o dia exibido, já que aqui só interessa o valor selecionado no calendário, não um instante
+    no tempo.
+  - `LocaleConfig` do `react-native-calendars` (nomes de mês/dia em português) é configurado uma única
+    vez, como efeito colateral de módulo em `services/calendar-locale`, importado direto no `App.tsx`
+    (topo da árvore) — precisa rodar antes de qualquer `<Calendar/>` montar, não dá pra deixar dentro do
+    `TransactionFormModal` (que monta/desmonta várias vezes).
+- **`npm run mobile:test` estava quebrado antes desse port** (não foi introduzido por ele — o
+  `jest.config.js` ainda apontava `preset: 'react-native'`, removido desde que o RN 0.86 moveu o preset
+  do Jest pro pacote separado `@react-native/jest-preset`, nunca instalado). Corrigido (preset trocado +
+  dependência adicionada, pinada em `0.86.0` igual `@react-native/eslint-config`/`@react-native/typescript-config`
+  já eram). **Ainda existe um segundo problema, não corrigido**: `react-native-toast-message` (e
+  provavelmente outras libs do ecossistema RN publicadas como ESM) quebra com
+  `SyntaxError: Unexpected token 'export'`, porque o `transformIgnorePatterns` padrão do Jest ignora
+  `node_modules` inteiro. Precisa de um `transformIgnorePatterns` customizado (ou migrar pro preset
+  `jest-expo`, mais alinhado ao app pós-CNG) — decisão de infraestrutura de teste maior, deixada pra uma
+  tarefa própria em vez de resolvida de passagem aqui.
+
 ### apps/web (Vite + React)
 
 - A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do

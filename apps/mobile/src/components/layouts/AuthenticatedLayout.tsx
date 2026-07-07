@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity, Animated } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@myfinance/shared';
 
-import { useListInvites } from '../../hooks/api/user-wallets/useListInvites';
 import useShowCurrentUser from '../../hooks/api/user/useShowCurrentUser';
 
 import { useCurrentUserContext } from '../../context/current_user';
@@ -13,10 +12,8 @@ import { LocalStorage } from '../../services/storage';
 import { IScreenProps } from '../../types/screen';
 import { StorageKeys } from '../../types/storage';
 
-import { ThemedText } from '../atoms/ThemedText';
 import { ThemedView } from '../atoms/ThemedView';
-import Header from '../organisms/Header';
-import Sidebar, { IMenuOption } from '../organisms/Sidebar';
+import BottomNav from '../organisms/BottomNav';
 import { WalletFormModal } from '../organisms/WalletFormModal';
 
 const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNode; navigation: IScreenProps<any>['navigation'] }) => {
@@ -24,50 +21,14 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 	const { data: current_user_data } = useShowCurrentUser();
 	const { refreshControlProps } = useRefresh({ all: true });
 
-	const [ isSidebarOpen, setIsSidebarOpen ] = useState(false);
 	const [ is_wallet_form_modal_visible, setIsWalletFormModalVisible ] = useState(false);
 
-	const { data: data_invites } = useListInvites();
-
-	const slideAnim = useState(new Animated.Value(-280))[0];
 	const handleLogout = () => {
 		LocalStorage.logout().then(() => {
 			setCurrentUser({ data: null });
 			navigation.replace('SignIn');
 		});
 	};
-
-	const handleOpenSidebar = () => {
-		setIsSidebarOpen(true);
-		Animated.timing(slideAnim, {
-			toValue: 0,
-			duration: 300,
-			useNativeDriver: true,
-		}).start();
-	};
-
-	const handleCloseSidebar = () => {
-		Animated.timing(slideAnim, {
-			toValue: -280,
-			duration: 300,
-			useNativeDriver: true,
-		}).start(() => {
-			setIsSidebarOpen(false);
-		});
-	};
-
-	const menuOptions: IMenuOption[] = [
-		{ id: 'home', title: 'Início', icon: 'home', onClick: () => navigation.navigate('Home') },
-		{
-			id: 'wallets_invites',
-			title: 'Convites',
-			icon: 'group-add',
-			onClick: () => navigation.navigate('WalletsInvites'),
-			metadata: data_invites?.length ? <ThemedText style={styles.invitesCount}>{data_invites?.length}</ThemedText> : null,
-		},
-		{ id: 'my_wallets', title: 'Minhas Carteiras', icon: 'wallet', onClick: () => navigation.navigate('MyWallets') },
-		{ id: 'new_wallet', title: 'Nova Carteira', icon: 'create-new-folder', onClick: () => setIsWalletFormModalVisible(true) },
-	];
 
 	useEffect(() => {
 		(async() => {
@@ -84,45 +45,15 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 
 	return (
 		<View style={styles.container} {...refreshControlProps}>
-			<Header
-				handleLogout={handleLogout}
-				onOpenSidebar={handleOpenSidebar}
-				onOpenSettings={() => {
-					navigation.navigate('WalletsSettings');
-				}}
-			/>
-
 			<ThemedView style={styles.content}>
 				{children}
 			</ThemedView>
 
-			<Modal
-				visible={isSidebarOpen}
-				transparent={true}
-				animationType='none'
-				onRequestClose={handleCloseSidebar}
-			>
-				<TouchableOpacity
-					style={styles.overlay}
-					activeOpacity={1}
-					onPress={handleCloseSidebar}
-				>
-					<Animated.View
-						style={[
-							styles.sidebarContainer,
-							{
-								transform: [ { translateX: slideAnim } ],
-							},
-						]}
-					>
-						<Sidebar
-							onClose={handleCloseSidebar}
-							options={menuOptions}
-							navigate={navigation.navigate}
-						/>
-					</Animated.View>
-				</TouchableOpacity>
-			</Modal>
+			<BottomNav
+				navigate={navigation.navigate}
+				onNewWallet={() => setIsWalletFormModalVisible(true)}
+				onLogout={handleLogout}
+			/>
 
 			<WalletFormModal
 				visible={is_wallet_form_modal_visible}
@@ -140,39 +71,16 @@ const styles = StyleSheet.create({
 	},
 	content: {
 		flex: 1,
-		padding: 20,
-	},
-	overlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0, 0, 0, 0.5)',
-	},
-	sidebarContainer: {
-		position: 'absolute',
-		left: 0,
-		top: 0,
-		bottom: 0,
-		width: 280,
-		backgroundColor: '#fff',
-		shadowColor: '#000',
-		shadowOffset: {
-			width: 0,
-			height: 2,
-		},
-		shadowOpacity: 0.25,
-		shadowRadius: 3.84,
-		elevation: 5,
-	},
-	invitesCount: {
-		color: '#fff',
-		fontSize: 12,
-		fontWeight: 'bold',
-		borderRadius: 100,
-		backgroundColor: colors['brand-secondary'],
-		marginLeft: 10,
-		width: 20,
-		height: 20,
-		textAlign: 'center',
-		lineHeight: 20,
+		paddingHorizontal: 20,
+		paddingTop: 20,
+		/*
+		 * Sem paddingBottom de propósito: esse container não rola mais como um todo — quem
+		 * rola é a lista lá dentro (TransactionList tem seu próprio flex:1 + SectionList),
+		 * então um padding-bottom aqui não é "respiro no fim do scroll" como seria no web
+		 * (lá o padding vive dentro da área que rola, `main`) — aqui ele é uma faixa fixa
+		 * sempre visível colada em cima da borda da BottomNav. Cada tela decide seu próprio
+		 * espaçamento interno no fim do conteúdo, se precisar.
+		 */
 	},
 });
 

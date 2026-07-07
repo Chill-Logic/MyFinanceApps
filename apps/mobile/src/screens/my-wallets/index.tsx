@@ -32,7 +32,7 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 				}}
 			>
 				<ThemedText >{item.name}</ThemedText>
-				{item.total && (
+				{Boolean(item.total) && (
 					<ThemedText style={[ getBalanceColor(Number(item.total)) ]}>Total: {MoneyUtils.formatMoney(Number(item.total))}</ThemedText>
 				)}
 			</TouchableOpacity>
