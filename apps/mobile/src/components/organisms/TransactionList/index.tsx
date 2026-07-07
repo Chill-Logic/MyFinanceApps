@@ -1,5 +1,16 @@
-import { Fragment, useState } from 'react';
-import { Alert, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import {
+	Alert,
+	Animated,
+	Modal,
+	PanResponder,
+	RefreshControl,
+	SectionList,
+	StyleSheet,
+	TouchableOpacity,
+	useWindowDimensions,
+	View,
+} from 'react-native';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
@@ -8,7 +19,9 @@ import { colors } from '@myfinance/shared';
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
 
+import { useNewTransactionDialog } from '../../../context/newTransactionDialog';
 import { useRefresh } from '../../../context/refresh';
+import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { DateUtils } from '../../../utils/date';
 import { MoneyUtils } from '../../../utils/money';
@@ -24,12 +37,59 @@ import { ThemedView } from '../../atoms/ThemedView';
 import { QUERY_KEYS } from '../../../constants/QueryKeys';
 import { TransactionFormModal } from '../TransactionFormModal';
 
-const getBalanceColor = (value: number) => (
-	value >= 0 ? styles.textGreen : styles.textRed
+const MONTHS_LOWER = [
+	'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+	'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+type TTransactionGroup = {
+	title: string;
+	data: TTransaction[];
+};
+
+const isSameDay = (a: Date, b: Date) => (
+	a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 );
 
+const getGroupLabel = (date: Date) => {
+	const today = new Date();
+	const yesterday = new Date();
+	yesterday.setDate(today.getDate() - 1);
+
+	if (isSameDay(date, today)) return 'Hoje';
+	if (isSameDay(date, yesterday)) return 'Ontem';
+	return `${ date.getDate() } de ${ MONTHS_LOWER[date.getMonth()] }`;
+};
+
+const groupTransactionsByDay = (transactions: TTransaction[]): TTransactionGroup[] => {
+	const groups = new Map<string, TTransactionGroup>();
+
+	transactions.forEach((transaction_item) => {
+		const date = new Date(transaction_item.transaction_date);
+		const key = `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
+
+		if (!groups.has(key)) {
+			groups.set(key, { title: getGroupLabel(date), data: [] });
+		}
+		groups.get(key)!.data.push(transaction_item);
+	});
+
+	return Array.from(groups.values());
+};
+
+/**
+ * Fora do componente de propósito — como prop de componente (ItemSeparatorComponent/
+ * SectionSeparatorComponent), uma arrow function definida dentro do render vira uma
+ * referência nova a cada renderização, o que o react-hooks/exhaustive-deps acusa
+ * (react/no-unstable-nested-components) e pode gerar remount desnecessário dos separadores.
+ */
+const ItemSeparator = () => <ThemedView style={styles.transactionSeparator} />;
+const SectionSeparator = () => <ThemedView style={styles.sectionSeparator} />;
+
 const TransactionsList = () => {
+	const { theme } = useTheme();
 	const { user_wallet } = useWallet();
+	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
 	const [ month_year_selector_values, setMonthYearSelectorValues ] = useState({
 		month: new Date().getMonth(),
@@ -47,7 +107,7 @@ const TransactionsList = () => {
 	});
 
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
-	const [ is_modal_visible, setIsModalVisible ] = useState(false);
+	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
 
 	const { refreshControlProps } = useRefresh({
 		keys: [
@@ -57,11 +117,101 @@ const TransactionsList = () => {
 
 	const { mutate: deleteTransaction } = useDeleteTransactions();
 
+	const { width: screen_width } = useWindowDimensions();
+	const translate_x = useRef(new Animated.Value(0)).current;
+
+	/*
+	 * Forma funcional do setState de propósito — `changeMonth` é chamado de dentro do
+	 * `pan_responder` (criado uma única vez via `useRef`, ver abaixo), cujos callbacks ficam
+	 * "congelados" com as closures do primeiro render. Lendo `month_year_selector_values`
+	 * direto (como uma variável comum) sempre pegaria o valor de quando o gesto foi montado
+	 * (ex: sempre "julho"), nunca o mês atual — daí o bug de ficar preso alternando entre só
+	 * dois meses ao arrastar repetidas vezes. `prev` aqui sempre reflete o estado mais recente
+	 * de verdade, não importa de qual render essa função foi chamada.
+	 */
+	const changeMonth = (offset: number) => {
+		setMonthYearSelectorValues((prev) => {
+			const date = new Date(prev.year, prev.month + offset, 1);
+			return { month: date.getMonth(), year: date.getFullYear() };
+		});
+	};
+
+	/*
+	 * Desliza o conteúdo atual pra fora (na mesma direção do dedo) e, quando some da tela,
+	 * troca o mês e reposiciona o conteúdo novo do lado oposto, animando de volta ao centro —
+	 * efeito de "página" entrando, não só o mês trocando seco. `useNativeDriver: false` em
+	 * tudo que mexe em `translate_x`, mesmo aqui (podia ser `true`): a RN não deixa misturar
+	 * driver nativo com driver JS no mesmo Animated.Value, e o arrasto em si
+	 * (`onPanResponderMove`) precisa ser JS-driven pra poder ler `gestureState.dx`.
+	 */
+	const animateMonthChange = (offset: number, exits_to_right: boolean) => {
+		const exit_value = exits_to_right ? screen_width : -screen_width;
+
+		Animated.timing(translate_x, {
+			toValue: exit_value,
+			duration: 180,
+			useNativeDriver: false,
+		}).start(() => {
+			changeMonth(offset);
+			translate_x.setValue(-exit_value);
+			Animated.timing(translate_x, {
+				toValue: 0,
+				duration: 220,
+				useNativeDriver: false,
+			}).start();
+		});
+	};
+
+	/*
+	 * Mesmo gesto do "clicar na setinha", só que arrastando a lista — igual o comportamento
+	 * de trocar de mês deslizando que apps de finanças costumam ter. `onMoveShouldSetPanResponder`
+	 * só assume o gesto quando o arrasto é claramente mais horizontal que vertical (2x), pra não
+	 * competir com o scroll vertical da SectionList por baixo.
+	 */
+	const pan_responder = useRef(
+		PanResponder.create({
+			onMoveShouldSetPanResponder: (_, gesture) => (
+				Math.abs(gesture.dx) > 20 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 2
+			),
+			onPanResponderMove: Animated.event(
+				[ null, { dx: translate_x } ],
+				{ useNativeDriver: false },
+			),
+			onPanResponderRelease: (_, gesture) => {
+				if (gesture.dx > 60) {
+					// arrastou pra direita -> mês anterior, conteúdo sai pela direita
+					animateMonthChange(-1, true);
+				} else if (gesture.dx < -60) {
+					// arrastou pra esquerda -> próximo mês, conteúdo sai pela esquerda
+					animateMonthChange(1, false);
+				} else {
+					Animated.timing(translate_x, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+				}
+			},
+			onPanResponderTerminate: () => {
+				Animated.timing(translate_x, { toValue: 0, duration: 150, useNativeDriver: false }).start();
+			},
+		}),
+	).current;
+
+	const transactions = useMemo(() => data_transactions?.transactions || [], [ data_transactions ]);
+	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
+	const total = Number(data_transactions?.total ?? 0);
+	const total_deposit = transactions.filter((item) => item.kind === 'deposit').reduce((acc, item) => acc + item.value, 0);
+	const total_withdraw = transactions.filter((item) => item.kind === 'withdraw').reduce((acc, item) => acc + item.value, 0);
+
+	const isFormOpen = is_new_transaction_open || Boolean(transaction);
+
+	const handleCloseForm = () => {
+		setIsNewTransactionOpen(false);
+		setTransaction(null);
+	};
+
 	const handleDeleteTransaction = (transaction_to_delete: TTransaction) => {
 		setTimeout(() => {
 			Alert.alert(
 				'Excluir Transação',
-				'Deseja excluir esta transação?',
+				`Deseja excluir "${ transaction_to_delete.description }"? Essa ação não pode ser desfeita.`,
 				[
 					{
 						text: 'Cancelar',
@@ -69,11 +219,8 @@ const TransactionsList = () => {
 					},
 					{
 						text: 'Excluir',
+						style: 'destructive',
 						onPress: () => {
-							if(!transaction_to_delete){
-								return;
-							}
-
 							deleteTransaction({
 								id: transaction_to_delete.id,
 								onSuccess: () => {
@@ -102,177 +249,238 @@ const TransactionsList = () => {
 		type === 'deposit' ? styles.textGreen : styles.textRed
 	);
 
+	const renderKindIcon = (transaction_item: TTransaction) => {
+		const is_deposit = transaction_item.kind === 'deposit';
+
+		return (
+			<View
+				style={[
+					styles.kindIcon,
+					{ backgroundColor: is_deposit ? colors['feedback-success-light'] : colors['feedback-danger-light'] },
+				]}
+			>
+				<Icon
+					name={is_deposit ? 'arrow-upward' : 'arrow-downward'}
+					size={16}
+					color={is_deposit ? colors['feedback-success-dark'] : colors['feedback-danger-dark']}
+				/>
+			</View>
+		);
+	};
+
 	const renderTransactionItem = ({ item: transaction_item }: { item: TTransaction }) => (
 		<TouchableOpacity
 			style={styles.transactionItem}
 			onPress={() => setTransaction(transaction_item)}
 		>
+			{renderKindIcon(transaction_item)}
+
 			<ThemedView style={styles.transactionLeft}>
 				<ThemedText style={styles.transactionDescription}>{TextUtils.truncate({ text: transaction_item.description, maxLength: 35 })}</ThemedText>
-				<ThemedText style={styles.transactionDate}>{DateUtils.formatDate(transaction_item.transaction_date)}</ThemedText>
 				{transaction_item.user?.name && <ThemedText style={styles.transactionUserName}>{transaction_item.user.name}</ThemedText>}
 			</ThemedView>
-			<ThemedView style={styles.transactionRight}>
-				<ThemedText
-					style={[
-						styles.transactionValue,
-						getTransactionColor(transaction_item.kind),
-					]}
-				>
-					{MoneyUtils.formatMoney(transaction_item.value)}
-				</ThemedText>
-				<TouchableOpacity onPress={() => handleDeleteTransaction(transaction_item)}>
-					<ThemedText style={styles.transactionDelete}>
-						Excluir
-					</ThemedText>
-				</TouchableOpacity>
-			</ThemedView>
+
+			<ThemedText
+				style={[
+					styles.transactionValue,
+					getTransactionColor(transaction_item.kind),
+				]}
+			>
+				{MoneyUtils.formatMoney(transaction_item.value)}
+			</ThemedText>
+
+			<TouchableOpacity
+				style={styles.actionsButton}
+				onPress={(event) => {
+					event.stopPropagation();
+					setActionsTransaction(transaction_item);
+				}}
+				hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+			>
+				<Icon name='more-vert' size={20} color={theme.colors.placeholder} />
+			</TouchableOpacity>
 		</TouchableOpacity>
 	);
 
-	const renderSeparator = () => (
-		<ThemedView style={styles.transactionSeparator} />
+	const renderSectionHeader = ({ section }: { section: TTransactionGroup }) => (
+		<ThemedText style={styles.sectionHeader}>{section.title}</ThemedText>
 	);
 
 	return (
 		<ThemedView style={styles.transactionsContainer}>
-			<MonthYearSelector
-				onChange={(month: number, year: number) => {
-					setMonthYearSelectorValues({
-						month,
-						year,
-					});
-				}}
-				value={{
-					month: month_year_selector_values.month,
-					year: month_year_selector_values.year,
-				}}
-			/>
-
-			{is_data_transactions_loading && (
-				<FlatList
-					data={new Array(10).fill(null).map((_, index) => ({ id: `${ index }` }))}
-					renderItem={() => <Skeleton height={50} />}
-					keyExtractor={(item) => item.id}
-					style={styles.transactionsList}
-					showsVerticalScrollIndicator={false}
-					removeClippedSubviews={true}
-					windowSize={1}
-					initialNumToRender={1}
-					ItemSeparatorComponent={renderSeparator}
+			<ThemedView style={styles.header}>
+				<MonthYearSelector
+					onChange={(month: number, year: number) => {
+						setMonthYearSelectorValues({
+							month,
+							year,
+						});
+					}}
+					value={{
+						month: month_year_selector_values.month,
+						year: month_year_selector_values.year,
+					}}
 				/>
-			)}
 
-			{!is_data_transactions_loading && (
-				<>
-					{data_transactions?.transactions && data_transactions?.transactions.length > 0 ? (
-						<Fragment>
-							<FlatList
-								data={data_transactions.transactions}
-								renderItem={renderTransactionItem}
-								keyExtractor={(item) => item.id}
-								style={styles.transactionsList}
-								refreshControl={<RefreshControl {...refreshControlProps} />}
-								showsVerticalScrollIndicator={false}
-								removeClippedSubviews={true}
-								maxToRenderPerBatch={10}
-								windowSize={10}
-								initialNumToRender={10}
-								ItemSeparatorComponent={renderSeparator}
-							/>
-						</Fragment>
-					) : (
-						<ThemedView style={styles.emptyContainer}>
-							<ThemedText style={styles.emptyMessage}>
-								Não há registros de entrada ou saída
+				<ThemedView style={[ styles.balanceContainer, { borderColor: theme.colors.border } ]}>
+					<ThemedView style={styles.balanceContainerTransparent}>
+						<ThemedText style={styles.balanceLabel}>Saldo</ThemedText>
+						{is_data_transactions_loading ? <Skeleton height={20} width={80} /> : (
+							<ThemedText style={[ styles.balanceValue, total >= 0 ? styles.textGreen : styles.textRed ]}>
+								{MoneyUtils.formatMoney(total)}
 							</ThemedText>
-						</ThemedView>
-					)}
-				</>
-			)}
+						)}
+					</ThemedView>
 
-			<ThemedView style={styles.balanceContainer}>
-				{is_data_transactions_loading && <Skeleton height={50} />}
-				{!is_data_transactions_loading && (
-					<Fragment>
-						<ThemedView>
-							<ThemedText style={styles.balanceLabel}>Entrada</ThemedText>
-							<ThemedText style={styles.textGreen}>
-								{MoneyUtils.formatMoney(Number(data_transactions?.transactions.filter((transaction_item) => transaction_item.kind === 'deposit').reduce((acc, transaction_item) => acc + transaction_item.value, 0)))}
-							</ThemedText>
+					<ThemedView style={styles.balanceGroup}>
+						<ThemedView style={styles.balanceContainerTransparent}>
+							<ThemedText style={styles.balanceLabelSmall}>Entrada</ThemedText>
+							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
+								<ThemedText style={styles.textGreen}>{MoneyUtils.formatMoney(total_deposit)}</ThemedText>
+							)}
 						</ThemedView>
 
-						<ThemedView>
-							<ThemedText style={styles.balanceLabel}>Saída</ThemedText>
-							<ThemedText style={styles.textRed}>
-								{MoneyUtils.formatMoney(Number(data_transactions?.transactions.filter((transaction_item) => transaction_item.kind === 'withdraw').reduce((acc, transaction_item) => acc + transaction_item.value, 0)))}
-							</ThemedText>
+						<ThemedView style={styles.balanceContainerTransparent}>
+							<ThemedText style={styles.balanceLabelSmall}>Saída</ThemedText>
+							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
+								<ThemedText style={styles.textRed}>{MoneyUtils.formatMoney(total_withdraw)}</ThemedText>
+							)}
 						</ThemedView>
-
-						<ThemedView>
-							<ThemedText style={styles.balanceLabel}>Total</ThemedText>
-							<ThemedText style={getBalanceColor(Number(data_transactions?.total))}>
-								{MoneyUtils.formatMoney(Number(data_transactions?.total))}
-							</ThemedText>
-						</ThemedView>
-					</Fragment>
-				)}
+					</ThemedView>
+				</ThemedView>
 			</ThemedView>
 
-			<ThemedView style={styles.buttonsContainer}>
-				<TouchableOpacity
-					style={styles.actionButton}
-					disabled={is_data_transactions_loading || !user_wallet.data?.id}
-					onPress={() => {
-						setTransaction(null);
-						setIsModalVisible(true);
-					}}
-				>
-					<Icon name='add' size={20} color='white' />
-					<ThemedText style={styles.actionButtonText}>
-            Novo Registro
-					</ThemedText>
-				</TouchableOpacity>
+			<ThemedView style={styles.listContainer} {...pan_responder.panHandlers}>
+				<Animated.View style={[ styles.listAnimatedContent, { transform: [ { translateX: translate_x } ] } ]}>
+					{is_data_transactions_loading && (
+						<ThemedView style={styles.skeletonList}>
+							{new Array(6).fill(null).map((_, index) => (
+								<Skeleton key={index} height={56} />
+							))}
+						</ThemedView>
+					)}
+
+					{!is_data_transactions_loading && groups.length === 0 && (
+						<ThemedView style={styles.emptyContainer}>
+							<Icon name='receipt-long' size={40} color={theme.colors.placeholder} />
+							<ThemedText style={styles.emptyMessage}>
+								Nenhuma transação neste mês
+							</ThemedText>
+							<ThemedText style={styles.emptySubMessage}>
+								Registre uma entrada ou saída pra começar
+							</ThemedText>
+							<TouchableOpacity
+								style={styles.emptyButton}
+								disabled={!user_wallet.data?.id}
+								onPress={() => {
+									setTransaction(null);
+									setIsNewTransactionOpen(true);
+								}}
+							>
+								<Icon name='add' size={18} color='white' />
+								<ThemedText style={styles.emptyButtonText}>Adicionar transação</ThemedText>
+							</TouchableOpacity>
+						</ThemedView>
+					)}
+
+					{!is_data_transactions_loading && groups.length > 0 && (
+						<SectionList
+							sections={groups}
+							renderItem={renderTransactionItem}
+							renderSectionHeader={renderSectionHeader}
+							keyExtractor={(item) => item.id}
+							style={styles.transactionsList}
+							refreshControl={<RefreshControl {...refreshControlProps} />}
+							showsVerticalScrollIndicator={false}
+							stickySectionHeadersEnabled={false}
+							ItemSeparatorComponent={ItemSeparator}
+							SectionSeparatorComponent={SectionSeparator}
+						/>
+					)}
+				</Animated.View>
 			</ThemedView>
 
 			<TransactionFormModal
-				visible={is_modal_visible || Boolean(transaction)}
+				visible={isFormOpen}
 				transaction={transaction}
 				suggested_date={DateUtils.formatDate(new Date(month_year_selector_values.year, month_year_selector_values.month, new Date().getDate()))}
-				onClose={() => {
-					setIsModalVisible(false);
-					setTransaction(null);
-				}}
+				onClose={handleCloseForm}
 			/>
+
+			<Modal
+				visible={Boolean(actions_transaction)}
+				transparent
+				animationType='fade'
+				onRequestClose={() => setActionsTransaction(null)}
+			>
+				<TouchableOpacity
+					style={styles.actionsSheetOverlay}
+					activeOpacity={1}
+					onPress={() => setActionsTransaction(null)}
+				>
+					<ThemedView style={styles.actionsSheet}>
+						<TouchableOpacity
+							style={styles.actionsSheetItem}
+							onPress={() => {
+								const target = actions_transaction;
+								setActionsTransaction(null);
+								if (target) setTransaction(target);
+							}}
+						>
+							<Icon name='edit' size={20} color={theme.colors.text} />
+							<ThemedText style={styles.actionsSheetItemText}>Editar</ThemedText>
+						</TouchableOpacity>
+
+						<TouchableOpacity
+							style={styles.actionsSheetItem}
+							onPress={() => {
+								const target = actions_transaction;
+								setActionsTransaction(null);
+								if (target) handleDeleteTransaction(target);
+							}}
+						>
+							<Icon name='delete' size={20} color={colors['feedback-danger-default']} />
+							<ThemedText style={[ styles.actionsSheetItemText, { color: colors['feedback-danger-default'] } ]}>Excluir</ThemedText>
+						</TouchableOpacity>
+					</ThemedView>
+				</TouchableOpacity>
+			</Modal>
 		</ThemedView>
 	);
 };
 
 const styles = StyleSheet.create({
-	transactionsList: {
-		maxHeight: '95%',
-		marginTop: 24,
-	},
 	transactionsContainer: {
 		flex: 1,
-		borderRadius: 5,
-		justifyContent: 'space-between',
-		alignItems: 'stretch',
+	},
+	header: {
+		gap: 16,
+	},
+	listContainer: {
+		flex: 1,
+		marginTop: 16,
+		overflow: 'hidden',
+	},
+	listAnimatedContent: {
+		flex: 1,
+	},
+	transactionsList: {
+		flex: 1,
+	},
+	skeletonList: {
+		gap: 10,
 	},
 	transactionItem: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
 		alignItems: 'center',
+		gap: 10,
 		padding: 12,
 		borderRadius: 10,
 		backgroundColor: '#121214',
 	},
 	transactionLeft: {
+		flex: 1,
 		backgroundColor: 'transparent',
-	},
-	transactionDate: {
-		color: '#C6C6C6',
-		marginRight: 10,
 	},
 	transactionDescription: {
 		fontWeight: 'bold',
@@ -281,66 +489,127 @@ const styles = StyleSheet.create({
 		color: '#C6C6C6',
 		fontSize: 12,
 	},
-	transactionRight: {
-		flexDirection: 'column',
-		alignItems: 'flex-end',
-		backgroundColor: '#121214',
-	},
-	transactionDelete: {
-		color: '#900',
-	},
 	transactionValue: {
-		marginRight: 8,
+		marginRight: 4,
+	},
+	actionsButton: {
+		padding: 4,
+	},
+	kindIcon: {
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		alignItems: 'center',
+		justifyContent: 'center',
 	},
 	emptyContainer: {
 		flex: 1,
 		justifyContent: 'center',
 		alignItems: 'center',
-		marginTop: 24,
+		gap: 8,
+		paddingHorizontal: 24,
 	},
 	emptyMessage: {
-		color: '#868686',
+		fontWeight: '600',
 		textAlign: 'center',
 	},
+	emptySubMessage: {
+		color: '#868686',
+		textAlign: 'center',
+		fontSize: 13,
+		lineHeight: 18,
+	},
+	emptyButton: {
+		marginTop: 12,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		backgroundColor: colors['brand-secondary'],
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		borderRadius: 8,
+	},
+	emptyButtonText: {
+		color: 'white',
+		fontWeight: '600',
+	},
 	textGreen: {
-		color: 'green',
+		color: colors['feedback-success-default'],
 	},
 	textRed: {
-		color: 'red',
+		color: colors['feedback-danger-default'],
 	},
 	transactionSeparator: {
-		height: 10,
+		height: 8,
+	},
+	sectionSeparator: {
+		height: 16,
+	},
+	sectionHeader: {
+		textTransform: 'uppercase',
+		fontSize: 12,
+		lineHeight: 16,
+		fontWeight: '600',
+		color: '#868686',
+		marginBottom: 8,
 	},
 	balanceContainer: {
 		flexDirection: 'row',
+		flexWrap: 'wrap',
 		justifyContent: 'space-between',
-		marginTop: 16,
-		marginBottom: 16,
-		paddingHorizontal: 4,
+		alignItems: 'center',
+		gap: 12,
+		borderWidth: 1,
+		borderRadius: 12,
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+	},
+	balanceContainerTransparent: {
+		backgroundColor: 'transparent',
+	},
+	balanceGroup: {
+		flexDirection: 'row',
+		gap: 20,
+		backgroundColor: 'transparent',
 	},
 	balanceLabel: {
-		fontWeight: 'bold',
+		fontSize: 11,
+		lineHeight: 14,
+		fontWeight: '600',
 		textTransform: 'uppercase',
+		color: '#868686',
+	},
+	balanceLabelSmall: {
+		fontSize: 11,
+		lineHeight: 14,
+		fontWeight: '600',
+		textTransform: 'uppercase',
+		color: '#868686',
+	},
+	balanceValue: {
 		fontSize: 16,
+		fontWeight: '700',
 	},
-	buttonsContainer: {
-		flexDirection: 'row',
-		gap: 15,
-		marginTop: 15,
-	},
-	actionButton: {
+	actionsSheetOverlay: {
 		flex: 1,
-		height: 50,
-		backgroundColor: colors['brand-secondary'],
-		borderRadius: 5,
-		flexDirection: 'row',
-		justifyContent: 'center',
-		alignItems: 'center',
-		gap: 6,
+		justifyContent: 'flex-end',
+		backgroundColor: 'rgba(0, 0, 0, 0.4)',
 	},
-	actionButtonText: {
-		color: 'white',
-		fontSize: 18,
+	actionsSheet: {
+		borderTopLeftRadius: 16,
+		borderTopRightRadius: 16,
+		paddingTop: 8,
+		paddingBottom: 28,
+	},
+	actionsSheetItem: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 12,
+		paddingVertical: 14,
+		paddingHorizontal: 20,
+	},
+	actionsSheetItemText: {
+		fontSize: 16,
 	},
 });
 

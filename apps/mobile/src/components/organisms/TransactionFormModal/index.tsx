@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
+import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
 
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
 
+import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { DateUtils } from '../../../utils/date';
 import { MoneyUtils } from '../../../utils/money';
@@ -34,16 +37,35 @@ const DEFAULT_VALUES: TNewTransactionForm = {
 	transaction_date: '',
 };
 
+/**
+ * Conversão puramente textual (sem passar por Date/toISOString) de propósito — evitar
+ * qualquer risco de o fuso horário deslocar o dia, já que aqui só interessa o valor
+ * exibido/selecionado no calendário, não um instante no tempo.
+ */
+const toISODate = (display_date: string) => {
+	const [ day, month, year ] = display_date.split('/');
+	if (!day || !month || !year) return '';
+	return `${ year }-${ month }-${ day }`;
+};
+
+const toDisplayDate = (iso_date: string) => {
+	const [ year, month, day ] = iso_date.split('-');
+	return `${ day }/${ month }/${ year }`;
+};
+
 export const TransactionFormModal = (props: TransactionModalProps) => {
 	const { visible, onClose, transaction, suggested_date } = props;
+	const { theme } = useTheme();
 	const { user_wallet } = useWallet();
 
 	const { mutate: createTransactionMutation, isPending: is_create_transaction_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_transaction_pending } = useUpdateTransactions();
 	const [ values, setValues ] = useState<TNewTransactionForm>(DEFAULT_VALUES);
+	const [ is_calendar_visible, setIsCalendarVisible ] = useState(false);
 
 	const handleClose = () => {
 		setValues(DEFAULT_VALUES);
+		setIsCalendarVisible(false);
 		onClose();
 	};
 
@@ -148,68 +170,107 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			visible={visible}
 			transparent
 			animationType='slide'
-			onRequestClose={handleClose}
+			onRequestClose={is_calendar_visible ? () => setIsCalendarVisible(false) : handleClose}
 		>
 			<ThemedView style={styles.modalOverlay}>
 				<ThemedView style={styles.modalContent}>
-					<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
+					{is_calendar_visible ? (
+						<>
+							<ThemedView style={styles.calendarHeader}>
+								<TouchableOpacity onPress={() => setIsCalendarVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+									<Icon name='arrow-back' size={22} color={theme.colors.text} />
+								</TouchableOpacity>
+								<ThemedText style={styles.calendarHeaderTitle}>Selecionar data</ThemedText>
+								<ThemedView style={styles.calendarHeaderSpacer} />
+							</ThemedView>
 
-					<ThemedView style={styles.formGroup}>
-						<SelectInput
-							label='Tipo *'
-							options={[
-								{ label: 'Entrada', value: 'deposit' },
-								{ label: 'Saída', value: 'withdraw' } ]}
-							value={values.kind}
-							onChange={(value) => setValues({ ...values, kind: value as TTransaction['kind'] })}
-						/>
-					</ThemedView>
-
-					<ThemedView style={styles.formGroup}>
-						<ThemedTextInput
-							label='Descrição *'
-							value={values.description}
-							onChangeText={(text) => setValues({ ...values, description: text })}
-							placeholder='Digite a descrição'
-						/>
-					</ThemedView>
-
-					<ThemedView style={styles.formGroupDate}>
-						<ThemedView style={styles.fieldContainer}>
-							<ThemedTextInput
-								label='Valor *'
-								value={values.value}
-								onChangeText={(text) => {
-									const formattedValue = MoneyUtils.formatMoney(text);
-									setValues({ ...values, value: formattedValue });
+							<Calendar
+								current={toISODate(values.transaction_date) || undefined}
+								onDayPress={(day: DateData) => {
+									setValues((prev) => ({ ...prev, transaction_date: toDisplayDate(day.dateString) }));
+									setIsCalendarVisible(false);
 								}}
-								placeholder='R$ 0,00'
-								keyboardType='numeric'
-							/>
-						</ThemedView>
-
-						<ThemedView style={styles.fieldContainer}>
-							<ThemedTextInput
-								label='Data da transação *'
-								value={values.transaction_date}
-								onChangeText={(text) => {
-									const formattedDate = DateUtils.formatDateInput(text);
-									setValues({ ...values, transaction_date: formattedDate });
+								markedDates={values.transaction_date ? {
+									[toISODate(values.transaction_date)]: { selected: true, selectedColor: colors['brand-secondary'] },
+								} : undefined}
+								theme={{
+									calendarBackground: theme.colors.background,
+									dayTextColor: theme.colors.text,
+									monthTextColor: theme.colors.text,
+									textDisabledColor: theme.colors.placeholder,
+									arrowColor: theme.colors.text,
+									todayTextColor: colors['brand-secondary'],
+									selectedDayBackgroundColor: colors['brand-secondary'],
+									selectedDayTextColor: '#fff',
 								}}
-								placeholder='DD/MM/AAAA'
-								maxLength={10}
 							/>
-						</ThemedView>
-					</ThemedView>
+						</>
+					) : (
+						<>
+							<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
 
-					<ThemedView style={styles.buttonContainer}>
-						<TouchableOpacity disabled={(is_create_transaction_pending || is_update_transaction_pending )} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-							<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-						</TouchableOpacity>
-						<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
-							<ThemedText style={styles.buttonText}>{(is_create_transaction_pending || is_update_transaction_pending ) ? <Loader /> : 'Salvar'}</ThemedText>
-						</TouchableOpacity>
-					</ThemedView>
+							<ThemedView style={styles.formGroup}>
+								<SelectInput
+									label='Tipo *'
+									options={[
+										{ label: 'Entrada', value: 'deposit' },
+										{ label: 'Saída', value: 'withdraw' } ]}
+									value={values.kind}
+									onChange={(value) => setValues({ ...values, kind: value as TTransaction['kind'] })}
+								/>
+							</ThemedView>
+
+							<ThemedView style={styles.formGroup}>
+								<ThemedTextInput
+									label='Descrição *'
+									value={values.description}
+									onChangeText={(text) => setValues({ ...values, description: text })}
+									placeholder='Digite a descrição'
+								/>
+							</ThemedView>
+
+							<ThemedView style={styles.formGroupDate}>
+								<ThemedView style={styles.fieldContainer}>
+									<ThemedTextInput
+										label='Valor *'
+										value={values.value}
+										onChangeText={(text) => {
+											const formattedValue = MoneyUtils.formatMoney(text);
+											setValues({ ...values, value: formattedValue });
+										}}
+										placeholder='R$ 0,00'
+										keyboardType='numeric'
+									/>
+								</ThemedView>
+
+								<ThemedView style={styles.fieldContainer}>
+									<ThemedText style={styles.dateTriggerLabel}>Data da transação *</ThemedText>
+									<TouchableOpacity
+										style={[ styles.dateTrigger, { borderColor: theme.colors.border } ]}
+										onPress={() => setIsCalendarVisible(true)}
+										activeOpacity={0.7}
+									>
+										<ThemedText
+											numberOfLines={1}
+											style={[ styles.dateTriggerText, !values.transaction_date && { color: theme.colors.placeholder } ]}
+										>
+											{values.transaction_date || 'Selecionar'}
+										</ThemedText>
+										<Icon name='calendar-today' size={16} color={theme.colors.placeholder} />
+									</TouchableOpacity>
+								</ThemedView>
+							</ThemedView>
+
+							<ThemedView style={styles.buttonContainer}>
+								<TouchableOpacity disabled={(is_create_transaction_pending || is_update_transaction_pending )} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+									<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+								</TouchableOpacity>
+								<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
+									<ThemedText style={styles.buttonText}>{(is_create_transaction_pending || is_update_transaction_pending ) ? <Loader /> : 'Salvar'}</ThemedText>
+								</TouchableOpacity>
+							</ThemedView>
+						</>
+					)}
 				</ThemedView>
 			</ThemedView>
 		</Modal>
@@ -228,6 +289,36 @@ const styles = StyleSheet.create({
 		padding: 20,
 		borderRadius: 10,
 		elevation: 5,
+	},
+	calendarHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 12,
+	},
+	calendarHeaderTitle: {
+		fontSize: 18,
+		fontWeight: '600',
+	},
+	calendarHeaderSpacer: {
+		width: 22,
+	},
+	dateTriggerLabel: {
+		marginBottom: 5,
+	},
+	dateTrigger: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		height: 50,
+		borderWidth: 1,
+		borderRadius: 5,
+		paddingHorizontal: 10,
+		marginTop: 5,
+		gap: 8,
+	},
+	dateTriggerText: {
+		flex: 1,
 	},
 	title: {
 		fontSize: 24,

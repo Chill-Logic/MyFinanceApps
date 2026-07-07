@@ -6,9 +6,11 @@ import Toast from 'react-native-toast-message';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import CurrentUserProvider from './src/context/current_user';
+import NewTransactionDialogProvider from './src/context/newTransactionDialog';
 import RefreshProvider from './src/context/refresh';
 import { ThemeProvider } from './src/context/theme';
 import WalletUserProvider from './src/context/wallet';
+import './src/services/calendar-locale';
 import { queryClient } from './src/services/query-client';
 
 import MainStack from './src/navigation';
@@ -23,12 +25,14 @@ function App(): React.JSX.Element {
 						<CurrentUserProvider>
 							<WalletUserProvider>
 								<RefreshProvider>
-									<MainStack />
-									<Toast
-										position='top'
-										topOffset={100}
-										visibilityTime={3000}
-									/>
+									<NewTransactionDialogProvider>
+										<MainStack />
+										<Toast
+											position='top'
+											topOffset={100}
+											visibilityTime={3000}
+										/>
+									</NewTransactionDialogProvider>
 								</RefreshProvider>
 							</WalletUserProvider>
 						</CurrentUserProvider>
