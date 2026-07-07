@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 import viteTsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
-	plugins: [ react(), viteTsconfigPaths() ],
+	plugins: [ react(), viteTsconfigPaths({ projects: [ 'tsconfig.vite.json' ] }) ],
 	server: {
 		open: true,
 	},
@@ -20,5 +20,6 @@ export default defineConfig({
 		alias: {
 			'@': path.resolve(__dirname, 'src'),
 		},
+		dedupe: [ 'react', 'react-dom' ],
 	},
 });

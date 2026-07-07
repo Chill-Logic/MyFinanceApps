@@ -4,6 +4,96 @@
 @import './fonts.css';
 
 @layer base {
+    /*
+     * Tokens semânticos do shadcn/ui, mapeados a partir da paleta de marca em
+     * packages/shared/src/tokens.ts (colors/Theme) — não são uma paleta nova, só a
+     * mesma marca traduzida pro vocabulário `background`/`primary`/`destructive`/etc.
+     * que os componentes de packages/ui esperam. Valores em "H S% L%" (sem hsl()
+     * ao redor — quem envolve é o tailwind.config.ts).
+     */
+    :root {
+        --background: 30 7% 76%;
+        --foreground: 202 81% 11%;
+        --card: 30 7% 76%;
+        --card-foreground: 202 81% 11%;
+        --popover: 30 7% 76%;
+        --popover-foreground: 202 81% 11%;
+        --primary: 82 26% 50%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 0 0% 87%;
+        --secondary-foreground: 202 81% 11%;
+        --muted: 0 0% 87%;
+        --muted-foreground: 0 0% 53%;
+        --accent: 88 29% 42%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 351 100% 44%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 202 81% 11%;
+        --input: 202 81% 11%;
+        --ring: 82 26% 50%;
+        --radius: 0.75rem;
+
+        /* Cores por tipo de toast (sonner), mesmos tokens feedback-* de packages/shared/tokens.ts */
+        --toast-success-bg: 143 100% 92%;
+        --toast-success-border: 144 100% 33%;
+        --toast-success-text: 144 90% 24%;
+        --toast-info-bg: 199 100% 92%;
+        --toast-info-border: 212 100% 44%;
+        --toast-info-text: 212 85% 33%;
+        --toast-warning-bg: 54 100% 88%;
+        --toast-warning-border: 44 98% 47%;
+        --toast-warning-text: 31 84% 29%;
+        --toast-error-bg: 351 100% 93%;
+        --toast-error-border: 351 100% 44%;
+        --toast-error-text: 351 94% 35%;
+    }
+
+    .dark {
+        --background: 203 74% 12%;
+        --foreground: 30 7% 76%;
+        --card: 203 74% 12%;
+        --card-foreground: 30 7% 76%;
+        --popover: 203 74% 12%;
+        --popover-foreground: 30 7% 76%;
+        --primary: 82 26% 50%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 203 40% 20%;
+        --secondary-foreground: 30 7% 76%;
+        --muted: 203 40% 20%;
+        --muted-foreground: 0 0% 53%;
+        --accent: 88 29% 42%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 351 94% 35%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 30 7% 76%;
+        --input: 30 7% 76%;
+        --ring: 82 26% 50%;
+
+        --toast-success-bg: 144 90% 24%;
+        --toast-success-border: 144 100% 33%;
+        --toast-success-text: 143 100% 92%;
+        --toast-info-bg: 212 85% 33%;
+        --toast-info-border: 212 100% 44%;
+        --toast-info-text: 199 100% 92%;
+        --toast-warning-bg: 31 84% 29%;
+        --toast-warning-border: 44 98% 47%;
+        --toast-warning-text: 54 100% 88%;
+        --toast-error-bg: 351 94% 35%;
+        --toast-error-border: 351 100% 44%;
+        --toast-error-text: 351 100% 93%;
+    }
+
+    /*
+     * Sem isso, qualquer texto sem cor explícita (Label, etc.) herda o preto padrão do
+     * browser em vez de acompanhar o tema — foi o caso das labels dos inputs e do
+     * "Manter conectado", que não mudavam de cor no dark mode.
+     */
+    body {
+        @apply text-foreground;
+    }
+}
+
+@layer base {
     .row {
         @apply flex flex-wrap -mx-3
     }

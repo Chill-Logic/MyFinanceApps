@@ -1,9 +1,11 @@
 import { InputHTMLAttributes, ReactElement, forwardRef } from 'react';
 import InputMask from 'react-input-mask';
 
-import classNames from 'classnames';
+import { cn } from '@/lib/utils';
 
 import { TError } from '@/types';
+
+import Label from '@/components/ui/label';
 
 interface IProps extends InputHTMLAttributes<HTMLInputElement | HTMLTextAreaElement> {
 	label?: string;
@@ -25,26 +27,21 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 	} = props;
 
 	const styles = {
-		wrapper: 'flex flex-col-reverse relative ',
+		wrapper: 'flex flex-col gap-tiny relative',
 		input: {
-			base: 'h-giant-xx w-full border border-stroke-dark dark:border-stroke-default rounded-lg  px-small-xx bg-background-input text-dark font-noto-sans text-small font-medium transition-all duration-300 outline-none',
-			placeholder: 'placeholder-text-dark placeholder:font-normal',
-			filled: 'font-normal',
-			disabled: 'cursor-not-allowed !bg-stroke-light !text-stroke-dark',
-			invalid: '!border-feedback-danger-dark',
-			leftIcon: ''
+			base: 'flex h-giant-xx w-full rounded-lg border border-input bg-background px-small-xx text-small font-medium font-noto-sans text-foreground shadow-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring',
+			disabled: 'cursor-not-allowed opacity-50',
+			invalid: '!border-destructive',
 		},
 		label: {
-			base: 'text-dark dark:text-text-default font-noto-sans text-small font-medium mb-tiny',
-			invalid: '!text-feedback-danger-dark'
+			invalid: '!text-destructive',
 		},
 		support_text: {
-			base: 'text-stroke-dark font-noto-sans text-x-small font-light mt-tiny',
-			invalid: '!text-feedback-danger-dark',
+			base: 'text-muted-foreground font-noto-sans text-x-small font-light',
+			invalid: '!text-destructive',
 		},
-		left_icon: '',
 		right_icon: {
-			base: 'cursor-default hover:opacity-70 transition absolute right-3 bottom-2',
+			base: 'cursor-default hover:opacity-70 transition absolute right-3 top-1/2 -translate-y-1/2',
 			icon: 'cursor-pointer',
 		}
 	};
@@ -55,15 +52,10 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 		disabled,
 		type: 'text',
 		mask: mask ?? '',
-		className: classNames(
+		className: cn(
 			styles.input.base,
-			styles.input.placeholder,
-			{
-				[styles.input.disabled]: disabled,
-				[styles.input.invalid]: error !== undefined,
-				[styles.input.filled]: props.value !== '',
-				[styles.input.leftIcon]: leftIconComponent !== undefined
-			}
+			disabled && styles.input.disabled,
+			error !== undefined && styles.input.invalid,
 		)
 	};
 
@@ -72,16 +64,11 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 		ref,
 		type,
 		disabled,
-		className: classNames(
+		className: cn(
 			styles.input.base,
-			styles.input.placeholder,
-			{
-				[styles.input.disabled]: disabled,
-				[styles.input.invalid]: error !== undefined,
-				[styles.input.filled]: props.value !== '',
-				[styles.input.leftIcon]: leftIconComponent !== undefined,
-				'min-h-[130px] py-tiny': type === 'textarea'
-			}
+			disabled && styles.input.disabled,
+			error !== undefined && styles.input.invalid,
+			type === 'textarea' && 'min-h-[130px] py-tiny',
 		)
 	};
 
@@ -127,48 +114,44 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 	const input_tag_props = inputs[type as keyof typeof inputs].input_props;
 
 	return (
-		<div className={classNames('w-full', className)}>
+		<div className={cn('w-full', className)}>
 			<div className={styles.wrapper}>
-				{leftIconComponent && (
-					<div className={styles.left_icon}>
-						{leftIconComponent}
-					</div>
-				)}
-				<InputTag
-					id={fieldProps.name}
-					{...input_tag_props}
-				/>
-				{rightIconComponent !== undefined && (
-					<button
-						type='button'
-						onClick={() => rightBtnAction ? rightBtnAction() : null}
-						className={classNames(
-							styles.right_icon.base,
-							{ [styles.right_icon.icon]: rightBtnAction !== undefined }
-						)}
-					>
-						{rightIconComponent}
-					</button>
-				)}
 				{label && (
-					<label
-						className={classNames(
-							styles.label.base,
-							{ [styles.label.invalid]: error !== undefined }
-						)}
+					<Label
+						className={cn(error !== undefined && styles.label.invalid)}
 						htmlFor={fieldProps.name}
 					>
 						{label}
-					</label>
+					</Label>
 				)}
+
+				<div className='relative flex items-center'>
+					{leftIconComponent && (
+						<div className='absolute left-3 top-1/2 -translate-y-1/2'>
+							{leftIconComponent}
+						</div>
+					)}
+					<InputTag
+						id={fieldProps.name}
+						{...input_tag_props}
+					/>
+					{rightIconComponent !== undefined && (
+						<button
+							type='button'
+							onClick={() => rightBtnAction ? rightBtnAction() : null}
+							className={cn(
+								styles.right_icon.base,
+								rightBtnAction !== undefined && styles.right_icon.icon,
+							)}
+						>
+							{rightIconComponent}
+						</button>
+					)}
+				</div>
 			</div>
 
 			{supportText && (
-				<p className={classNames(
-					styles.support_text.base,
-					{ [styles.support_text.invalid]: error !== undefined }
-				)}
-				>
+				<p className={cn(styles.support_text.base, error !== undefined && styles.support_text.invalid)}>
 					{supportText}
 				</p>
 			)}

@@ -1,5 +1,7 @@
 import { lazy } from 'react';
 
+import { DefaultTemplate } from '@/router/routes/templates';
+
 import { IPath } from '@/types';
 
 export const DefaultPaths: IPath[] = [
@@ -8,7 +10,8 @@ export const DefaultPaths: IPath[] = [
 		display: 'Início',
 		path: '/',
 		element: lazy(() => import('@/pages/home')),
-		template: lazy(() => import('@/components/templates/Default')),
+		template: DefaultTemplate,
 		isMainPath: true,
+		isPrivate: true,
 	},
 ];

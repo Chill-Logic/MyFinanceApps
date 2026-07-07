@@ -1,5 +1,7 @@
 import { lazy } from 'react';
 
+import { AuthTemplate } from '@/router/routes/templates';
+
 import { IPath } from '@/types';
 
 export const AuthPaths: IPath[] = [
@@ -8,13 +10,15 @@ export const AuthPaths: IPath[] = [
 		display: 'Login',
 		path: 'auth/sign-in',
 		element: lazy(() => import('@/pages/auth/sign-in')),
-		template: lazy(() => import('@/components/templates/Auth')),
+		template: AuthTemplate,
+		isGuestOnly: true,
 	},
 	{
 		id: 'sign-up',
 		display: 'Sign-up',
 		path: 'auth/sign-up',
 		element: lazy(() => import('@/pages/auth/sign-up')),
-		template: lazy(() => import('@/components/templates/Auth')),
+		template: AuthTemplate,
+		isGuestOnly: true,
 	}
 ];

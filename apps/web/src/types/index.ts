@@ -17,6 +17,8 @@ export interface IPath {
 	element: React.LazyExoticComponent<()=> JSX.Element>;
 	template: React.LazyExoticComponent<(props: ITemplateProps)=> JSX.Element>;
 	isMainPath?: boolean;
+	isPrivate?: boolean;
+	isGuestOnly?: boolean;
 }
 
 export interface ITypographyStyle {

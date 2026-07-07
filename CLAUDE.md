@@ -371,23 +371,198 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
 
 - A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do
   `@tanstack/react-query`, mesma versão pinada do mobile (`5.80.6`) — os dois apps estão alinhados
-  aqui. Ainda não existe nenhuma tela no web consumindo dados via hook; quando isso começar, use os
-  fetchers de `@myfinance/shared` (ver seção do mobile acima) em vez de bater no axios direto.
+  aqui, seguido de `ThemeProvider` (`src/context/theme.tsx`) e `CurrentUserProvider`
+  (`src/context/current_user.tsx`). O fluxo de auth (`sign-in`/`sign-up`/home) já consome dados via
+  hook (`src/hooks/api/...`, mesmo padrão do mobile: wrapper fino em cima dos fetchers de
+  `@myfinance/shared`) — não bata no axios direto em telas novas.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
-  cada entrada tem `{ id, path, element, template, isMainPath? }` com `element`/`template` como imports
-  `React.lazy`. As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`,
-  `auth`) e concatenadas em `src/router/routes/index.ts`, que também lança erro no carregamento do
+  cada entrada tem `{ id, path, element, template, isMainPath?, isPrivate?, isGuestOnly? }` com
+  `element` como import `React.lazy` **próprio da rota** (cada página só é montada uma vez mesmo, tudo
+  bem ter um `lazy()` por rota aqui) mas `template` **precisa vir de `src/router/routes/templates.ts`**
+  (`DefaultTemplate`/`AuthTemplate`, um `lazy()` só por template, reexportado) — nunca chame
+  `lazy(() => import('@/components/templates/...'))` direto dentro de um arquivo de grupo de rota.
+  **Motivo**: cada chamada de `lazy()` cria uma referência de componente nova pro React, mesmo
+  apontando pro mesmo arquivo; template chamado via `lazy()` separadamente em cada rota (ou pior,
+  em cada rota *dentro do mesmo grupo*, como `wallets/index.ts` tinha antes) faz o React tratar como
+  um componente diferente a cada navegação — desmontando e remontando o template inteiro (Sidebar,
+  BottomNav, qualquer state local deles) mesmo entre rotas que "deveriam" ficar estáveis. Sintoma bem
+  não óbvio: transições CSS que dependem de um valor de state mudar **dentro** de uma instância já
+  montada simplesmente nunca disparam (o componente sempre nasce já no estado final a cada remount) —
+  foi assim que a animação do botão central da bottom nav (abaixo) ficou "quebrada" até isso ser
+  descoberto.
+  As rotas são agrupadas por feature em `src/router/routes/<grupo>` (atualmente `default`, `auth`,
+  `wallets`) e concatenadas em `src/router/routes/index.ts`, que também lança erro no carregamento do
   módulo se dois `id`s de rota colidirem. Pra adicionar rotas novas, estenda um desses arquivos de grupo
-  (ou crie um grupo novo e inclua no `Paths`). O `template` de cada rota (ex:
-  `components/templates/Auth`, `components/templates/Default`) envolve o layout/chrome da página.
-- `src/components` segue o padrão atoms/molecules/templates (sem organisms, diferente do mobile).
+  (ou crie um grupo novo e inclua no `Paths`).
+- **Padding lateral de página mora no template, não na página**: `components/templates/Default` tem
+  `container mx-auto px-4 py-6` (`pb-28` a mais no mobile, ver bottom nav abaixo) — isso é o que dá
+  espaçamento pras páginas que usam esse template (`Home`, `Carteiras`, `Convites`), nenhuma delas
+  precisa (nem deve) repetir isso na própria página. Já aconteceu de um "clean up" na `Home` remover
+  sem querer um `<div className='p-8'>` que a página tinha por conta própria — como o template não
+  fornecia padding nenhum na época, isso sumiu com o único respiro lateral que existia. Se alguma tela
+  nova parecer sem espaçamento, o lugar certo pra conferir é o template, não a página.
+- **Navegação** (`src/components/organisms/{NavLinks,Sidebar,BottomNav}`, `src/hooks/useNavItems`):
+  desktop usa `Sidebar` (lista colapsável, sem tratamento especial de ação central — só
+  `NavLinks` + toggle de colapsar); mobile usa `BottomNav`, uma "ilha" flutuante (`fixed`, não gruda na
+  borda) com até 3 destinos + botão de hambúrguer, mais uma ação central elevada (FAB) condicional por
+  rota. `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
+  (evita duplicar a lista em dois lugares) — inclui os destinos fixos, "Nova Carteira" (ação sempre
+  disponível, não amarrada a rota) e o toggle de tema/logout.
+  - `useNavItems` centraliza a lógica de "o que mostrar" separada da renderização — é a peça pensada
+    pra ficar fácil de portar pro mobile depois (lá a leitura da rota atual troca de `useLocation()`
+    do react-router-dom pra algo como `useRoute()` do React Navigation, mas a FORMA — destinos fixos +
+    uma ação central sensível a rota — deveria ficar igual). `centerAction` só existe (`!== null`) na
+    Início (`/`), que é sempre a visão da carteira selecionada no contexto (`useWallet()`, ainda não
+    implementado no web — ver nota de "próximos passos" abaixo); em qualquer outra rota o valor é
+    `null` e quem renderiza decide não mostrar nada elevado no lugar (não um espaço vazio reservado).
+  - O botão central da `BottomNav` fica **sempre montado** — anima `scale`/`opacity` (0↔100%) e o slot
+    ao redor anima `flex-grow` em vez de aparecer/sumir via `{condição && <div>}`, porque isso não dá
+    pra animar (não existe "de" um estado desmontado). Guarda a última ação conhecida num state local
+    só pra o ícone não sumir instantaneamente no meio da transição de saída.
+  - **Não tem animação de entrada na `BottomNav` em si** (barra inteira aparecendo/deslizando) —
+    tentamos com `tailwindcss-animate` (`animate-in slide-in-from-bottom-4`) e quebrou: a barra já usa
+    `-translate-x-1/2` (transform) pra se centralizar horizontalmente, e o `animate-in` do
+    `tailwindcss-animate` também controla `transform` durante toda a animação (seta
+    `translate3d(...) scale3d(...) rotate(...)` combinado, mesmo só usando `fade-in` sem slide/zoom
+    explícito) — os dois brigam pelo mesmo `transform` e o resultado visual é errado (parecia vir da
+    direita). Pra reintroduzir isso direito, precisaria separar a centralização (wrapper externo, sem
+    animação) do elemento que anima (interno, sem precisar de transform próprio).
+  - Ícones do hambúrguer usam `Popover` (`src/components/ui/popover.tsx`), não `Sheet`
+    (`src/components/ui/sheet.tsx`, criado primeiro mas trocado — o pedido era um menu "flutuante,
+    quase como uma tooltip saindo do botão", não um painel full-width vindo de baixo). O `Sheet` ficou
+    no repo como primitivo genérico pra outro uso futuro (ex: um filtro em tela cheia no mobile), não
+    está morto, só não é usado ainda.
+  - **`NavLink` sem a prop `end` casa por prefixo**: `/wallets` "contém" `/wallets/invites`, e pior,
+    `/` é prefixo de **qualquer** rota — sem `end`, o item "Início" ficaria sempre ativo em toda tela.
+    Todo `NavLink` renderizado a partir de `navItems` usa `end` (ver `NavLinks`/`BottomNav`) porque
+    nenhuma dessas rotas hoje tem sub-rota que precisaria do match por prefixo; se isso mudar no
+    futuro (uma rota pai com sub-rotas reais), reavaliar caso a caso, não remover `end` de todo mundo.
+  - **Conteúdo de `Popover`/`Sheet` (Radix) é renderizado num `Portal` direto no `<body>`**, fora da
+    árvore DOM de quem abriu — esconder o gatilho via CSS (`hidden md:flex`/`md:hidden`) não fecha um
+    popover/sheet que já estava aberto ao cruzar o breakpoint, ele fica "órfão" flutuando na tela
+    (não tem `md:hidden` nenhuma alcançando o conteúdo portado). Por isso `Sidebar`/`BottomNav` são
+    **desmontados de verdade** via `useMediaQuery('(min-width: 768px)')` (`src/hooks/useMediaQuery`)
+    em `DefaultTemplate`, não só escondidos via classe — desmontar o componente inteiro é a forma
+    confiável de garantir que nada portado sobrevive escondido.
+  - **Escopo de carteira** (`context/wallet.tsx`, `WalletUserProvider`/`useWallet()`) — equivalente ao
+    `context/wallet.tsx` do mobile, mesmo padrão: busca a carteira principal
+    (`hooks/api/wallets/useGetMainWallet`) assim que existe token + usuário carregado, guarda em
+    `user_wallet`. `organisms/WalletSwitcher` (`Select` do shadcn, `ui/select.tsx`) é o equivalente do
+    `Dropdown` "Visualizando a carteira:" do `Sidebar` do mobile — fica dentro do `NavLinks`
+    (aparece no Sidebar e no popover do hambúrguer de graça), alimentado por
+    `hooks/api/wallets/useIndexWallets`, escrevendo em `setUserWallet` ao trocar. Só renderiza quando
+    `showLabels` é `true` (escondido com o Sidebar colapsado — um `Select` não tem um modo
+    "só ícone" que faça sentido). `centerAction`/`newWalletAction` continuam placeholder
+    (`toast.info('Em breve')`) — o contexto da carteira existe agora, mas criar carteira/transação de
+    verdade ainda é o próximo fluxo, não esse.
+  - **Transações na Home** (`organisms/TransactionList`, `TransactionFormDialog`) — lista as transações
+    da carteira selecionada (`useWallet()`), com seletor de mês (setas + rótulo, sem modal como o
+    mobile tinha), uma barra leve de Saldo/Entrada/Saída (nada de card grande com número gigante — isso
+    já foi tentado e destoava do resto, ficou "bruto" — o mobile faz isso como texto simples lado a
+    lado, sem caixa, e é essa referência que vale seguir), lista agrupada por dia ("Hoje"/"Ontem"/data),
+    ícone de seta por tipo (`deposit`/`withdraw`), menu de ações (`DropdownMenu`) por transação e
+    confirmação de exclusão via `AlertDialog`. Formulário de nova/editar transação usa `Calendar`
+    (`react-day-picker` — único caso no repo, `date-fns` já era dependência do `packages/shared`,
+    mesma versão `^3.6.0`, sem conflito) dentro de um `Popover` em vez de campo de data digitado à mão
+    como o mobile.
+  - **Botão "Nova Transação" só aparece no header em telas `md:` pra cima** — no mobile o "+" da
+    `BottomNav` já cobre essa ação (via `context/newTransactionDialog.tsx`, que sincroniza os dois
+    porque vivem em ramos diferentes da árvore — a `BottomNav` mora no `DefaultTemplate`, o diálogo
+    mora dentro da `Home`); duplicar o botão ali seria redundante.
+  - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
+    mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
+    pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Desktop usa tabela, mobile usa cards** — `TransactionList` renderiza os dois layouts (um
+    `hidden md:block`, o outro `md:hidden`) reaproveitando a mesma lógica de ícone por tipo e menu de
+    ações via funções auxiliares (`renderKindIcon`/`renderActionsMenu`), só a marcação (`<table>` vs
+    `<div>`) muda. A tabela (`ui/table.tsx`, HTML semântico puro, sem lib nova) tem ordenação por
+    coluna local (sem paginação/API, ordena o array já carregado do mês) — `react-data-table-component`
+    segue instalado mas sem uso (motor de estilo próprio, não usa os tokens daqui).
+  - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
+    `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
+    usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
+    filho pra funcionar), a ref se perdia no meio do caminho e o clique simplesmente não abria nada —
+    sem erro nenhum no console, silencioso. Qualquer átomo novo que possa ser usado como filho de
+    `asChild` (Radix `Slot`) precisa encaminhar a ref, não só as props.
+  - **`Dialog`/`AlertDialog` (shadcn) usam `w-full` + `sm:rounded-lg`** por padrão — no mobile isso
+    cola o modal nas bordas da tela inteira, sem nenhum arredondamento (só ganha isso a partir do
+    desktop). Ajustado pra `w-[calc(100%-2rem)]` + `rounded-lg` sempre, dando a mesma margem/cantos em
+    qualquer tamanho de tela — se usar esses primitivos em outro lugar, não reverta isso sem querer.
+- `src/components` segue o padrão atoms/molecules/organisms/templates (organisms só apareceram com a
+  navegação acima — antes disso era atoms/molecules/templates, sem organisms, diferente do mobile).
 - Alias de path `@` → `src` (configurado em `vite.config.ts` `resolve.alias` e consumido via
   `vite-tsconfig-paths`). Imports absolutos `@/...` são obrigatórios por lint
   (`no-relative-import-paths/no-relative-import-paths`, `allowSameFolder: true`) — diferente do mobile,
   aqui um import relativo (`../../foo`) fora da mesma pasta falha no lint.
-- Estilização é Tailwind CSS + `@material-tailwind/react`; os design tokens ficam em `src/util`
-  (`Tokens`, referenciado por `src/types/index.ts` pra `TFontSize`/`TColor`/etc.). i18n via
-  `i18next`/`react-i18next`.
+- Estilização é Tailwind CSS + shadcn/ui (`@material-tailwind/react` foi removido — instalado mas
+  nunca usado em nenhum componente, e o preset dele conflitava com o do shadcn); os design tokens
+  "de app" (spacing, fontSize, etc.) ficam em `src/util` (`Tokens`, referenciado por
+  `src/types/index.ts` pra `TFontSize`/`TColor`/etc.). i18n via `i18next`/`react-i18next`.
+- **shadcn/ui**: `components.json` configura o CLI (`npx shadcn add <componente>` funciona direto,
+  sem precisar reconfigurar nada), `src/lib/utils.ts` tem o `cn()` (clsx + tailwind-merge). Os
+  primitivos ficam em `src/components/ui/*` (`button`, `input`, `label`, `checkbox`, `sonner`) — **eles
+  nunca são importados diretamente por página/feature**, só pelos átomos em
+  `src/components/atoms/*` (`Button`, `TextInput`), que são wrappers finos por cima. Ícones são
+  `lucide-react` (usado direto por páginas/componentes, não precisa de wrapper — já é a lib que o
+  shadcn usa internamente nos próprios componentes, então dá pra misturar sem gerar inconsistência
+  visual). Toast é `sonner` (trocou `react-toastify`), sempre através do hook `src/hooks/useToast`
+  (nunca `import { toast } from 'sonner'` direto numa página).
+- **Tema (light/dark)**: `src/context/theme.tsx` (`ThemeProvider`/`useTheme()`) é a única fonte de
+  verdade — antes existia um hook `useTheme` ad-hoc que criava um `useState` local por componente,
+  sincronizado só via `localStorage` lido no mount; qualquer toggle ficava "preso" ao componente que
+  clicou, sem refletir em outros lugares até um reload. Se precisar ler/trocar o tema em código novo,
+  sempre consuma o contexto, nunca reimplemente um state local pra isso.
+  - As variáveis CSS do shadcn (`--background`, `--primary`, `--secondary`, etc., em
+    `src/styles/index.css`, dentro de `:root`/`.dark`) são a paleta de marca de
+    `packages/shared/src/tokens.ts` **convertida pra HSL** (não é uma paleta nova) — se adicionar um
+    token de marca novo lá, recalcule o HSL e adicione aqui também, os dois lados não sincronizam
+    sozinhos.
+  - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
+    texto sem cor explícita (ex: `Label` do shadcn, que não define cor própria de propósito) herda o
+    preto padrão do browser em vez de acompanhar o tema — foi exatamente isso que quebrou as labels
+    dos inputs e do "manter conectado" na primeira versão do dark mode aqui.
+  - Ao adicionar uma paleta de cor nova (ex: `--secondary` de um tema), confira que ela não fique
+    visualmente parecida com `--primary`/`--accent` — já erramos isso uma vez usando `brand-tertiary`
+    (outro tom de verde) como `--secondary` do dark mode, fazendo os botões "Entrar" (primary) e
+    "Cadastre-se" (secondary) ficarem quase idênticos.
+  - **Telas de auth também precisam do toggle de tema** (`components/templates/Auth` tem o botão) —
+    existia um `useEffect` ali que forçava tema claro escondido sempre que a página montava; foi
+    removido, mas se voltar a implementar um template novo, não reintroduza esse tipo de forçamento.
+- **shadcn/sonner e classes Tailwind não se misturam bem pra cor**: o `sonner` aplica
+  background/borda/texto via `[data-sonner-toast][data-styled='true']` (dois seletores de atributo,
+  especificidade maior que qualquer classe Tailwind isolada) — `toastOptions.classNames` pra cor
+  **nunca vence** essa guerra de especificidade, não adianta tentar de novo com hex direto ou
+  `!important` na classe. As cores por tipo (`success`/`error`/etc.) também só existem sob
+  `[data-rich-colors='true']`, que precisa da prop `richColors` no `<Toaster>`. O jeito certo (já
+  implementado em `src/components/ui/sonner.tsx`) é sobrescrever as **variáveis CSS** que o próprio
+  sonner lê (`--normal-bg`, `--success-bg`, etc.) via `style` inline no `<Toaster>`, apontando pros
+  tokens `--toast-*` de `index.css`.
+- **React duplicado no monorepo afeta qualquer pacote hoisted na raiz, não só `react-router`**: o
+  problema documentado acima, na seção do mobile, pro `react-router-dom` (dedupe do npm pro React 19
+  do mobile em vez do React 18 do web) se repete pra **qualquer** pacote hoisted que dependa de React
+  como peer —
+  já apareceu de novo com `lucide-react` e os pacotes `@radix-ui/*` (usados pelos primitivos do
+  shadcn), sempre com o mesmo sintoma: erro de tipo tipo "X cannot be used as a JSX component" no
+  editor/`tsc`, mesmo com `npm run webapp:build` passando limpo. A causa: o editor e um `tsc` direto
+  usam `tsconfig.json`, que tem um redirect de tipos (`paths`: `react`/`react-dom` →
+  `../node_modules/@types/react`/`@types/react-dom`, a cópia local do `apps/web`) — mas esse mesmo
+  redirect quebraria o Vite em runtime se ele enxergasse (`@types/react` não é um pacote executável).
+  Por isso existe um `tsconfig.vite.json` separado (mesmo arquivo, sem esse redirect) e
+  `vite.config.ts` aponta `vite-tsconfig-paths({ projects: ['tsconfig.vite.json'] })` pra ele —
+  **não delete `tsconfig.vite.json` nem mova o redirect de volta pro `tsconfig.json` compartilhado sem
+  entender esse split**. `vite.config.ts` também tem `resolve.dedupe: ['react', 'react-dom']`, que
+  cobre a duplicação em runtime (bundle), separado do problema de tipos.
+- **Zumbi do Vite no Windows pode travar o cache** (`apps/web/node_modules/.vite`): `npm run
+  webapp:dev` roda via `cmd.exe /d /s /c vite --host` — um `Ctrl+C` no terminal nem sempre mata o
+  processo `esbuild` que o Vite mantém rodando em segundo plano (encadeamento
+  cmd.exe→node→esbuild.exe), sobretudo se você reinicia rápido no mesmo terminal. O zumbi segura um
+  lock de arquivo em `node_modules/.vite/deps` (nome fixo, não muda por tentativa), e qualquer
+  instância nova do Vite falha ao tentar renomear sua própria pasta temporária pra esse nome —
+  sintoma: erro tipo `Uncaught SyntaxError: ... does not provide an export named 'X'` depois de uma
+  mudança que não tem nada a ver com isso, e/ou pastas `deps_temp_*` órfãs (sem nenhuma `deps` final)
+  dentro de `node_modules/.vite`. Diagnóstico: `netstat -ano | findstr :5173` (ou a porta em uso) pra
+  achar o PID, `taskkill /PID <pid> /F /T` (o `/T` mata a árvore inteira, não só o processo pai), aí
+  sim limpar `node_modules/.vite` e subir de novo.
 - `@casl/ability` está instalado mas ainda não está integrado em nenhum componente — não existe lógica
   de permissão/ability ainda, caso você procure por isso.
 - `src/types/index.ts` reexporta tudo de `@myfinance/shared` junto com os tipos próprios de UI deste
@@ -415,3 +590,5 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
 
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
+- Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os
+  dois antes de considerar uma tela pronta, não só o layout desktop.

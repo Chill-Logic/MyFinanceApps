@@ -20,8 +20,15 @@
     "noFallthroughCasesInSwitch": true,
 
     "baseUrl": "./src",
+    /* O monorepo tem dois React (19 hoisted na raiz p/ o mobile, 18 local aqui). Pacotes
+       hoisted (react-router, lucide-react, etc.) resolveriam os tipos do React 19 sem isso,
+       colidindo com o ReactNode do React 18 usado pelo resto do app. Só afeta o tsc/editor —
+       o Vite usa tsconfig.vite.json (sem esse redirect) via `projects` no vite-tsconfig-paths,
+       já que aqui apontar "react" pro pacote de tipos quebraria a resolução em runtime. */
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["*"],
+      "react": ["../node_modules/@types/react"],
+      "react-dom": ["../node_modules/@types/react-dom"]
     }
   },
   "include": ["src"],

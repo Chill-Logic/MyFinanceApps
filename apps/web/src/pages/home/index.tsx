@@ -1,17 +1,5 @@
-import { useTheme } from '@/hooks/useTheme';
+import TransactionList from '@/components/organisms/TransactionList';
 
-import Button from '@/components/atoms/Button';
-
-const HomePage = () => {
-	const { theme, toggleTheme } = useTheme();
-
-	return (
-		<div>
-			<Button onClick={toggleTheme}>
-				Alterar tema {theme}
-			</Button>
-		</div>
-	);
-};
+const HomePage = () => <TransactionList />;
 
 export default HomePage;
