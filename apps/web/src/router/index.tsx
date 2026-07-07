@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import { RouteGuard } from './guards';
@@ -20,13 +19,11 @@ export const Router = () => {
 							key={path}
 							path={path}
 							element={
-								<Suspense>
-									<Template>
-										<RouteGuard isPrivate={isPrivate} isGuestOnly={isGuestOnly}>
-											<Element />
-										</RouteGuard>
-									</Template>
-								</Suspense>
+								<Template>
+									<RouteGuard isPrivate={isPrivate} isGuestOnly={isGuestOnly}>
+										<Element />
+									</RouteGuard>
+								</Template>
 							}
 						/>
 					))

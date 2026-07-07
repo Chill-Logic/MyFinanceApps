@@ -189,56 +189,59 @@ const TransactionList = () => {
 
 	return (
 		<div className='flex flex-col gap-4'>
-			<div className='flex flex-wrap items-center justify-center gap-3 md:justify-between'>
-				<div className='flex items-center gap-2'>
-					<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
-						<ChevronLeft className='h-4 w-4' />
-					</Button>
-					<span className='w-36 text-center text-sm font-medium capitalize'>
-						{format(new Date(month_year.year, month_year.month, 1), 'MMMM yyyy', { locale: ptBR })}
-					</span>
-					<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
-						<ChevronRight className='h-4 w-4' />
-					</Button>
-				</div>
-
-				{/* No mobile o "+" da bottom nav já cobre essa ação — duplicar aqui seria redundante */}
-				<Button
-					type='button'
-					onClick={() => setIsNewTransactionOpen(true)}
-					disabled={!user_wallet.data?.id}
-					className='hidden gap-2 md:inline-flex'
-				>
-					<Plus className='h-4 w-4' />
-					Nova Transação
-				</Button>
-			</div>
-
-			<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3'>
-				<div className='flex flex-col'>
-					<span className='text-xs font-medium uppercase text-muted-foreground'>Saldo</span>
-					{is_loading ? (
-						<Skeleton className='h-5 w-20' />
-					) : (
-						<span className={cn('text-base font-semibold', total >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
-							{MoneyUtils.formatMoney(total)}
+			{/* sticky: fica visível ao rolar a lista pra baixo, sem precisar procurar o mês/saldo de novo */}
+			<div className='sticky top-0 z-10 flex flex-col gap-4 bg-background-light pb-4 dark:bg-background-default'>
+				<div className='flex flex-wrap items-center justify-center gap-3 md:justify-between'>
+					<div className='flex items-center gap-2'>
+						<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
+							<ChevronLeft className='h-4 w-4' />
+						</Button>
+						<span className='w-36 text-center text-sm font-medium capitalize'>
+							{format(new Date(month_year.year, month_year.month, 1), 'MMMM yyyy', { locale: ptBR })}
 						</span>
-					)}
+						<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
+							<ChevronRight className='h-4 w-4' />
+						</Button>
+					</div>
+
+					{/* No mobile o "+" da bottom nav já cobre essa ação — duplicar aqui seria redundante */}
+					<Button
+						type='button'
+						onClick={() => setIsNewTransactionOpen(true)}
+						disabled={!user_wallet.data?.id}
+						className='hidden gap-2 md:inline-flex'
+					>
+						<Plus className='h-4 w-4' />
+						Nova Transação
+					</Button>
 				</div>
 
-				<div className='flex items-center gap-6'>
+				<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3'>
 					<div className='flex flex-col'>
-						<span className='text-xs font-medium uppercase text-muted-foreground'>Entrada</span>
-						{is_loading ? <Skeleton className='h-4 w-16' /> : (
-							<span className='text-sm font-medium text-feedback-success-default'>{MoneyUtils.formatMoney(total_deposit)}</span>
+						<span className='text-xs font-medium uppercase text-muted-foreground'>Saldo</span>
+						{is_loading ? (
+							<Skeleton className='h-5 w-20' />
+						) : (
+							<span className={cn('text-base font-semibold', total >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
+								{MoneyUtils.formatMoney(total)}
+							</span>
 						)}
 					</div>
 
-					<div className='flex flex-col'>
-						<span className='text-xs font-medium uppercase text-muted-foreground'>Saída</span>
-						{is_loading ? <Skeleton className='h-4 w-16' /> : (
-							<span className='text-sm font-medium text-destructive'>{MoneyUtils.formatMoney(total_withdraw)}</span>
-						)}
+					<div className='flex items-center gap-6'>
+						<div className='flex flex-col'>
+							<span className='text-xs font-medium uppercase text-muted-foreground'>Entrada</span>
+							{is_loading ? <Skeleton className='h-4 w-16' /> : (
+								<span className='text-sm font-medium text-feedback-success-default'>{MoneyUtils.formatMoney(total_deposit)}</span>
+							)}
+						</div>
+
+						<div className='flex flex-col'>
+							<span className='text-xs font-medium uppercase text-muted-foreground'>Saída</span>
+							{is_loading ? <Skeleton className='h-4 w-16' /> : (
+								<span className='text-sm font-medium text-destructive'>{MoneyUtils.formatMoney(total_withdraw)}</span>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -331,7 +334,7 @@ const TransactionList = () => {
 
 			{/* Mobile: cards agrupados por dia — tabela não funciona bem em tela estreita */}
 			{!is_loading && groups.length > 0 && (
-				<div className='flex flex-col gap-4 md:hidden'>
+				<div className='flex flex-col gap-4 md:hidden pb-6'>
 					{groups.map((group) => (
 						<div key={group.label} className='flex flex-col gap-2'>
 							<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>

@@ -1,15 +1,16 @@
-import { lazy } from 'react';
-
-import { AuthTemplate } from '@/router/routes/templates';
+import SignInPage from '@/pages/auth/sign-in';
+import SignUpPage from '@/pages/auth/sign-up';
 
 import { IPath } from '@/types';
+
+import AuthTemplate from '@/components/templates/Auth';
 
 export const AuthPaths: IPath[] = [
 	{
 		id: 'login',
 		display: 'Login',
 		path: 'auth/sign-in',
-		element: lazy(() => import('@/pages/auth/sign-in')),
+		element: SignInPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
 	},
@@ -17,7 +18,7 @@ export const AuthPaths: IPath[] = [
 		id: 'sign-up',
 		display: 'Sign-up',
 		path: 'auth/sign-up',
-		element: lazy(() => import('@/pages/auth/sign-up')),
+		element: SignUpPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
 	}

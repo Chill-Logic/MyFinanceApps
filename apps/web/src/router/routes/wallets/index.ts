@@ -1,15 +1,16 @@
-import { lazy } from 'react';
-
-import { DefaultTemplate } from '@/router/routes/templates';
+import MyWalletsPage from '@/pages/wallets';
+import WalletsInvitesPage from '@/pages/wallets/invites';
 
 import { IPath } from '@/types';
+
+import DefaultTemplate from '@/components/templates/Default';
 
 export const WalletsPaths: IPath[] = [
 	{
 		id: 'my_wallets',
 		display: 'Carteiras',
 		path: '/wallets',
-		element: lazy(() => import('@/pages/wallets')),
+		element: MyWalletsPage,
 		template: DefaultTemplate,
 		isPrivate: true,
 	},
@@ -17,7 +18,7 @@ export const WalletsPaths: IPath[] = [
 		id: 'wallets_invites',
 		display: 'Convites',
 		path: '/wallets/invites',
-		element: lazy(() => import('@/pages/wallets/invites')),
+		element: WalletsInvitesPage,
 		template: DefaultTemplate,
 		isPrivate: true,
 	},

@@ -42,7 +42,7 @@ const BottomNav = ({ className }: IProps) => {
 	return (
 		<nav
 			className={cn(
-				'fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center rounded-2xl border border-border bg-background px-2 shadow-lg',
+				'relative flex items-center border-t border-border bg-background',
 				className,
 			)}
 		>
