@@ -33,6 +33,14 @@ export type TRecoverPasswordBody = {
 	email: string;
 };
 
+export type TUpdateUserBody = {
+	name?: string;
+	email?: string;
+	current_password?: string;
+	password?: string;
+	password_confirmation?: string;
+};
+
 export type TResetPasswordBody = {
 	token: string;
 	password: string;

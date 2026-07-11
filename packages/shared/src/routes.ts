@@ -7,6 +7,7 @@ export const API_ROUTES = {
 	},
 	users: {
 		me: '/users/me',
+		updateMe: '/users/me',
 	},
 	wallets: {
 		index: '/wallets',
