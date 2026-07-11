@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-import { MoneyUtils, type TTransaction, type TTransactionKind } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, type TTransaction, type TTransactionKind } from '@myfinance/shared';
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 
@@ -84,7 +84,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate 
 					toast.success('Transação atualizada!');
 					onOpenChange(false);
 				},
-				onError: () => toast.error('Erro ao atualizar transação'),
+				onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar transação')),
 			});
 			return;
 		}
@@ -100,7 +100,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate 
 				toast.success('Transação criada!');
 				onOpenChange(false);
 			},
-			onError: () => toast.error('Erro ao criar transação'),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
 		});
 	};
 

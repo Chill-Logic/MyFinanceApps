@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { getApiErrorMessage } from '@myfinance/shared';
+
 import { useSignUp } from '@/hooks/api/auth/useSignUp';
 import useToast from '@/hooks/useToast';
 
@@ -45,8 +47,8 @@ const SignUpPage = () => {
 				toast.success('Cadastro realizado com sucesso!');
 				navigate('/auth/sign-in');
 			},
-			onError: () => {
-				toast.error('Verifique os campos e tente novamente');
+			onError: (error) => {
+				toast.error(getApiErrorMessage(error, 'Verifique os campos e tente novamente'));
 			},
 		});
 	};

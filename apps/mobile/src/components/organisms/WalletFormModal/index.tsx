@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useCreateWallets } from '../../../hooks/api/wallets/useCreateWallets';
 import { useUpdateWallets } from '../../../hooks/api/wallets/useUpdateWallets';
@@ -54,11 +54,11 @@ export const WalletFormModal = (props: WalletModalProps) => {
 					handleClose();
 					onSuccess?.();
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao atualizar carteira!',
-						text2: 'Ocorreu um erro ao atualizar a carteira',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao atualizar a carteira'),
 					});
 				},
 			});
@@ -77,11 +77,11 @@ export const WalletFormModal = (props: WalletModalProps) => {
 					handleClose();
 					onSuccess?.();
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao criar carteira!',
-						text2: 'Ocorreu um erro ao criar a carteira',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao criar a carteira'),
 					});
 				},
 			});

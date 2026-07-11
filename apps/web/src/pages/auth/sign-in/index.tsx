@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { getApiErrorMessage } from '@myfinance/shared';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { useSignIn } from '@/hooks/api/auth/useSignIn';
@@ -35,8 +36,8 @@ const SignInPage = () => {
 				login(token);
 				navigate('/');
 			},
-			onError: () => {
-				toast.error('E-mail ou senha inválidos');
+			onError: (error) => {
+				toast.error(getApiErrorMessage(error, 'E-mail ou senha inválidos'));
 			},
 		});
 	};

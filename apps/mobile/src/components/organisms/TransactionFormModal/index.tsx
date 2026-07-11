@@ -4,7 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
@@ -89,11 +89,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					});
 					handleClose();
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao atualizar transação!',
-						text2: 'Ocorreu um erro ao atualizar a transação',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao atualizar a transação'),
 					});
 				},
 			});
@@ -124,11 +124,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					});
 					handleClose();
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao criar transação!',
-						text2: 'Ocorreu um erro ao criar a transação',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao criar a transação'),
 					});
 				},
 			});

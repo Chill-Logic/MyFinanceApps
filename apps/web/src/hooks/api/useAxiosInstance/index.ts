@@ -6,7 +6,7 @@ export const getAxiosInstance = () => {
 	const token = AuthStorage.getToken();
 
 	const axiosInstance = axios.create({
-		baseURL: import.meta.env.VITE_API_URL,
+		baseURL: `${ import.meta.env.VITE_API_URL }/v1`,
 		headers: {
 			'X-API-Key': import.meta.env.VITE_API_KEY,
 		},

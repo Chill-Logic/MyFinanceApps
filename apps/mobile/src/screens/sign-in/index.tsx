@@ -6,7 +6,7 @@ import {
 import { Alert } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
 
@@ -49,8 +49,8 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 				setCanSearchForWallets(true);
 				navigation.replace('Home');
 			},
-			onError: () => {
-				Alert.alert('Erro', 'E-mail ou senha inválidos');
+			onError: (error) => {
+				Alert.alert('Erro', getApiErrorMessage(error, 'E-mail ou senha inválidos'));
 			},
 		});
 	};
