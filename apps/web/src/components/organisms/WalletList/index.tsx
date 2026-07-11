@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, type TWallet } from '@myfinance/shared';
-import { Check, Trash2, WalletCards } from 'lucide-react';
+import { Check, MoreVertical, Pencil, Trash2, UserPlus, WalletCards } from 'lucide-react';
 
 import { useDeleteWallet } from '@/hooks/api/wallets/useDeleteWallet';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
+import WalletFormDialog from '@/components/organisms/WalletFormDialog';
+import WalletInviteFormDialog from '@/components/organisms/WalletInviteFormDialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -25,6 +27,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const WalletList = () => {
@@ -36,13 +39,15 @@ const WalletList = () => {
 	const { user_wallet, setUserWallet } = useWallet();
 	const { mutate: deleteWalletMutation, isPending: is_delete_pending } = useDeleteWallet();
 
+	const [ editing_wallet, setEditingWallet ] = useState<TWallet | null>(null);
+	const [ inviting_wallet, setInvitingWallet ] = useState<TWallet | null>(null);
 	const [ deleting_wallet, setDeletingWallet ] = useState<TWallet | null>(null);
 
 	const wallets = data_wallets?.data || [];
 
 	/*
-	 * Selecionar uma carteira só troca a carteira ativa no contexto e volta pra Home (a visão da
-	 * carteira selecionada) — mesmo comportamento do MyWalletsScreen do mobile.
+	 * Selecionar troca a carteira ativa no contexto e volta pra Home (a visão da carteira
+	 * selecionada) — mesmo comportamento do MyWalletsScreen do mobile.
 	 */
 	const handleSelect = (wallet: TWallet) => {
 		setUserWallet({ data: wallet });
@@ -50,9 +55,9 @@ const WalletList = () => {
 	};
 
 	/*
-	 * Excluir é owner-only (o backend retorna 403 caso contrário; só mostramos a ação pro dono).
-	 * Se a carteira excluída for a ativa, zeramos o contexto — o WalletUserProvider volta a buscar
-	 * a carteira principal sozinho.
+	 * Editar/Convidar/Excluir são owner-only (o backend retorna 403 caso contrário) — o menu ⋮ só
+	 * aparece pro dono. Ao excluir a carteira ativa, zeramos o contexto pra o WalletUserProvider
+	 * rebuscar a principal.
 	 */
 	const handleConfirmDelete = () => {
 		if (!deleting_wallet) return;
@@ -115,14 +120,14 @@ const WalletList = () => {
 							<li
 								key={wallet.id}
 								className={cn(
-									'flex items-center gap-1 rounded-lg border transition-colors',
-									is_active ? 'border-primary bg-accent' : 'border-border',
+									'flex items-center overflow-hidden rounded-lg border transition-colors',
+									is_active ? 'border-primary bg-primary/10' : 'border-border',
 								)}
 							>
 								<button
 									type='button'
 									onClick={() => handleSelect(wallet)}
-									className='flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-4 text-left'
+									className='flex min-w-0 flex-1 items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/60'
 								>
 									<div className='min-w-0'>
 										<p className='truncate font-medium text-foreground'>{wallet.name}</p>
@@ -132,27 +137,62 @@ const WalletList = () => {
 											</p>
 										)}
 									</div>
-									{is_active && <Check className='h-5 w-5 shrink-0 text-primary' />}
+									{is_active && (
+										<span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground'>
+											<Check className='h-3 w-3' />
+										</span>
+									)}
 								</button>
 
 								{is_owner && (
-									<Button
-										type='button'
-										variant='ghost'
-										size='icon'
-										aria-label='Excluir carteira'
-										title='Excluir carteira'
-										className='mr-2 shrink-0 text-muted-foreground hover:text-destructive'
-										onClick={() => setDeletingWallet(wallet)}
-									>
-										<Trash2 className='h-4 w-4' />
-									</Button>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												type='button'
+												variant='ghost'
+												size='icon'
+												aria-label='Ações da carteira'
+												className='mr-1 shrink-0'
+											>
+												<MoreVertical className='h-4 w-4' />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align='end'>
+											<DropdownMenuItem onClick={() => setEditingWallet(wallet)}>
+												<Pencil className='mr-2 h-4 w-4' />
+												Editar
+											</DropdownMenuItem>
+											<DropdownMenuItem onClick={() => setInvitingWallet(wallet)}>
+												<UserPlus className='mr-2 h-4 w-4' />
+												Convidar
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												onClick={() => setDeletingWallet(wallet)}
+												className='text-destructive focus:text-destructive'
+											>
+												<Trash2 className='mr-2 h-4 w-4' />
+												Excluir
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								)}
 							</li>
 						);
 					})}
 				</ul>
 			)}
+
+			<WalletFormDialog
+				open={Boolean(editing_wallet)}
+				onOpenChange={(open) => !open && setEditingWallet(null)}
+				wallet={editing_wallet}
+			/>
+
+			<WalletInviteFormDialog
+				open={Boolean(inviting_wallet)}
+				onOpenChange={(open) => !open && setInvitingWallet(null)}
+				wallet={inviting_wallet}
+			/>
 
 			<AlertDialog open={Boolean(deleting_wallet)} onOpenChange={(open) => !open && setDeletingWallet(null)}>
 				<AlertDialogContent>

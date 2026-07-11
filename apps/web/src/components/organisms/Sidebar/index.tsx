@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
-import { ChevronLeft, ChevronRight, Info, LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
 
 import { useCurrentUserContext } from '@/context/current_user';
-import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
-import AboutPopover from '@/components/organisms/AboutPopover';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
 
 interface IProps {
@@ -24,7 +22,6 @@ const Sidebar = ({ className }: IProps) => {
 
 	const { navItems, newWalletAction } = useNavItems();
 	const { logout } = useCurrentUserContext();
-	const { theme, toggleTheme } = useTheme();
 	const { data: data_invites } = useListInvites();
 
 	const invites_count = data_invites?.data.length ?? 0;
@@ -84,12 +81,12 @@ const Sidebar = ({ className }: IProps) => {
 				</button>
 			</div>
 
-			{/* Rodapé isolado: Configurações + tema + Sair, sempre grudados na base do menu. */}
+			{/* Rodapé isolado: Configurações + Sair, sempre grudados na base do menu. */}
 			<div className='flex shrink-0 flex-col gap-1'>
 				<div className='my-2 border-t border-border' />
 
 				<NavLink
-					to='/wallets/settings'
+					to='/settings'
 					end
 					title={collapsed ? 'Configurações' : undefined}
 					className={({ isActive }) => cn(item_class, collapsed && 'justify-center', isActive && 'bg-secondary text-secondary-foreground')}
@@ -97,27 +94,6 @@ const Sidebar = ({ className }: IProps) => {
 					<Settings className='h-4 w-4 shrink-0' />
 					{!collapsed && 'Configurações'}
 				</NavLink>
-
-				<AboutPopover side='right' align='end'>
-					<button
-						type='button'
-						title={collapsed ? 'Sobre' : undefined}
-						className={cn(item_class, collapsed && 'justify-center')}
-					>
-						<Info className='h-4 w-4 shrink-0' />
-						{!collapsed && 'Sobre'}
-					</button>
-				</AboutPopover>
-
-				<button
-					type='button'
-					onClick={toggleTheme}
-					title={collapsed ? 'Alternar tema' : undefined}
-					className={cn(item_class, collapsed && 'justify-center')}
-				>
-					{theme === 'dark' ? <Sun className='h-4 w-4 shrink-0' /> : <Moon className='h-4 w-4 shrink-0' />}
-					{!collapsed && 'Alternar tema'}
-				</button>
 
 				<button
 					type='button'

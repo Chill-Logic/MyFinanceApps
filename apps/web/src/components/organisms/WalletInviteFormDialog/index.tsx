@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-import { getApiErrorMessage } from '@myfinance/shared';
+import { getApiErrorMessage, type TWallet } from '@myfinance/shared';
 
 import { useCreateWalletInvite } from '@/hooks/api/user-wallets/useCreateWalletInvite';
 import useToast from '@/hooks/useToast';
@@ -14,19 +14,22 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 interface IProps {
 	open: boolean;
 	onOpenChange: (open: boolean)=> void;
+	/** Carteira alvo do convite. Se ausente, usa a carteira ativa (`useWallet`). */
+	wallet?: TWallet | null;
 }
 
 /**
- * Diálogo de convidar alguém para a carteira ATIVA (por e-mail) — equivalente ao
- * WalletInviteFormModal do mobile, aberto a partir das Configurações. O convite é sempre para a
- * carteira ativa (`useWallet`), sem seletor, igual o mobile.
+ * Diálogo de convidar alguém (por e-mail) para uma carteira. Aberto pelo menu de ações (⋮) de cada
+ * carteira, convidando pra AQUELA carteira (mais preciso que "a ativa"); mantém fallback pra ativa.
  */
-const WalletInviteFormDialog = ({ open, onOpenChange }: IProps) => {
+const WalletInviteFormDialog = ({ open, onOpenChange, wallet }: IProps) => {
 	const { toast } = useToast();
 	const { user_wallet } = useWallet();
 	const { mutate: createInviteMutation, isPending } = useCreateWalletInvite();
 
 	const [ email, setEmail ] = useState('');
+
+	const target_wallet = wallet ?? user_wallet.data;
 
 	useEffect(() => {
 		if (open) setEmail('');
@@ -35,13 +38,13 @@ const WalletInviteFormDialog = ({ open, onOpenChange }: IProps) => {
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
 
-		if (!user_wallet.data) {
+		if (!target_wallet) {
 			toast.error('Selecione uma carteira para continuar');
 			return;
 		}
 
 		createInviteMutation({
-			body: { user_email: email, wallet_id: user_wallet.data.id },
+			body: { user_email: email, wallet_id: target_wallet.id },
 			onSuccess: () => {
 				toast.success('Convite enviado!');
 				onOpenChange(false);
@@ -58,9 +61,9 @@ const WalletInviteFormDialog = ({ open, onOpenChange }: IProps) => {
 				</DialogHeader>
 
 				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					{user_wallet.data && (
+					{target_wallet && (
 						<p className='text-sm text-muted-foreground'>
-							Convidar alguém para a carteira <span className='font-medium text-foreground'>{user_wallet.data.name}</span>.
+							Convidar alguém para a carteira <span className='font-medium text-foreground'>{target_wallet.name}</span>.
 						</p>
 					)}
 

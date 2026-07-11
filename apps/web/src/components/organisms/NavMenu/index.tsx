@@ -2,17 +2,15 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { QUERY_KEYS } from '@myfinance/shared';
-import { Info, LogOut, Moon, RefreshCw, Settings, Sun } from 'lucide-react';
+import { LogOut, RefreshCw, Settings } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
 
 import { useCurrentUserContext } from '@/context/current_user';
-import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
 
-import AboutPopover from '@/components/organisms/AboutPopover';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
 import { SheetTitle } from '@/components/ui/sheet';
 
@@ -27,12 +25,11 @@ const item_class = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-lef
  * ao `NavMenu` do apps/mobile, e o que substituiu o `Popover` enxuto que existia aqui antes.
  * Reúne header de usuário + refresh, wallet switcher inline (`WalletSwitcher`, compartilhado com
  * o `Sidebar` do desktop), destinos com badge de convites, Nova Carteira, toggle de tema (extra
- * do web — o mobile não tem light/dark) e Sair, com a versão no rodapé.
+ * Sair. Aparência (tema) e "Sobre" moram na página de Configurações, não mais no menu.
  */
 const NavMenu = ({ onClose }: IProps) => {
 	const { navItems, newWalletAction } = useNavItems();
 	const { current_user, logout } = useCurrentUserContext();
-	const { theme, toggleTheme } = useTheme();
 	const { data: data_invites } = useListInvites();
 
 	const [ is_refreshing, setIsRefreshing ] = useState(false);
@@ -123,7 +120,7 @@ const NavMenu = ({ onClose }: IProps) => {
 			<div className='my-2 border-t border-border' />
 
 			<NavLink
-				to='/wallets/settings'
+				to='/settings'
 				end
 				onClick={onClose}
 				className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
@@ -132,27 +129,10 @@ const NavMenu = ({ onClose }: IProps) => {
 				Configurações
 			</NavLink>
 
-			<button type='button' onClick={toggleTheme} className={item_class}>
-				{theme === 'dark' ? <Sun className='h-4 w-4 shrink-0' /> : <Moon className='h-4 w-4 shrink-0' />}
-				Alternar tema
-			</button>
-
 			<button type='button' onClick={handleLogout} className={cn(item_class, 'text-destructive hover:text-destructive')}>
 				<LogOut className='h-4 w-4 shrink-0' />
 				Sair
 			</button>
-
-			{/* "Sobre" ancorado no rodapé (`mt-auto`): ícone "i" + label que abre um popover com as
-			    versões (app + branch/commit/data da API). Popover (clique/toque) em vez de tooltip
-			    por hover, que não abre no touch do bottom sheet. */}
-			<div className='mt-auto flex justify-center pt-4'>
-				<AboutPopover side='top' align='center'>
-					<button type='button' className='flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground'>
-						<Info className='h-4 w-4' />
-						Sobre
-					</button>
-				</AboutPopover>
-			</div>
 		</div>
 	);
 };

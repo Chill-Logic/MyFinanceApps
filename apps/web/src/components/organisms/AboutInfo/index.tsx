@@ -20,8 +20,8 @@ const line_class = 'text-xs text-muted-foreground';
 
 /**
  * Bloco "Sobre": versões do webapp E da API, cada uma com branch/commit/data. O webapp lê de
- * globais injetadas pelo Vite em build (git); a API vem de GET /core/version. Reutilizado nas
- * Configurações e no AboutPopover do menu.
+ * globais injetadas pelo Vite em build (git); a API vem de GET /core/version. Usado na seção
+ * "Sobre" da página de Configurações.
  */
 const AboutInfo = () => {
 	const { data: api_version } = useVersion();
