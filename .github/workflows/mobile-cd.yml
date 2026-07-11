@@ -113,16 +113,27 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title || 'Disparo manual (workflow_dispatch)' }}
           COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
         run: |
           node -e "
             const https = require('node:https');
             const payload = JSON.stringify({
-              content: [
-                '✅ **Deploy mobile publicado** (' + process.env.DEPLOY_TIPO + ')',
-                '**PR:** ' + process.env.PR_TITLE,
-                '**Commit:** \`' + process.env.COMMIT_SHA + '\`',
-                '**Log:** ' + process.env.RUN_URL,
-              ].join('\n'),
+              embeds: [{
+                title: '✅ Deploy mobile publicado com sucesso',
+                color: 5763719,
+                url: process.env.RUN_URL,
+                fields: [
+                  { name: 'Projeto', value: process.env.REPO + ' (mobile)', inline: true },
+                  { name: 'Ambiente', value: 'Production', inline: true },
+                  { name: 'Tipo', value: process.env.DEPLOY_TIPO, inline: true },
+                  { name: 'PR', value: process.env.PR_TITLE, inline: false },
+                  { name: 'Commit', value: '\`' + process.env.COMMIT_SHA + '\`', inline: true },
+                  { name: 'Disparado por', value: process.env.ACTOR, inline: true },
+                ],
+                footer: { text: 'GitHub Actions' },
+                timestamp: new Date().toISOString(),
+              }],
             });
             const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
               res.resume();
@@ -140,16 +151,26 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title || 'Disparo manual (workflow_dispatch)' }}
           COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
         run: |
           node -e "
             const https = require('node:https');
             const payload = JSON.stringify({
-              content: [
-                '❌ **Deploy mobile falhou**',
-                '**PR:** ' + process.env.PR_TITLE,
-                '**Commit:** \`' + process.env.COMMIT_SHA + '\`',
-                '**Log:** ' + process.env.RUN_URL,
-              ].join('\n'),
+              embeds: [{
+                title: '❌ Deploy mobile falhou',
+                color: 15158332,
+                url: process.env.RUN_URL,
+                fields: [
+                  { name: 'Projeto', value: process.env.REPO + ' (mobile)', inline: true },
+                  { name: 'Ambiente', value: 'Production', inline: true },
+                  { name: 'PR', value: process.env.PR_TITLE, inline: false },
+                  { name: 'Commit', value: '\`' + process.env.COMMIT_SHA + '\`', inline: true },
+                  { name: 'Disparado por', value: process.env.ACTOR, inline: true },
+                ],
+                footer: { text: 'GitHub Actions' },
+                timestamp: new Date().toISOString(),
+              }],
             });
             const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
               res.resume();

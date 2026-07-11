@@ -13,11 +13,16 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Só notifica em estados terminais; ignora pending / in_progress / queued.
+    # Só notifica em estados terminais (ignora pending / in_progress / queued) e apenas
+    # para deploys de main ou dev — previews de outras branches não avisam.
     if: >
-      github.event.deployment_status.state == 'success' ||
-      github.event.deployment_status.state == 'failure' ||
-      github.event.deployment_status.state == 'error'
+      (github.event.deployment_status.state == 'success' ||
+       github.event.deployment_status.state == 'failure' ||
+       github.event.deployment_status.state == 'error') &&
+      (github.event.deployment.ref == 'main' ||
+       github.event.deployment.ref == 'dev' ||
+       github.event.deployment.ref == 'refs/heads/main' ||
+       github.event.deployment.ref == 'refs/heads/dev')
     steps:
       - name: Checkout do commit do deploy
         uses: actions/checkout@v5
@@ -37,6 +42,10 @@ jobs:
           echo "commit_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "commit_msg=$(git log -1 --pretty=%s 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
           echo "author=$(git log -1 --pretty=%an 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
+          # Nome limpo da branch (tira o prefixo refs/heads/, se vier).
+          echo "branch=${DEPLOY_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
+        env:
+          DEPLOY_REF: ${{ github.event.deployment.ref }}
 
       - name: Notifica o Discord
         if: env.DISCORD_WEBHOOK != ''
@@ -51,7 +60,7 @@ jobs:
               \"fields\": [
                 {\"name\": \"Projeto\", \"value\": \"${{ github.repository }} (web)\", \"inline\": true},
                 {\"name\": \"Ambiente\", \"value\": \"${{ github.event.deployment.environment }}\", \"inline\": true},
-                {\"name\": \"Branch/Ref\", \"value\": \"${{ github.event.deployment.ref }}\", \"inline\": true},
+                {\"name\": \"Branch\", \"value\": \"${{ steps.vars.outputs.branch }}\", \"inline\": true},
                 {\"name\": \"Commit\", \"value\": \"${{ steps.vars.outputs.commit_short }} - ${{ steps.vars.outputs.commit_msg }}\", \"inline\": false},
                 {\"name\": \"Autor\", \"value\": \"${{ steps.vars.outputs.author }}\", \"inline\": true}
               ],
