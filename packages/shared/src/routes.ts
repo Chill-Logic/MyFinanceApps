@@ -29,5 +29,6 @@ export const API_ROUTES = {
 	},
 	core: {
 		enumOptions: (entity: string, type: string) => `/core/enums/options/${ entity }/${ type }`,
+		version: '/core/version',
 	},
 } as const;

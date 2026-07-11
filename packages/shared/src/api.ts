@@ -75,6 +75,12 @@ export type TEnumOption = {
 
 export type TEnumOptionsResponse = TEnumOption[];
 
+export type TVersionResponse = {
+	hash: string;
+	date: string;
+	branch: string;
+};
+
 export type TMutationParams<TResponse, TBody, TComplements = {}> = {
 	id?: string | number;
 	body?: TBody;
