@@ -1,23 +1,42 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { MoneyUtils, type TWallet } from '@myfinance/shared';
-import { Check, WalletCards } from 'lucide-react';
+import { getApiErrorMessage, MoneyUtils, type TWallet } from '@myfinance/shared';
+import { Check, Trash2, WalletCards } from 'lucide-react';
 
+import { useDeleteWallet } from '@/hooks/api/wallets/useDeleteWallet';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 import useNavItems from '@/hooks/useNavItems';
+import useToast from '@/hooks/useToast';
 
+import { useCurrentUserContext } from '@/context/current_user';
 import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const MyWalletsPage = () => {
 	const navigate = useNavigate();
+	const { toast } = useToast();
 	const { newWalletAction } = useNavItems();
+	const { current_user } = useCurrentUserContext();
 	const { data: data_wallets, isLoading } = useIndexWallets();
 	const { user_wallet, setUserWallet } = useWallet();
+	const { mutate: deleteWalletMutation, isPending: is_delete_pending } = useDeleteWallet();
+
+	const [ deleting_wallet, setDeletingWallet ] = useState<TWallet | null>(null);
 
 	const wallets = data_wallets?.data || [];
 
@@ -28,6 +47,30 @@ const MyWalletsPage = () => {
 	const handleSelect = (wallet: TWallet) => {
 		setUserWallet({ data: wallet });
 		navigate('/');
+	};
+
+	/*
+	 * Excluir é owner-only (o backend retorna 403 caso contrário; só mostramos a ação pro dono).
+	 * Se a carteira excluída for a ativa, zeramos o contexto — o WalletUserProvider volta a buscar
+	 * a carteira principal sozinho.
+	 */
+	const handleConfirmDelete = () => {
+		if (!deleting_wallet) return;
+
+		deleteWalletMutation({
+			id: deleting_wallet.id,
+			onSuccess: (data) => {
+				toast.success(data.message || 'Carteira removida com sucesso!');
+				if (user_wallet.data?.id === deleting_wallet.id) {
+					setUserWallet({ data: null });
+				}
+				setDeletingWallet(null);
+			},
+			onError: (error) => {
+				toast.error(getApiErrorMessage(error, 'Erro ao remover carteira'));
+				setDeletingWallet(null);
+			},
+		});
 	};
 
 	return (
@@ -66,16 +109,20 @@ const MyWalletsPage = () => {
 				<ul className='flex flex-col gap-2'>
 					{wallets.map((wallet) => {
 						const is_active = user_wallet.data?.id === wallet.id;
+						const is_owner = current_user.data?.id === wallet.owner_id;
 
 						return (
-							<li key={wallet.id}>
+							<li
+								key={wallet.id}
+								className={cn(
+									'flex items-center gap-1 rounded-lg border transition-colors',
+									is_active ? 'border-primary bg-accent' : 'border-border',
+								)}
+							>
 								<button
 									type='button'
 									onClick={() => handleSelect(wallet)}
-									className={cn(
-										'flex w-full items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors hover:bg-accent',
-										is_active ? 'border-primary bg-accent' : 'border-border',
-									)}
+									className='flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-4 text-left'
 								>
 									<div className='min-w-0'>
 										<p className='truncate font-medium text-foreground'>{wallet.name}</p>
@@ -87,11 +134,42 @@ const MyWalletsPage = () => {
 									</div>
 									{is_active && <Check className='h-5 w-5 shrink-0 text-primary' />}
 								</button>
+
+								{is_owner && (
+									<Button
+										type='button'
+										variant='ghost'
+										size='icon'
+										aria-label='Excluir carteira'
+										title='Excluir carteira'
+										className='mr-2 shrink-0 text-muted-foreground hover:text-destructive'
+										onClick={() => setDeletingWallet(wallet)}
+									>
+										<Trash2 className='h-4 w-4' />
+									</Button>
+								)}
 							</li>
 						);
 					})}
 				</ul>
 			)}
+
+			<AlertDialog open={Boolean(deleting_wallet)} onOpenChange={(open) => !open && setDeletingWallet(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Excluir carteira</AlertDialogTitle>
+						<AlertDialogDescription>
+							Deseja excluir a carteira "{deleting_wallet?.name}"? Essa ação não pode ser desfeita.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={is_delete_pending}>Cancelar</AlertDialogCancel>
+						<AlertDialogAction onClick={handleConfirmDelete} disabled={is_delete_pending} className='gap-2'>
+							Excluir
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 };

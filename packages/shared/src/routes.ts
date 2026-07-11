@@ -13,6 +13,7 @@ export const API_ROUTES = {
 		main: '/wallets/main',
 		create: '/wallets',
 		update: (id: string | number) => `/wallets/${ id }`,
+		delete: (id: string | number) => `/wallets/${ id }`,
 	},
 	transactions: {
 		index: '/transactions',
