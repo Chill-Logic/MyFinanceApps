@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { DateUtils, MoneyUtils, type TTransaction } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -150,7 +150,7 @@ const TransactionList = () => {
 				toast.success('Transação excluída com sucesso');
 				setDeletingTransaction(null);
 			},
-			onError: () => toast.error('Não foi possível excluir a transação'),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Não foi possível excluir a transação')),
 		});
 	};
 

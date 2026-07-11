@@ -3,7 +3,7 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useUpdateWallets } from '../../hooks/api/wallets/useUpdateWallets';
 
@@ -46,11 +46,11 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 						} as TWalletState
 					));
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao atualizar carteira!',
-						text2: 'Ocorreu um erro ao atualizar a carteira',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao atualizar a carteira'),
 					});
 				},
 			});

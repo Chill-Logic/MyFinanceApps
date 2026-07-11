@@ -14,7 +14,7 @@ import {
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
@@ -230,11 +230,11 @@ const TransactionsList = () => {
 										text2: `A transação ${ transaction_to_delete.description } foi excluída com sucesso`,
 									});
 								},
-								onError: () => {
+								onError: (error) => {
 									Toast.show({
 										type: 'error',
 										text1: 'Erro ao excluir transação',
-										text2: `Não foi possível excluir a transação ${ transaction_to_delete.description }`,
+										text2: getApiErrorMessage(error, `Não foi possível excluir a transação ${ transaction_to_delete.description }`),
 									});
 								},
 							});

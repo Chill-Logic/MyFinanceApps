@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useSignUp } from '../../hooks/api/auth/useSignUp';
 
@@ -55,11 +55,11 @@ const SignUpScreen = ({ navigation }: IScreenProps<'SignUp'>) => {
 				});
 				navigation.replace('SignIn');
 			},
-			onError: (e) => {
+			onError: (error) => {
 				Toast.show({
 					type: 'error',
 					text1: 'Erro ao cadastrar usuário',
-					text2: 'Verifique os campos e tente novamente',
+					text2: getApiErrorMessage(error, 'Verifique os campos e tente novamente'),
 				});
 			},
 		});

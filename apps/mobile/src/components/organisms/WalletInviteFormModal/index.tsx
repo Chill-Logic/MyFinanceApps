@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { colors } from '@myfinance/shared';
+import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useCreateWalletInvites } from '../../../hooks/api/user-wallets/useCreateWalletInvites';
 
@@ -56,11 +56,11 @@ export const WalletInviteFormModal = (props: WalletModalProps) => {
 					handleClose();
 					onSuccess?.();
 				},
-				onError: () => {
+				onError: (error) => {
 					Toast.show({
 						type: 'error',
 						text1: 'Erro ao enviar convite!',
-						text2: 'Ocorreu um erro ao enviar o convite',
+						text2: getApiErrorMessage(error, 'Ocorreu um erro ao enviar o convite'),
 					});
 				},
 			});
