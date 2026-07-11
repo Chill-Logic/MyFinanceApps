@@ -27,4 +27,7 @@ export const API_ROUTES = {
 		acceptInvite: (id: string | number) => `/user_wallets/${ id }/accept`,
 		rejectInvite: (id: string | number) => `/user_wallets/${ id }/reject`,
 	},
+	core: {
+		enumOptions: (entity: string, type: string) => `/core/enums/options/${ entity }/${ type }`,
+	},
 } as const;

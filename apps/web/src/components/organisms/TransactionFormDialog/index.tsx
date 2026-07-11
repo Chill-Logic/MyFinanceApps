@@ -4,6 +4,7 @@ import { getApiErrorMessage, MoneyUtils, type TTransaction, type TTransactionKin
 import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 
+import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
 import useToast from '@/hooks/useToast';
@@ -38,12 +39,24 @@ const buildDefaultValues = (suggestedDate?: Date): TFormValues => ({
 	transaction_date: suggestedDate ?? new Date(),
 });
 
+/*
+ * Fallback enquanto o /core/enums não respondeu (labels vêm do locale do backend — Depósito/Saque).
+ * Mantém o Select sempre funcional; quando a query chega, os labels do servidor prevalecem.
+ */
+const DEFAULT_KIND_OPTIONS = [
+	{ value: 'deposit', label: 'Depósito' },
+	{ value: 'withdraw', label: 'Saque' },
+];
+
 const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate }: IProps) => {
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
+	const { data: kind_options } = useEnumOptions({ entity: 'transaction', type: 'kind' });
+
+	const kinds = kind_options?.length ? kind_options : DEFAULT_KIND_OPTIONS;
 
 	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate));
 
@@ -121,8 +134,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate 
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value='deposit'>Entrada</SelectItem>
-								<SelectItem value='withdraw'>Saída</SelectItem>
+								{kinds.map((option) => (
+									<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					</div>

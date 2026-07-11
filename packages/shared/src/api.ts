@@ -68,6 +68,13 @@ export type TUserWalletInviteBody = {
 	wallet_id: string;
 };
 
+export type TEnumOption = {
+	value: string;
+	label: string;
+};
+
+export type TEnumOptionsResponse = TEnumOption[];
+
 export type TMutationParams<TResponse, TBody, TComplements = {}> = {
 	id?: string | number;
 	body?: TBody;
