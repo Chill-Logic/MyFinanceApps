@@ -1,4 +1,8 @@
+import { Loader2 } from 'lucide-react';
+
 import useMediaQuery from '@/hooks/useMediaQuery';
+
+import { useCurrentUserContext } from '@/context/current_user';
 
 import { ITemplateProps } from '@/types';
 
@@ -15,6 +19,21 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	 * resolve na raiz, não só esse popover específico.
 	 */
 	const is_desktop = useMediaQuery('(min-width: 768px)');
+	const { is_loading: is_current_user_loading } = useCurrentUserContext();
+
+	/*
+	 * Toda página autenticada passa por este template — é o lugar certo pra bloquear a
+	 * renderização até o GET /users/me (disparado pelo CurrentUserProvider assim que existe
+	 * token) resolver, em vez de deixar cada página decidir isoladamente se espera o usuário
+	 * carregar ou não.
+	 */
+	if (is_current_user_loading) {
+		return (
+			<div className='flex h-dvh items-center justify-center bg-background-light dark:bg-background-default'>
+				<Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+			</div>
+		);
+	}
 
 	return (
 		/*

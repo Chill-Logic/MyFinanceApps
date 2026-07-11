@@ -1,9 +1,8 @@
 const TOKEN_KEY = 'my-finance-token';
 
 export const AuthStorage = {
-	setToken: (token: string, persist: boolean) => {
-		const store = persist ? localStorage : sessionStorage;
-		store.setItem(TOKEN_KEY, token);
+	setToken: (token: string) => {
+		localStorage.setItem(TOKEN_KEY, token);
 	},
 
 	getToken: () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY),

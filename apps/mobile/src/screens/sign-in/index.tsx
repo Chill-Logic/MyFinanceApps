@@ -7,7 +7,6 @@ import { Alert } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors } from '@myfinance/shared';
-import Checkbox from 'expo-checkbox';
 
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
 
@@ -30,7 +29,6 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 	const { setCanSearchForWallets } = useWallet();
 
 	const [ form, setForm ] = useState({ email: '', password: '' });
-	const [ keep_logged_in, setKeepLoggedIn ] = useState(false);
 	const [ show_password, setShowPassword ] = useState(false);
 	const { mutate: signInMutation, isPending: is_sign_in_pending } = useSignIn();
 
@@ -47,10 +45,7 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 		signInMutation({
 			body,
 			onSuccess: async(sign_in_response) => {
-				LocalStorage.setItem(StorageKeys.TOKEN, sign_in_response.token);
-				if (keep_logged_in) {
-					LocalStorage.setItem(StorageKeys.KEEP_LOGGED_IN, 'true');
-				}
+				await LocalStorage.setItem(StorageKeys.TOKEN, sign_in_response.token);
 				setCanSearchForWallets(true);
 				navigation.replace('Home');
 			},
@@ -62,10 +57,9 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 
 	useEffect(() => {
 		(async() => {
-			const keep_logged_in_value = await LocalStorage.getItem(StorageKeys.KEEP_LOGGED_IN);
 			const user_data = await LocalStorage.getItem(StorageKeys.USER_DATA);
 
-			if (keep_logged_in_value && user_data) {
+			if (user_data) {
 				setCurrentUser({ data: JSON.parse(user_data) });
 				navigation.replace('Home');
 			}
@@ -114,16 +108,6 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 				>
 					{is_sign_in_pending ? <Loader /> : <ThemedText style={styles.buttonText}>Entrar</ThemedText>}
 				</TouchableOpacity>
-
-				<ThemedView style={styles.checkboxContainer}>
-					<Checkbox
-						disabled={is_sign_in_pending}
-						value={keep_logged_in}
-						onValueChange={(newValue: boolean) => setKeepLoggedIn(newValue)}
-						color={keep_logged_in ? colors['brand-secondary'] : undefined}
-					/>
-					<ThemedText style={styles.linkText}>Manter logado?</ThemedText>
-				</ThemedView>
 
 				<TouchableOpacity
 					style={styles.linkContainer}
@@ -178,12 +162,6 @@ const styles = StyleSheet.create({
 		color: '#fff',
 		fontSize: 15,
 		fontWeight: 'bold',
-	},
-	checkboxContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginLeft: 'auto',
-		marginTop: 16,
 	},
 });
 

@@ -7,22 +7,18 @@ import { useSignIn } from '@/hooks/api/auth/useSignIn';
 import useToast from '@/hooks/useToast';
 
 import { useCurrentUserContext } from '@/context/current_user';
-import { AuthStorage } from '@/services/storage';
 
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
-import Checkbox from '@/components/ui/checkbox';
-import Label from '@/components/ui/label';
 
 const INITIAL_VALUES = { email: '', password: '' };
 
 const SignInPage = () => {
 	const navigate = useNavigate();
-	const { setCurrentUser } = useCurrentUserContext();
+	const { login } = useCurrentUserContext();
 	const { toast } = useToast();
 
 	const [ values, setValues ] = useState(INITIAL_VALUES);
-	const [ keep_logged_in, setKeepLoggedIn ] = useState(false);
 	const [ show_password, setShowPassword ] = useState(false);
 	const { mutate: signInMutation, isPending: is_sign_in_pending } = useSignIn();
 
@@ -35,9 +31,8 @@ const SignInPage = () => {
 
 		signInMutation({
 			body: values,
-			onSuccess: ({ token, ...user }) => {
-				AuthStorage.setToken(token, keep_logged_in);
-				setCurrentUser({ data: user });
+			onSuccess: ({ token }) => {
+				login(token);
 				navigate('/');
 			},
 			onError: () => {
@@ -70,18 +65,6 @@ const SignInPage = () => {
 						rightIconComponent={show_password ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
 						rightBtnAction={() => setShowPassword(!show_password)}
 					/>
-				</div>
-
-				<div className='flex items-center gap-x-2'>
-					<Checkbox
-						id='keep_logged_in'
-						checked={keep_logged_in}
-						onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
-						disabled={is_sign_in_pending}
-					/>
-					<Label htmlFor='keep_logged_in' className='cursor-pointer'>
-						Manter conectado
-					</Label>
 				</div>
 
 				<div className='flex flex-col gap-y-2'>
