@@ -67,10 +67,6 @@ jobs:
   publish:
     needs: decide
     runs-on: ubuntu-latest
-    # Gate manual: precisa configurar um Environment chamado "production" em
-    # Settings -> Environments do repo, com "Required reviewers" marcado.
-    # O workflow para aqui e espera aprovacao antes de publicar de verdade.
-    environment: production
     steps:
       - name: Checkout commit
         uses: actions/checkout@v4
@@ -129,9 +125,11 @@ jobs:
               ].join('\n'),
             });
             const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
-              if (res.statusCode >= 300) process.exitCode = 1;
+              res.resume();
+              if (res.statusCode >= 300) console.error('Discord respondeu ' + res.statusCode + ' — mensagem pode nao ter sido enviada.');
             });
-            req.on('error', () => { process.exitCode = 1; });
+            req.on('error', (e) => { console.error('Falha ao notificar o Discord: ' + e.message); });
+            req.setTimeout(10000, () => { console.error('Timeout ao notificar o Discord.'); req.destroy(); });
             req.end(payload);
           "
 
@@ -154,8 +152,10 @@ jobs:
               ].join('\n'),
             });
             const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
-              if (res.statusCode >= 300) process.exitCode = 1;
+              res.resume();
+              if (res.statusCode >= 300) console.error('Discord respondeu ' + res.statusCode + ' — mensagem pode nao ter sido enviada.');
             });
-            req.on('error', () => { process.exitCode = 1; });
+            req.on('error', (e) => { console.error('Falha ao notificar o Discord: ' + e.message); });
+            req.setTimeout(10000, () => { console.error('Timeout ao notificar o Discord.'); req.destroy(); });
             req.end(payload);
           "

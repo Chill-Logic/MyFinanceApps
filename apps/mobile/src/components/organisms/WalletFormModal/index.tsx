@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, TouchableOpacity } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import { colors, getApiErrorMessage } from '@myfinance/shared';
@@ -109,34 +109,39 @@ export const WalletFormModal = (props: WalletModalProps) => {
 			animationType='slide'
 			onRequestClose={handleClose}
 		>
-			<ThemedView style={styles.modalOverlay}>
-				<ThemedView style={styles.modalContent}>
-					<ThemedText style={styles.title}>{wallet ? `Editar ${ wallet.name }` : 'Nova Carteira'}</ThemedText>
+			<KeyboardAvoidingView style={styles.keyboardAvoider} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+				<ThemedView style={styles.modalOverlay}>
+					<ThemedView style={styles.modalContent}>
+						<ThemedText style={styles.title}>{wallet ? `Editar ${ wallet.name }` : 'Nova Carteira'}</ThemedText>
 
-					<ThemedView style={styles.formGroup}>
-						<ThemedTextInput
-							label='Nome *'
-							value={values.name}
-							onChangeText={(text) => setValues({ ...values, name: text })}
-							placeholder='Digite o nome da carteira'
-						/>
-					</ThemedView>
+						<ThemedView style={styles.formGroup}>
+							<ThemedTextInput
+								label='Nome *'
+								value={values.name}
+								onChangeText={(text) => setValues({ ...values, name: text })}
+								placeholder='Digite o nome da carteira'
+							/>
+						</ThemedView>
 
-					<ThemedView style={styles.buttonContainer}>
-						<TouchableOpacity disabled={(is_create_wallet_pending || is_update_wallet_pending )} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-							<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-						</TouchableOpacity>
-						<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
-							<ThemedText style={styles.buttonText}>{(is_create_wallet_pending || is_update_wallet_pending ) ? <Loader /> : 'Salvar'}</ThemedText>
-						</TouchableOpacity>
+						<ThemedView style={styles.buttonContainer}>
+							<TouchableOpacity disabled={(is_create_wallet_pending || is_update_wallet_pending )} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+								<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+							</TouchableOpacity>
+							<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
+								<ThemedText style={styles.buttonText}>{(is_create_wallet_pending || is_update_wallet_pending ) ? <Loader /> : 'Salvar'}</ThemedText>
+							</TouchableOpacity>
+						</ThemedView>
 					</ThemedView>
 				</ThemedView>
-			</ThemedView>
+			</KeyboardAvoidingView>
 		</Modal>
 	);
 };
 
 const styles = StyleSheet.create({
+	keyboardAvoider: {
+		flex: 1,
+	},
 	modalOverlay: {
 		flex: 1,
 		backgroundColor: 'rgba(0, 0, 0, 0.5)',

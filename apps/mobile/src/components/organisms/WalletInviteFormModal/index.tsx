@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, TouchableOpacity } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import { colors, getApiErrorMessage } from '@myfinance/shared';
@@ -79,35 +79,40 @@ export const WalletInviteFormModal = (props: WalletModalProps) => {
 			animationType='slide'
 			onRequestClose={handleClose}
 		>
-			<ThemedView style={styles.modalOverlay}>
-				<ThemedView style={styles.modalContent}>
-					<ThemedText style={styles.title}>Convite de acesso</ThemedText>
-					<ThemedView style={styles.formGroup}>
-						<ThemedTextInput
-							label='Email *'
-							value={values.user_email}
-							onChangeText={(text) => setValues({ ...values, user_email: text })}
-							placeholder='Digite o email do usuário'
-							keyboardType='email-address'
-							autoCapitalize='none'
-						/>
-					</ThemedView>
+			<KeyboardAvoidingView style={styles.keyboardAvoider} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+				<ThemedView style={styles.modalOverlay}>
+					<ThemedView style={styles.modalContent}>
+						<ThemedText style={styles.title}>Convite de acesso</ThemedText>
+						<ThemedView style={styles.formGroup}>
+							<ThemedTextInput
+								label='Email *'
+								value={values.user_email}
+								onChangeText={(text) => setValues({ ...values, user_email: text })}
+								placeholder='Digite o email do usuário'
+								keyboardType='email-address'
+								autoCapitalize='none'
+							/>
+						</ThemedView>
 
-					<ThemedView style={styles.buttonContainer}>
-						<TouchableOpacity disabled={is_create_wallet_invite_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-							<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-						</TouchableOpacity>
-						<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
-							<ThemedText style={styles.buttonText}>{(is_create_wallet_invite_pending) ? <Loader /> : 'Salvar'}</ThemedText>
-						</TouchableOpacity>
+						<ThemedView style={styles.buttonContainer}>
+							<TouchableOpacity disabled={is_create_wallet_invite_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+								<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+							</TouchableOpacity>
+							<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
+								<ThemedText style={styles.buttonText}>{(is_create_wallet_invite_pending) ? <Loader /> : 'Salvar'}</ThemedText>
+							</TouchableOpacity>
+						</ThemedView>
 					</ThemedView>
 				</ThemedView>
-			</ThemedView>
+			</KeyboardAvoidingView>
 		</Modal>
 	);
 };
 
 const styles = StyleSheet.create({
+	keyboardAvoider: {
+		flex: 1,
+	},
 	modalOverlay: {
 		flex: 1,
 		backgroundColor: 'rgba(0, 0, 0, 0.5)',
