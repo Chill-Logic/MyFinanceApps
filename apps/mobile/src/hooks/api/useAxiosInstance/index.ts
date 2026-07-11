@@ -7,7 +7,7 @@ export const getAxiosInstance = async() => {
 	const token = await LocalStorage.getItem('token');
 
 	const axiosInstance = axios.create({
-		baseURL: process.env.EXPO_PUBLIC_API_URL,
+		baseURL: `${ process.env.EXPO_PUBLIC_API_URL }/v1`,
 		headers: {
 			'Access-Control-Allow-Origin': '*',
 			'X-API-Key': process.env.EXPO_PUBLIC_API_KEY,
