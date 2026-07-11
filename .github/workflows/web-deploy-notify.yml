@@ -1,0 +1,61 @@
+name: Notify Discord on Deploy
+
+# A Vercel faz o deploy do web sozinha (integração GitHub App dela) e publica eventos
+# `deployment_status` no repo a cada mudança de estado do deployment. Este workflow reage
+# a esses eventos — sem ficar fazendo polling na API da Vercel — e notifica o Discord com
+# o resultado (sucesso ou falha). Substitui o antigo web-cd.yml, que ficava sondando.
+#
+# Obs.: workflows disparados por `deployment_status` rodam sempre a partir do arquivo que
+# está na branch default do repo — só passa a valer de fato depois do merge lá.
+on:
+  deployment_status
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    # Só notifica em estados terminais; ignora pending / in_progress / queued.
+    if: >
+      github.event.deployment_status.state == 'success' ||
+      github.event.deployment_status.state == 'failure' ||
+      github.event.deployment_status.state == 'error'
+    steps:
+      - name: Checkout do commit do deploy
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Monta os dados da notificação
+        id: vars
+        run: |
+          if [ "${{ github.event.deployment_status.state }}" == "success" ]; then
+            echo "color=5763719" >> "$GITHUB_OUTPUT"
+            echo "title=✅ Deploy web concluído com sucesso" >> "$GITHUB_OUTPUT"
+          else
+            echo "color=15158332" >> "$GITHUB_OUTPUT"
+            echo "title=❌ Deploy web falhou" >> "$GITHUB_OUTPUT"
+          fi
+          echo "commit_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "commit_msg=$(git log -1 --pretty=%s 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
+          echo "author=$(git log -1 --pretty=%an 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
+
+      - name: Notifica o Discord
+        if: env.DISCORD_WEBHOOK != ''
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"${{ steps.vars.outputs.title }}\",
+              \"color\": ${{ steps.vars.outputs.color }},
+              \"url\": \"${{ github.event.deployment_status.target_url }}\",
+              \"fields\": [
+                {\"name\": \"Projeto\", \"value\": \"${{ github.repository }} (web)\", \"inline\": true},
+                {\"name\": \"Ambiente\", \"value\": \"${{ github.event.deployment.environment }}\", \"inline\": true},
+                {\"name\": \"Branch/Ref\", \"value\": \"${{ github.event.deployment.ref }}\", \"inline\": true},
+                {\"name\": \"Commit\", \"value\": \"${{ steps.vars.outputs.commit_short }} - ${{ steps.vars.outputs.commit_msg }}\", \"inline\": false},
+                {\"name\": \"Autor\", \"value\": \"${{ steps.vars.outputs.author }}\", \"inline\": true}
+              ],
+              \"footer\": {\"text\": \"GitHub Actions\"},
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"
