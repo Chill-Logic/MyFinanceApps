@@ -28,8 +28,11 @@ const DEFAULT_VALUES: TNewWalletInviteForm = {
 };
 
 export const WalletInviteFormModal = (props: WalletModalProps) => {
-	const { visible, onClose, onSuccess } = props;
+	const { visible, onClose, wallet, onSuccess } = props;
 	const { user_wallet } = useWallet();
+
+	// Carteira alvo do convite: a passada por prop (menu de ações) ou, na falta, a ativa.
+	const target_wallet = wallet ?? user_wallet.data;
 
 	const { mutate: createWalletInviteMutation, isPending: is_create_wallet_invite_pending } = useCreateWalletInvites();
 	const [ values, setValues ] = useState<TNewWalletInviteForm>(DEFAULT_VALUES);
@@ -41,11 +44,11 @@ export const WalletInviteFormModal = (props: WalletModalProps) => {
 
 	const handleSave = () => {
 
-		if(user_wallet.data?.id){
+		if(target_wallet?.id){
 			createWalletInviteMutation({
 				body: {
 					user_email: values.user_email,
-					wallet_id: user_wallet.data?.id,
+					wallet_id: target_wallet.id,
 				},
 				onSuccess: () => {
 					Toast.show({
