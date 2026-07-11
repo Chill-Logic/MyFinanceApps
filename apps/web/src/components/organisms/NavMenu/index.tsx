@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { QUERY_KEYS } from '@myfinance/shared';
-import { LogOut, Moon, RefreshCw, Settings, Sun } from 'lucide-react';
+import { Info, LogOut, Moon, RefreshCw, Settings, Sun } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
@@ -12,7 +12,9 @@ import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
 
+import AboutInfo from '@/components/organisms/AboutInfo';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SheetTitle } from '@/components/ui/sheet';
 
 interface IProps {
@@ -141,9 +143,23 @@ const NavMenu = ({ onClose }: IProps) => {
 				Sair
 			</button>
 
-			{/* `mt-auto` ancora a versão no rodapé — com o sheet de altura fixa, o espaço vazio
-			    (quando há pouco conteúdo) fica embaixo, intencional, em vez de sobrar solto. */}
-			<p className='mt-auto pt-4 text-center text-xs text-muted-foreground'>v{__APP_VERSION__}</p>
+			{/* "Sobre" ancorado no rodapé (`mt-auto`): ícone "i" + label que abre um popover com as
+			    versões (app + branch/commit/data da API). Popover (clique/toque) em vez de tooltip
+			    por hover, que não abre no touch do bottom sheet. */}
+			<div className='mt-auto flex justify-center pt-4'>
+				<Popover>
+					<PopoverTrigger asChild>
+						<button type='button' className='flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground'>
+							<Info className='h-4 w-4' />
+							Sobre
+						</button>
+					</PopoverTrigger>
+					<PopoverContent side='top' align='center' className='w-60'>
+						<p className='mb-1.5 text-sm font-medium text-foreground'>Sobre</p>
+						<AboutInfo />
+					</PopoverContent>
+				</Popover>
+			</div>
 		</div>
 	);
 };

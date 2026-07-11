@@ -3,7 +3,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { getApiErrorMessage } from '@myfinance/shared';
 import { UserPlus } from 'lucide-react';
 
-import { useVersion } from '@/hooks/api/core/useVersion';
 import { useUpdateWallet } from '@/hooks/api/wallets/useUpdateWallet';
 import useToast from '@/hooks/useToast';
 
@@ -12,6 +11,7 @@ import { useWallet } from '@/context/wallet';
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
 import Typography from '@/components/atoms/Typography';
+import AboutInfo from '@/components/organisms/AboutInfo';
 import WalletInviteFormDialog from '@/components/organisms/WalletInviteFormDialog';
 
 /**
@@ -23,7 +23,6 @@ const WalletsSettingsPage = () => {
 	const { toast } = useToast();
 	const { user_wallet, setUserWallet } = useWallet();
 	const { mutate: updateWalletMutation, isPending } = useUpdateWallet();
-	const { data: version } = useVersion();
 
 	const [ name, setName ] = useState('');
 	const [ is_invite_open, setIsInviteOpen ] = useState(false);
@@ -91,14 +90,9 @@ const WalletsSettingsPage = () => {
 				</div>
 			</form>
 
-			<div className='mt-2 flex flex-col gap-1 border-t border-border pt-4'>
+			<div className='mt-2 flex flex-col gap-2 border-t border-border pt-4'>
 				<Typography className='text-sm font-medium text-foreground'>Sobre</Typography>
-				<p className='text-xs text-muted-foreground'>App v{__APP_VERSION__}</p>
-				{version && (
-					<p className='text-xs text-muted-foreground'>
-						API {version.branch} · {version.hash}
-					</p>
-				)}
+				<AboutInfo />
 			</div>
 
 			<WalletInviteFormDialog open={is_invite_open} onOpenChange={setIsInviteOpen} />

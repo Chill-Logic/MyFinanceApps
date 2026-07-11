@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
-import { ChevronLeft, ChevronRight, LogOut, Moon, Settings, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, LogOut, Moon, Settings, Sun } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
@@ -10,7 +10,9 @@ import { useCurrentUserContext } from '@/context/current_user';
 import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
+import AboutInfo from '@/components/organisms/AboutInfo';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface IProps {
 	className?: string;
@@ -96,6 +98,23 @@ const Sidebar = ({ className }: IProps) => {
 					<Settings className='h-4 w-4 shrink-0' />
 					{!collapsed && 'Configurações'}
 				</NavLink>
+
+				<Popover>
+					<PopoverTrigger asChild>
+						<button
+							type='button'
+							title={collapsed ? 'Sobre' : undefined}
+							className={cn(item_class, collapsed && 'justify-center')}
+						>
+							<Info className='h-4 w-4 shrink-0' />
+							{!collapsed && 'Sobre'}
+						</button>
+					</PopoverTrigger>
+					<PopoverContent side='right' align='end' className='w-60'>
+						<p className='mb-1.5 text-sm font-medium text-foreground'>Sobre</p>
+						<AboutInfo />
+					</PopoverContent>
+				</Popover>
 
 				<button
 					type='button'
