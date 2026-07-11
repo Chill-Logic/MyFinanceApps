@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, type TWallet } from '@myfinance/shared';
 import { Check, MoreVertical, Pencil, Trash2, UserPlus, WalletCards } from 'lucide-react';
@@ -31,7 +30,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Skeleton } from '@/components/ui/skeleton';
 
 const WalletList = () => {
-	const navigate = useNavigate();
 	const { toast } = useToast();
 	const { newWalletAction } = useNavItems();
 	const { current_user } = useCurrentUserContext();
@@ -44,15 +42,6 @@ const WalletList = () => {
 	const [ deleting_wallet, setDeletingWallet ] = useState<TWallet | null>(null);
 
 	const wallets = data_wallets?.data || [];
-
-	/*
-	 * Selecionar troca a carteira ativa no contexto e volta pra Home (a visão da carteira
-	 * selecionada) — mesmo comportamento do MyWalletsScreen do mobile.
-	 */
-	const handleSelect = (wallet: TWallet) => {
-		setUserWallet({ data: wallet });
-		navigate('/');
-	};
 
 	/*
 	 * Editar/Convidar/Excluir são owner-only (o backend retorna 403 caso contrário) — o menu ⋮ só
@@ -120,29 +109,24 @@ const WalletList = () => {
 							<li
 								key={wallet.id}
 								className={cn(
-									'flex items-center overflow-hidden rounded-lg border transition-colors',
+									'flex items-center gap-3 rounded-lg border p-4',
 									is_active ? 'border-primary bg-primary/10' : 'border-border',
 								)}
 							>
-								<button
-									type='button'
-									onClick={() => handleSelect(wallet)}
-									className='flex min-w-0 flex-1 items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/60'
-								>
-									<div className='min-w-0'>
-										<p className='truncate font-medium text-foreground'>{wallet.name}</p>
-										{Boolean(wallet.total) && (
-											<p className={cn('text-sm', wallet.total >= 0 ? 'text-feedback-success-default' : 'text-feedback-danger-default')}>
-												Total: {MoneyUtils.formatMoney(wallet.total)}
-											</p>
-										)}
-									</div>
-									{is_active && (
-										<span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground'>
-											<Check className='h-3 w-3' />
-										</span>
+								<div className='min-w-0 flex-1'>
+									<p className='truncate font-medium text-foreground'>{wallet.name}</p>
+									{Boolean(wallet.total) && (
+										<p className={cn('text-sm', wallet.total >= 0 ? 'text-feedback-success-default' : 'text-feedback-danger-default')}>
+											Total: {MoneyUtils.formatMoney(wallet.total)}
+										</p>
 									)}
-								</button>
+								</div>
+
+								{is_active && (
+									<span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground' title='Carteira atual'>
+										<Check className='h-3 w-3' />
+									</span>
+								)}
 
 								{is_owner && (
 									<DropdownMenu>
@@ -152,7 +136,7 @@ const WalletList = () => {
 												variant='ghost'
 												size='icon'
 												aria-label='Ações da carteira'
-												className='mr-1 shrink-0'
+												className='shrink-0'
 											>
 												<MoreVertical className='h-4 w-4' />
 											</Button>
