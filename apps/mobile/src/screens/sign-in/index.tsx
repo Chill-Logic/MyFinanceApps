@@ -115,6 +115,13 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 				>
 					<ThemedText style={styles.linkText}>Primeira vez? Cadastre-se!</ThemedText>
 				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={styles.linkContainerSecondary}
+					onPress={() => navigation.navigate('RecoverPassword')}
+				>
+					<ThemedText style={styles.linkText}>Esqueci minha senha</ThemedText>
+				</TouchableOpacity>
 			</ThemedView>
 		</ScreenLayout>
 	);
@@ -157,6 +164,9 @@ const styles = StyleSheet.create({
 	},
 	linkContainer: {
 		marginTop: 30,
+	},
+	linkContainerSecondary: {
+		marginTop: 12,
 	},
 	linkText: {
 		color: '#fff',
