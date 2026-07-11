@@ -87,7 +87,8 @@ const ItemSeparator = () => <ThemedView style={styles.transactionSeparator} />;
 const SectionSeparator = () => <ThemedView style={styles.sectionSeparator} />;
 
 const TransactionsList = () => {
-	const { theme } = useTheme();
+	const { theme, mode } = useTheme();
+	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
 	const { user_wallet } = useWallet();
 	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
@@ -270,14 +271,14 @@ const TransactionsList = () => {
 
 	const renderTransactionItem = ({ item: transaction_item }: { item: TTransaction }) => (
 		<TouchableOpacity
-			style={styles.transactionItem}
+			style={[ styles.transactionItem, { backgroundColor: card_surface } ]}
 			onPress={() => setTransaction(transaction_item)}
 		>
 			{renderKindIcon(transaction_item)}
 
-			<ThemedView style={styles.transactionLeft}>
+			<ThemedView style={[ styles.transactionLeft, { backgroundColor: 'transparent' } ]}>
 				<ThemedText style={styles.transactionDescription}>{TextUtils.truncate({ text: transaction_item.description, maxLength: 35 })}</ThemedText>
-				{transaction_item.user_name && <ThemedText style={styles.transactionUserName}>{transaction_item.user_name}</ThemedText>}
+				{transaction_item.user_name && <ThemedText style={[ styles.transactionUserName, { color: theme.colors.placeholder } ]}>{transaction_item.user_name}</ThemedText>}
 			</ThemedView>
 
 			<ThemedText
@@ -476,7 +477,6 @@ const styles = StyleSheet.create({
 		gap: 10,
 		padding: 12,
 		borderRadius: 10,
-		backgroundColor: '#121214',
 	},
 	transactionLeft: {
 		flex: 1,
@@ -486,7 +486,6 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 	},
 	transactionUserName: {
-		color: '#C6C6C6',
 		fontSize: 12,
 	},
 	transactionValue: {

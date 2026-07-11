@@ -23,7 +23,8 @@ import { WalletFormModal } from '../../components/organisms/WalletFormModal';
 import { WalletInviteFormModal } from '../../components/organisms/WalletInviteFormModal';
 
 const MyWalletsScreen = ({ navigation }: IScreenProps<'MyWallets'>) => {
-	const { theme } = useTheme();
+	const { theme, mode } = useTheme();
+	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
 	const { current_user } = useCurrentUserContext();
 	const { user_wallet, setUserWallet } = useWallet();
 	const { data: data_wallets, isLoading: is_data_wallets_loading } = useIndexWallets();
@@ -77,7 +78,7 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'MyWallets'>) => {
 		const balance_color = Number(item.total) >= 0 ? styles.textGreen : styles.textRed;
 
 		return (
-			<ThemedView style={[ styles.walletRow, is_active && styles.walletRowSelected ]}>
+			<ThemedView style={[ styles.walletRow, { backgroundColor: card_surface, borderColor: is_active ? colors['brand-secondary'] : theme.colors.border } ]}>
 				<View style={styles.walletInfo}>
 					<ThemedText>{item.name}</ThemedText>
 					{Boolean(item.total) && (
@@ -211,14 +212,10 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		gap: 10,
-		backgroundColor: '#3333',
-		borderRadius: 5,
+		borderRadius: 8,
 		borderWidth: 1,
 		marginBottom: 10,
-		padding: 12,
-	},
-	walletRowSelected: {
-		backgroundColor: '#333',
+		padding: 14,
 	},
 	walletInfo: {
 		flex: 1,

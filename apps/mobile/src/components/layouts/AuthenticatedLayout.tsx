@@ -9,6 +9,7 @@ import useTabNavigate from '../../hooks/useTabNavigate';
 
 import { useCurrentUserContext } from '../../context/current_user';
 import { useRefresh } from '../../context/refresh';
+import { useTheme } from '../../context/theme';
 import { LocalStorage } from '../../services/storage';
 
 import { IScreenProps } from '../../types/screen';
@@ -22,6 +23,7 @@ import { WalletFormModal } from '../organisms/WalletFormModal';
 const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNode; navigation: IScreenProps<any>['navigation'] }) => {
 	const { current_user, setCurrentUser, logout } = useCurrentUserContext();
 	const { refreshControlProps } = useRefresh({ all: true });
+	const { theme } = useTheme();
 	const navigateToTab = useTabNavigate(navigation);
 
 	const [ is_wallet_form_modal_visible, setIsWalletFormModalVisible ] = useState(false);
@@ -83,14 +85,14 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 
 	if (is_loading) {
 		return (
-			<View style={styles.container}>
+			<View style={[ styles.container, { backgroundColor: theme.colors.background } ]}>
 				<Loader />
 			</View>
 		);
 	}
 
 	return (
-		<View style={styles.container} {...refreshControlProps}>
+		<View style={[ styles.container, { backgroundColor: theme.colors.background } ]} {...refreshControlProps}>
 			<ThemedView style={styles.content}>
 				{children}
 			</ThemedView>

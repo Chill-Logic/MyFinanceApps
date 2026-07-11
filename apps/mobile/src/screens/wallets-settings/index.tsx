@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { colors } from '@myfinance/shared';
 import Constants from 'expo-constants';
 
 import { useVersion } from '../../hooks/api/core/useVersion';
@@ -37,7 +38,7 @@ const formatVersionDate = (raw?: string) => {
  * senha, cada um abre um modal) e "Sobre" (versão do app + branch/commit/data da API).
  */
 const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) => {
-	const { theme } = useTheme();
+	const { theme, mode, toggleTheme } = useTheme();
 	const { data: api_version } = useVersion();
 
 	const [ is_info_open, setIsInfoOpen ] = useState(false);
@@ -46,6 +47,22 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 	return (
 		<AuthenticatedLayout navigation={navigation}>
 			<ScrollView showsVerticalScrollIndicator={false}>
+				<ThemedText style={styles.sectionLabel}>Aparência</ThemedText>
+
+				<View style={[ styles.row, { borderColor: theme.colors.border } ]}>
+					<Icon name='dark-mode' size={22} color={theme.colors.text} />
+					<View style={styles.rowInfo}>
+						<ThemedText style={styles.rowTitle}>Tema escuro</ThemedText>
+						<ThemedText style={styles.rowDescription}>{mode === 'dark' ? 'Ativado' : 'Desativado'}</ThemedText>
+					</View>
+					<Switch
+						value={mode === 'dark'}
+						onValueChange={toggleTheme}
+						trackColor={{ true: colors['brand-secondary'], false: '#767577' }}
+						thumbColor='#ffffff'
+					/>
+				</View>
+
 				<ThemedText style={styles.sectionLabel}>Conta</ThemedText>
 
 				<TouchableOpacity
