@@ -13,23 +13,44 @@ on:
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Só notifica em estados terminais (ignora pending / in_progress / queued) e apenas
-    # para deploys de main ou dev — previews de outras branches não avisam.
+    # Só roda em estados terminais; ignora pending / in_progress / queued.
     if: >
-      (github.event.deployment_status.state == 'success' ||
-       github.event.deployment_status.state == 'failure' ||
-       github.event.deployment_status.state == 'error') &&
-      (github.event.deployment.ref == 'main' ||
-       github.event.deployment.ref == 'dev' ||
-       github.event.deployment.ref == 'refs/heads/main' ||
-       github.event.deployment.ref == 'refs/heads/dev')
+      github.event.deployment_status.state == 'success' ||
+      github.event.deployment_status.state == 'failure' ||
+      github.event.deployment_status.state == 'error'
     steps:
+      # A Vercel cria os deployments com ref = SHA do commit (não o nome da branch), então
+      # não dá pra filtrar por branch no `if`. Descobrimos a branch pela API do GitHub
+      # (branches cujo HEAD é esse commit) e só seguimos se for main ou dev — deploys de
+      # preview de outras branches não notificam.
+      - name: Decide se notifica (branch main/dev)
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          BRANCHES=$(gh api "repos/${{ github.repository }}/commits/${SHA}/branches-where-head" --jq '.[].name' 2>/dev/null || echo "")
+          echo "Branches com HEAD em ${SHA}: ${BRANCHES:-<nenhuma>}"
+          BRANCH=""
+          for b in $BRANCHES; do
+            if [ "$b" = "main" ] || [ "$b" = "dev" ]; then BRANCH="$b"; break; fi
+          done
+          if [ -z "$BRANCH" ]; then
+            echo "Commit não é HEAD de main/dev — não notifica."
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout do commit do deploy
+        if: steps.gate.outputs.notify == 'true'
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.deployment.sha }}
 
       - name: Monta os dados da notificação
+        if: steps.gate.outputs.notify == 'true'
         id: vars
         run: |
           if [ "${{ github.event.deployment_status.state }}" == "success" ]; then
@@ -42,13 +63,9 @@ jobs:
           echo "commit_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "commit_msg=$(git log -1 --pretty=%s 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
           echo "author=$(git log -1 --pretty=%an 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
-          # Nome limpo da branch (tira o prefixo refs/heads/, se vier).
-          echo "branch=${DEPLOY_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
-        env:
-          DEPLOY_REF: ${{ github.event.deployment.ref }}
 
       - name: Notifica o Discord
-        if: env.DISCORD_WEBHOOK != ''
+        if: steps.gate.outputs.notify == 'true' && env.DISCORD_WEBHOOK != ''
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
@@ -60,7 +77,7 @@ jobs:
               \"fields\": [
                 {\"name\": \"Projeto\", \"value\": \"${{ github.repository }} (web)\", \"inline\": true},
                 {\"name\": \"Ambiente\", \"value\": \"${{ github.event.deployment.environment }}\", \"inline\": true},
-                {\"name\": \"Branch\", \"value\": \"${{ steps.vars.outputs.branch }}\", \"inline\": true},
+                {\"name\": \"Branch\", \"value\": \"${{ steps.gate.outputs.branch }}\", \"inline\": true},
                 {\"name\": \"Commit\", \"value\": \"${{ steps.vars.outputs.commit_short }} - ${{ steps.vars.outputs.commit_msg }}\", \"inline\": false},
                 {\"name\": \"Autor\", \"value\": \"${{ steps.vars.outputs.author }}\", \"inline\": true}
               ],
