@@ -10,9 +10,8 @@ import { useCurrentUserContext } from '@/context/current_user';
 import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
-import AboutInfo from '@/components/organisms/AboutInfo';
+import AboutPopover from '@/components/organisms/AboutPopover';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface IProps {
 	className?: string;
@@ -99,22 +98,16 @@ const Sidebar = ({ className }: IProps) => {
 					{!collapsed && 'Configurações'}
 				</NavLink>
 
-				<Popover>
-					<PopoverTrigger asChild>
-						<button
-							type='button'
-							title={collapsed ? 'Sobre' : undefined}
-							className={cn(item_class, collapsed && 'justify-center')}
-						>
-							<Info className='h-4 w-4 shrink-0' />
-							{!collapsed && 'Sobre'}
-						</button>
-					</PopoverTrigger>
-					<PopoverContent side='right' align='end' className='w-60'>
-						<p className='mb-1.5 text-sm font-medium text-foreground'>Sobre</p>
-						<AboutInfo />
-					</PopoverContent>
-				</Popover>
+				<AboutPopover side='right' align='end'>
+					<button
+						type='button'
+						title={collapsed ? 'Sobre' : undefined}
+						className={cn(item_class, collapsed && 'justify-center')}
+					>
+						<Info className='h-4 w-4 shrink-0' />
+						{!collapsed && 'Sobre'}
+					</button>
+				</AboutPopover>
 
 				<button
 					type='button'

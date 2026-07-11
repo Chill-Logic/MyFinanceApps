@@ -12,9 +12,8 @@ import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
 
-import AboutInfo from '@/components/organisms/AboutInfo';
+import AboutPopover from '@/components/organisms/AboutPopover';
 import WalletSwitcher from '@/components/organisms/WalletSwitcher';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { SheetTitle } from '@/components/ui/sheet';
 
 interface IProps {
@@ -147,18 +146,12 @@ const NavMenu = ({ onClose }: IProps) => {
 			    versões (app + branch/commit/data da API). Popover (clique/toque) em vez de tooltip
 			    por hover, que não abre no touch do bottom sheet. */}
 			<div className='mt-auto flex justify-center pt-4'>
-				<Popover>
-					<PopoverTrigger asChild>
-						<button type='button' className='flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground'>
-							<Info className='h-4 w-4' />
-							Sobre
-						</button>
-					</PopoverTrigger>
-					<PopoverContent side='top' align='center' className='w-60'>
-						<p className='mb-1.5 text-sm font-medium text-foreground'>Sobre</p>
-						<AboutInfo />
-					</PopoverContent>
-				</Popover>
+				<AboutPopover side='top' align='center'>
+					<button type='button' className='flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground'>
+						<Info className='h-4 w-4' />
+						Sobre
+					</button>
+				</AboutPopover>
 			</div>
 		</div>
 	);
