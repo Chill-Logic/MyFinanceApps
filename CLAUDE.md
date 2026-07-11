@@ -337,6 +337,20 @@ Depois disso veio o `npx expo prebuild --platform android` (Continuous Native Ge
   já que não é uma lib nativa) — versões 5.x mais novas degradam silenciosamente os genéricos de
   `useQuery`/`useMutation` pra `any` sob a versão de TypeScript deste projeto. Não solte esse range de
   volta pra `^` sem checar compatibilidade de tipos antes.
+  - **`npx expo install --check` não detecta cópias duplicadas de uma dependência nativa** — só compara
+    a versão declarada no `package.json` contra o range oficial do SDK, não o que de fato está instalado
+    em `node_modules`. Já aconteceu de `apps/mobile/package.json` fixar `react-native-reanimated`/
+    `react-native-worklets` numa versão EXATA (`4.5.0`/`0.10.0`) enquanto outra dependência (instalada
+    via `npx expo install <pacote>`, que também pode ajustar peers) puxava uma versão mais nova
+    (`4.5.1`/`0.10.1`) pra raiz do monorepo — como o pin era exato, o npm não conseguiu unificar as duas
+    e criou uma cópia aninhada dentro de `apps/mobile/node_modules` com a versão antiga, deixando o
+    Metro (que resolve a partir de `apps/mobile`) rodando com uma versão diferente da que o binário
+    nativo tinha compilado. Sintoma: nenhum erro, só comportamento nativo silenciosamente quebrado (ver
+    a entrada do `BottomSheetModal` na seção de navegação, mais acima). Diagnóstico: comparar
+    `require('./node_modules/<pacote>/package.json').version` na raiz contra
+    `require('./apps/mobile/node_modules/<pacote>/package.json').version` (se a segunda pasta existir,
+    já é o sinal do problema). Fix: alinhar a versão exata do `apps/mobile/package.json` com a que ficou
+    na raiz e rodar `npm install` de novo — colapsa as duas cópias em uma só.
 - **Build Android nativo no monorepo (histórico, pré-Expo)**: o Gradle não sabe nada sobre hoisting de
   workspace — qualquer caminho relativo hardcoded pro `node_modules` que assumia
   `apps/mobile/node_modules/...` quebra quando o pacote sobe pra raiz do monorepo. Isso foi relevante
@@ -386,15 +400,49 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
   - `context/newTransactionDialog.tsx` (novo, mesmo padrão do web) sincroniza o FAB da `BottomNav`
     (vive no `AuthenticatedLayout`) com o modal de nova transação (vive dentro do `TransactionList`) —
     ramos diferentes da árvore, sem esse contexto um não teria como acionar o outro.
-  - **`components/organisms/NavMenu`** (novo) é o menu flutuante aberto pelo hambúrguer — equivalente
-    ao `NavLinks` dentro do `Popover` do web (`side='top' align='end'`), não um drawer de tela inteira:
-    um `Modal transparent` com backdrop tocável (fecha ao tocar fora) e um card ancorado no canto
-    inferior direito, perto do próprio botão que abriu. Reúne o que antes estava espalhado entre
-    `Header` e `Sidebar`: nome/e-mail do usuário + refresh manual (topo), wallet switcher (`Dropdown`,
-    "Visualizando a carteira"), os mesmos 3 destinos da `BottomNav` (igual o web duplica os destinos
-    dentro do `NavLinks` do popover), Nova Carteira, Configurações (assumiu a navegação que era do
-    ícone de engrenagem do `Header`) e Sair (assumiu o ícone de logout do `Header`), com a versão do
-    app no rodapé.
+  - **`components/organisms/NavMenu`** é o menu aberto pelo hambúrguer — equivalente ao `NavLinks`
+    dentro do `Popover` do web, não um drawer de tela inteira. Reúne o que antes estava espalhado entre
+    `Header` e `Sidebar`: nome/e-mail do usuário + refresh manual (topo), wallet switcher
+    ("Visualizando a carteira"), os mesmos destinos da `BottomNav`, Nova Carteira, Configurações
+    (assumiu a navegação que era do ícone de engrenagem do `Header`) e Sair (assumiu o ícone de logout
+    do `Header`), com a versão do app no rodapé.
+    - **Nasceu como `Modal transparent` cru (fade), virou `@gorhom/bottom-sheet` depois** — pedido
+      explícito de deixar mais fluido/nativo (drag-to-dismiss, spring). Precisou de
+      `GestureHandlerRootView` envolvendo o app inteiro em `App.tsx` (nunca tinha sido configurado —
+      `react-native-gesture-handler` só existia como dependência transitiva). Não precisou de
+      `BottomSheetModalProvider` no fim — ver próximo ponto, o app usa `<BottomSheet>`, não
+      `<BottomSheetModal>` (que é o único componente que precisaria desse provider).
+    - **`<BottomSheetModal>` nunca funcionou neste app, em nenhuma versão/config** — `present()` nunca
+      lançava erro, mas a animação de abertura nunca completava (sem `onChange`, sem conteúdo visível,
+      mesmo com conteúdo trivial de teste sem nenhuma dependência). A causa raiz real, descoberta só
+      depois de eliminar candidato por candidato (binário nativo desatualizado, `react-native-reanimated`
+      duplicado com versões diferentes entre a raiz do monorepo e `apps/mobile/node_modules` — resolvido
+      igualando as duas, ver nota de duplicação de pacotes na seção do `apps/web` mais abaixo, mesma
+      categoria de bug —, bug conhecido do `@gorhom/react-native-bottom-sheet` no Portal a partir da
+      `5.1.5` [issue #2316], bug conhecido do próprio Reanimated v4 no `withSpring`/`withTiming`
+      [software-mansion/react-native-reanimated#7947, confirmado pelo time do Reanimated]): **o
+      `<BottomSheetModal>` em si**, que só monta via Portal quando `present()` é chamado, tem algum
+      problema de timing/mount nesse ambiente que nenhuma combinação de `snapPoints`/
+      `enableDynamicSizing`/`animationConfigs`/versão do pacote resolveu. A solução foi trocar pro
+      `<BottomSheet>` puro (sempre montado na árvore, nunca desmontado), controlado por `ref`
+      (`snapToIndex`/`close`) dentro de um `useEffect` reagindo à prop `visible` — esse sim funciona.
+    - Detalhes que também importam nessa troca: `animateOnMount={false}` (a primeira renderização não
+      deve tentar animar — é o gatilho do travamento); `index={-1}` como valor ESTÁTICO da prop (nunca
+      `index={visible ? 1 : -1}` calculado direto no JSX) porque calcular direto no render dispara um
+      warning do Reanimated de "writing to value during render" e faz o sheet abrir e fechar sozinho em
+      sequência; `snapPoints={['1%', '60%']}` com dois pontos (não um só) contorna o bug do
+      `withSpring`/`withTiming` citado acima; `enableContentPanningGesture={false}` porque, sem isso,
+      rolar o conteúdo do menu competia com o gesto de arrastar-pra-fechar do sheet e fechava ele
+      sozinho (fechar por arrasto continua funcionando pela alcinha/handle no topo).
+    - O seletor de carteira deixou de abrir um SEGUNDO modal (existia um átomo `Dropdown` genérico só
+      pra esse uso, removido por completo) — a lista de opções expande **inline** dentro do mesmo
+      sheet, sem `ScrollView` próprio (um `ScrollView` aninhado dentro do `BottomSheetScrollView`
+      externo competia pelo mesmo gesto e rolava o menu inteiro em vez da lista — os itens da carteira
+      só fluem no scroll do menu). Expandir/colapsar essa lista anima com `Animated` (núcleo do RN,
+      mesma API do FAB da `BottomNav` acima), não Reanimated nem `LayoutAnimation` (que não tem efeito
+      nenhum dentro de um `BottomSheetScrollView` — não participa do sistema clássico de layout
+      animation do RN). Selecionar uma carteira só troca a carteira e fecha o menu, sem navegar pra
+      Home — não é uma ação de navegação, só de contexto.
   - **FAB com a mesma animação de "redistribuição" do web**: lá, o slot central anima `flex-grow`
     (`transition-[flex-grow]`) quando `centerAction` vira `null`, encolhendo a largura do slot e não só
     a opacidade/escala do botão — os outros itens da barra se reaproximam de verdade, não é só o ícone
