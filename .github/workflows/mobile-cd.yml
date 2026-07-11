@@ -108,3 +108,54 @@ jobs:
         run: npx eas-cli build --platform android --profile production --auto-submit --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Notifica sucesso no Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DEPLOY_TIPO: ${{ needs.decide.outputs.needs_native_build == 'true' && 'build nativo + submit' || 'OTA' }}
+          PR_TITLE: ${{ github.event.pull_request.title || 'Disparo manual (workflow_dispatch)' }}
+          COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node -e "
+            const https = require('node:https');
+            const payload = JSON.stringify({
+              content: [
+                '✅ **Deploy mobile publicado** (' + process.env.DEPLOY_TIPO + ')',
+                '**PR:** ' + process.env.PR_TITLE,
+                '**Commit:** \`' + process.env.COMMIT_SHA + '\`',
+                '**Log:** ' + process.env.RUN_URL,
+              ].join('\n'),
+            });
+            const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
+              if (res.statusCode >= 300) process.exitCode = 1;
+            });
+            req.on('error', () => { process.exitCode = 1; });
+            req.end(payload);
+          "
+
+      - name: Notifica falha no Discord
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PR_TITLE: ${{ github.event.pull_request.title || 'Disparo manual (workflow_dispatch)' }}
+          COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node -e "
+            const https = require('node:https');
+            const payload = JSON.stringify({
+              content: [
+                '❌ **Deploy mobile falhou**',
+                '**PR:** ' + process.env.PR_TITLE,
+                '**Commit:** \`' + process.env.COMMIT_SHA + '\`',
+                '**Log:** ' + process.env.RUN_URL,
+              ].join('\n'),
+            });
+            const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
+              if (res.statusCode >= 300) process.exitCode = 1;
+            });
+            req.on('error', () => { process.exitCode = 1; });
+            req.end(payload);
+          "
