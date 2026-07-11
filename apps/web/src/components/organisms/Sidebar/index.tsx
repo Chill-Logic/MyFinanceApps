@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
-import { ChevronLeft, ChevronRight, LogOut, Moon, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Moon, Settings, Sun } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
@@ -83,9 +83,19 @@ const Sidebar = ({ className }: IProps) => {
 				</button>
 			</div>
 
-			{/* Rodapé isolado: tema + Sair, sempre grudados na base do menu. */}
+			{/* Rodapé isolado: Configurações + tema + Sair, sempre grudados na base do menu. */}
 			<div className='flex shrink-0 flex-col gap-1'>
 				<div className='my-2 border-t border-border' />
+
+				<NavLink
+					to='/wallets/settings'
+					end
+					title={collapsed ? 'Configurações' : undefined}
+					className={({ isActive }) => cn(item_class, collapsed && 'justify-center', isActive && 'bg-secondary text-secondary-foreground')}
+				>
+					<Settings className='h-4 w-4 shrink-0' />
+					{!collapsed && 'Configurações'}
+				</NavLink>
 
 				<button
 					type='button'

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { QUERY_KEYS } from '@myfinance/shared';
-import { LogOut, Moon, RefreshCw, Sun } from 'lucide-react';
+import { LogOut, Moon, RefreshCw, Settings, Sun } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
@@ -120,6 +120,16 @@ const NavMenu = ({ onClose }: IProps) => {
 			</button>
 
 			<div className='my-2 border-t border-border' />
+
+			<NavLink
+				to='/wallets/settings'
+				end
+				onClick={onClose}
+				className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
+			>
+				<Settings className='h-4 w-4 shrink-0' />
+				Configurações
+			</NavLink>
 
 			<button type='button' onClick={toggleTheme} className={item_class}>
 				{theme === 'dark' ? <Sun className='h-4 w-4 shrink-0' /> : <Moon className='h-4 w-4 shrink-0' />}

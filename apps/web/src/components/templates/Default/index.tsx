@@ -3,11 +3,13 @@ import { Loader2 } from 'lucide-react';
 import useMediaQuery from '@/hooks/useMediaQuery';
 
 import { useCurrentUserContext } from '@/context/current_user';
+import { useNewWalletDialog } from '@/context/newWalletDialog';
 
 import { ITemplateProps } from '@/types';
 
 import BottomNav from '@/components/organisms/BottomNav';
 import Sidebar from '@/components/organisms/Sidebar';
+import WalletFormDialog from '@/components/organisms/WalletFormDialog';
 
 const DefaultTemplate = ({ children }: ITemplateProps) => {
 	/*
@@ -20,6 +22,7 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	 */
 	const is_desktop = useMediaQuery('(min-width: 768px)');
 	const { is_loading: is_current_user_loading } = useCurrentUserContext();
+	const { is_open: is_new_wallet_open, setIsOpen: setIsNewWalletOpen } = useNewWalletDialog();
 
 	/*
 	 * Toda página autenticada passa por este template — é o lugar certo pra bloquear a
@@ -62,6 +65,12 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 				 */}
 				{!is_desktop && <BottomNav />}
 			</div>
+
+			{/*
+			 * WalletFormDialog montado no topo do template (como o AuthenticatedLayout do mobile
+			 * monta a WalletFormModal) — o "Nova Carteira" da nav/página só alterna o contexto.
+			 */}
+			<WalletFormDialog open={is_new_wallet_open} onOpenChange={setIsNewWalletOpen} />
 		</div>
 	);
 };

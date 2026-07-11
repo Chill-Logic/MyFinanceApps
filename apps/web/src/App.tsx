@@ -4,6 +4,7 @@ import { Router } from './router';
 
 import CurrentUserProvider from '@/context/current_user';
 import NewTransactionDialogProvider from '@/context/newTransactionDialog';
+import NewWalletDialogProvider from '@/context/newWalletDialog';
 import ThemeProvider from '@/context/theme';
 import WalletUserProvider from '@/context/wallet';
 import { queryClient } from '@/services/query-client';
@@ -17,8 +18,10 @@ function App() {
 				<CurrentUserProvider>
 					<WalletUserProvider>
 						<NewTransactionDialogProvider>
-							<Router/>
-							<Toaster />
+							<NewWalletDialogProvider>
+								<Router/>
+								<Toaster />
+							</NewWalletDialogProvider>
 						</NewTransactionDialogProvider>
 					</WalletUserProvider>
 				</CurrentUserProvider>
