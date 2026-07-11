@@ -2,3 +2,6 @@ node_modules/
 dist/
 build/
 .DS_Store
+
+# repo externo (my-finance-api), clonado aqui só como referência de contexto — tem git próprio
+/my-finance-api/

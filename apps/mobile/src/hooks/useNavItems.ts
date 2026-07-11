@@ -27,8 +27,8 @@ export type TNavAction = {
  */
 const NAV_ITEMS: TNavItem[] = [
 	{ id: 'home', label: 'Início', route: 'Home', icon: 'home' },
-	{ id: 'wallets_invites', label: 'Convites', route: 'WalletsInvites', icon: 'group-add' },
 	{ id: 'my_wallets', label: 'Carteiras', route: 'MyWallets', icon: 'wallet' },
+	{ id: 'wallets_invites', label: 'Convites', route: 'WalletsInvites', icon: 'group-add' },
 ];
 
 export const useNavItems = () => {

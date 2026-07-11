@@ -12,25 +12,30 @@ type WithModelFields<T> = TModelFields & T;
 export type TUser = WithModelFields<{
 	name: string;
 	email: string;
+	main_user_wallet_id: string | null;
 }>;
 
 export type TTransaction = WithModelFields<{
 	description: string;
 	value: number;
 	kind: TTransactionKind;
+	translated_kind: string;
 	wallet_id: string;
+	user_id: string;
+	user_name: string;
 	transaction_date: string;
-	user?: TUser;
 }>;
 
 export type TWallet = WithModelFields<{
 	name: string;
 	owner_id: string;
-	transactions: TTransaction[];
 	total: number;
 }>;
 
 export type TInvite = WithModelFields<{
+	user_id: string;
+	wallet_id: string;
+	accepted: boolean;
 	wallet_name: string;
 	owner_name: string;
 }>;

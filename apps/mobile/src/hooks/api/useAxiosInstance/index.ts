@@ -10,12 +10,21 @@ export const getAxiosInstance = async() => {
 		baseURL: process.env.EXPO_PUBLIC_API_URL,
 		headers: {
 			'Access-Control-Allow-Origin': '*',
+			'X-API-Key': process.env.EXPO_PUBLIC_API_KEY,
 		},
 	});
 
 	if (token) {
 		axiosInstance.defaults.headers.common.Authorization = `Bearer ${ token }`;
 	}
+
+	axiosInstance.interceptors.response.use(
+		(response) => response,
+		(error) => {
+			console.log(`[API] ${ error.config?.method?.toUpperCase() } ${ error.config?.url } — ERRO ${ error.response?.status }`, JSON.stringify(error.response?.data, null, 2));
+			return Promise.reject(error);
+		},
+	);
 
 	return axiosInstance;
 };

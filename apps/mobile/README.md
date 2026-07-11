@@ -18,12 +18,15 @@ Crie `apps/mobile/.env` (gitignored, não existe num clone novo, veja `.env.exam
 
 ```
 EXPO_PUBLIC_API_URL=http://sua-api-local:porta
+EXPO_PUBLIC_API_KEY=
 ```
 
 O prefixo `EXPO_PUBLIC_` é obrigatório — é assim que o Metro sabe que essa variável deve ser embutida
-no bundle e fica acessível via `process.env.EXPO_PUBLIC_API_URL` no código. Não precisa de nenhuma lib
-extra (`react-native-dotenv` foi removido) nem de reiniciar nada com flag especial — só um
-`npm run mobile:start` normal já pega o valor novo.
+no bundle e fica acessível via `process.env.EXPO_PUBLIC_API_URL`/`EXPO_PUBLIC_API_KEY` no código. Não
+precisa de nenhuma lib extra (`react-native-dotenv` foi removido) nem de reiniciar nada com flag
+especial — só um `npm run mobile:start` normal já pega o valor novo. `EXPO_PUBLIC_API_KEY` é o mesmo
+valor de `API_FIXED_TOKEN` do backend (enviado em todo request no header `X-API-Key`, exigido pelo
+Rails); sem ele toda chamada à API volta 403.
 
 Em produção, essa variável não vem de arquivo nenhum — é uma **EAS Environment Variable**
 (`npx eas-cli env:list production`), injetada automaticamente durante `eas build`/`eas update

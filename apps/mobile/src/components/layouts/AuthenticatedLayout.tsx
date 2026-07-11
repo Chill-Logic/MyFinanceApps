@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@myfinance/shared';
+import type { AxiosError } from 'axios';
 
 import useShowCurrentUser from '../../hooks/api/user/useShowCurrentUser';
+import useTabNavigate from '../../hooks/useTabNavigate';
 
 import { useCurrentUserContext } from '../../context/current_user';
 import { useRefresh } from '../../context/refresh';
@@ -12,36 +14,80 @@ import { LocalStorage } from '../../services/storage';
 import { IScreenProps } from '../../types/screen';
 import { StorageKeys } from '../../types/storage';
 
+import { Loader } from '../atoms/Loader';
 import { ThemedView } from '../atoms/ThemedView';
 import BottomNav from '../organisms/BottomNav';
 import { WalletFormModal } from '../organisms/WalletFormModal';
 
 const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNode; navigation: IScreenProps<any>['navigation'] }) => {
-	const { current_user, setCurrentUser } = useCurrentUserContext();
-	const { data: current_user_data } = useShowCurrentUser();
+	const { current_user, setCurrentUser, logout } = useCurrentUserContext();
 	const { refreshControlProps } = useRefresh({ all: true });
+	const navigateToTab = useTabNavigate(navigation);
 
 	const [ is_wallet_form_modal_visible, setIsWalletFormModalVisible ] = useState(false);
 
-	const handleLogout = () => {
-		LocalStorage.logout().then(() => {
-			setCurrentUser({ data: null });
-			navigation.replace('SignIn');
-		});
-	};
+	/*
+	 * Esse layout só é alcançado depois que o usuário já autenticou (fresco ou restaurado
+	 * de uma sessão anterior via "manter logado") — a navegação em si já é a prova de que
+	 * existe token no storage, então é aqui, e não no CurrentUserProvider (que vive a vida
+	 * inteira do app, inclusive nas telas de login), que faz sentido checar o AsyncStorage e
+	 * buscar o /users/me. Isso evita depender de qualquer tela de login "avisar" o contexto
+	 * de que acabou de logar — cada vez que este layout monta, ele confere o storage de
+	 * novo, sozinho.
+	 */
+	const [ has_token, setHasToken ] = useState(false);
+	const [ has_checked_token, setHasCheckedToken ] = useState(false);
 
 	useEffect(() => {
 		(async() => {
-			const keep_logged_in = await LocalStorage.getItem(StorageKeys.KEEP_LOGGED_IN);
-
-			if (current_user_data && (!current_user.data || current_user.data.id !== current_user_data.id)) {
-				if (keep_logged_in === 'true') {
-					LocalStorage.setItem(StorageKeys.USER_DATA, JSON.stringify(current_user_data));
-				}
-				setCurrentUser({ data: current_user_data });
-			}
+			const token = await LocalStorage.getItem(StorageKeys.TOKEN);
+			setHasToken(Boolean(token));
+			setHasCheckedToken(true);
 		})();
-	}, [ current_user_data, current_user, setCurrentUser ]);
+	}, []);
+
+	const { data: current_user_data, error, isFetched } = useShowCurrentUser({ enabled: has_token });
+
+	const is_loading = !has_checked_token || (has_token && !current_user.data && !isFetched);
+
+	/*
+	 * Só força logout em 401 de verdade (JWT ausente/inválido/expirado) — um erro de rede, 5xx
+	 * ou um 404 passageiro (ex.: backend no meio de um deploy) não significa que a sessão do
+	 * usuário é inválida, e derrubar o token nesses casos só pra "descobrir" que era transitório
+	 * é pior do que deixar a query falhar e tentar de novo depois.
+	 */
+	const is_unauthorized = (error as AxiosError | null)?.response?.status === 401;
+
+	const handleLogout = async() => {
+		await logout();
+		navigation.replace('SignIn');
+	};
+
+	useEffect(() => {
+		if (current_user_data) {
+			setCurrentUser({ data: current_user_data });
+		}
+	}, [ current_user_data, setCurrentUser ]);
+
+	useEffect(() => {
+		if (is_unauthorized) {
+			logout().then(() => navigation.replace('SignIn'));
+		}
+	}, [ is_unauthorized, logout, navigation ]);
+
+	useEffect(() => {
+		if (current_user.data) {
+			LocalStorage.setItem(StorageKeys.USER_DATA, JSON.stringify(current_user.data));
+		}
+	}, [ current_user.data ]);
+
+	if (is_loading) {
+		return (
+			<View style={styles.container}>
+				<Loader />
+			</View>
+		);
+	}
 
 	return (
 		<View style={styles.container} {...refreshControlProps}>
@@ -50,7 +96,7 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 			</ThemedView>
 
 			<BottomNav
-				navigate={navigation.navigate}
+				navigate={navigateToTab}
 				onNewWallet={() => setIsWalletFormModalVisible(true)}
 				onLogout={handleLogout}
 			/>

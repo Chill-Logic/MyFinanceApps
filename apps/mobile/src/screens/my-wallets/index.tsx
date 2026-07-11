@@ -1,6 +1,7 @@
 import { StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 
 import { useIndexWallets } from '../../hooks/api/wallets/useIndexWallets';
+import useTabNavigate from '../../hooks/useTabNavigate';
 
 import { useWallet } from '../../context/wallet';
 import { MoneyUtils } from '../../utils/money';
@@ -15,6 +16,7 @@ import AuthenticatedLayout from '../../components/layouts/AuthenticatedLayout';
 const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 	const { user_wallet, setUserWallet } = useWallet();
 	const { data: data_wallets, isLoading: is_data_wallets_loading } = useIndexWallets();
+	const navigateToTab = useTabNavigate(navigation);
 
 	const renderWalletItem = ({ item }: { item: TWallet }) => {
 		const getBalanceColor = (value: number) => (
@@ -28,7 +30,7 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 				]}
 				onPress={() => {
 					setUserWallet({ data: item });
-					navigation.navigate('Home');
+					navigateToTab('Home');
 				}}
 			>
 				<ThemedText >{item.name}</ThemedText>
@@ -45,7 +47,7 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 				<ThemedView
 					style={[
 						styles.transactionsContainer,
-						data_wallets?.length
+						data_wallets?.data.length
 							? styles.transactionsContainerWithData
 							: styles.transactionsContainerEmpty,
 					]}
@@ -54,9 +56,9 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 						<ThemedText>Carregando...</ThemedText>
 					)}
 
-					{data_wallets && data_wallets?.length > 0 ? (
+					{data_wallets && data_wallets.data.length > 0 ? (
 						<FlatList
-							data={data_wallets}
+							data={data_wallets.data}
 							renderItem={renderWalletItem}
 							keyExtractor={(item) => item.id}
 							showsVerticalScrollIndicator={false}

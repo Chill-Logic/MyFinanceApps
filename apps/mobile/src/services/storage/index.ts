@@ -24,7 +24,6 @@ export const LocalStorage = {
 	logout: async() => {
 		await Promise.all([
 			AsyncStorage.removeItem(buildKey(StorageKeys.TOKEN)),
-			AsyncStorage.removeItem(buildKey(StorageKeys.KEEP_LOGGED_IN)),
 			AsyncStorage.removeItem(buildKey(StorageKeys.USER_DATA)),
 		]);
 	},

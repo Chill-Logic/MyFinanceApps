@@ -194,7 +194,7 @@ const TransactionsList = () => {
 		}),
 	).current;
 
-	const transactions = useMemo(() => data_transactions?.transactions || [], [ data_transactions ]);
+	const transactions = useMemo(() => data_transactions?.data || [], [ data_transactions ]);
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const total = Number(data_transactions?.total ?? 0);
 	const total_deposit = transactions.filter((item) => item.kind === 'deposit').reduce((acc, item) => acc + item.value, 0);
@@ -277,7 +277,7 @@ const TransactionsList = () => {
 
 			<ThemedView style={styles.transactionLeft}>
 				<ThemedText style={styles.transactionDescription}>{TextUtils.truncate({ text: transaction_item.description, maxLength: 35 })}</ThemedText>
-				{transaction_item.user?.name && <ThemedText style={styles.transactionUserName}>{transaction_item.user.name}</ThemedText>}
+				{transaction_item.user_name && <ThemedText style={styles.transactionUserName}>{transaction_item.user_name}</ThemedText>}
 			</ThemedView>
 
 			<ThemedText

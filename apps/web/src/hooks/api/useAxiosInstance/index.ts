@@ -7,6 +7,9 @@ export const getAxiosInstance = () => {
 
 	const axiosInstance = axios.create({
 		baseURL: import.meta.env.VITE_API_URL,
+		headers: {
+			'X-API-Key': import.meta.env.VITE_API_KEY,
+		},
 	});
 
 	if (token) {

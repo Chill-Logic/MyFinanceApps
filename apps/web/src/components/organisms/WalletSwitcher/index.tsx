@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 
 const WalletSwitcher = () => {
-	const { data: wallets, isLoading } = useIndexWallets();
+	const { data: data_wallets, isLoading } = useIndexWallets();
 	const { user_wallet, setUserWallet } = useWallet();
 
 	if (isLoading) {
@@ -18,7 +18,9 @@ const WalletSwitcher = () => {
 		);
 	}
 
-	if (!wallets?.length) return null;
+	const wallets = data_wallets?.data || [];
+
+	if (!wallets.length) return null;
 
 	return (
 		<div className='flex flex-col gap-1'>

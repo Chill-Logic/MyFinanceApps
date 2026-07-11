@@ -1,0 +1,159 @@
+name: Web CD (observa deploy da Vercel)
+
+# A Vercel já faz o deploy sozinha (integração GitHub App própria dela, sem passo de build
+# aqui) sempre que um commit cai em main OU dev (a Vercel está configurada pra publicar nas
+# duas). Este workflow não dispara o deploy — só espera o deployment correspondente ao
+# commit aparecer na API da Vercel, aguarda ele terminar, e notifica o Discord com o
+# resultado. Dispara em todo push que mexeu em apps/web nessas duas branches (push direto ou
+# merge de PR, tanto faz — é o mesmo evento). Também aceita disparo manual
+# (workflow_dispatch) pra testar o pipeline sem precisar de um push real.
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "apps/web/**"
+  workflow_dispatch: {}
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aguarda o deployment aparecer na Vercel e espera ele terminar
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          node -e "
+            const https = require('node:https');
+            const fs = require('node:fs');
+
+            const token = process.env.VERCEL_TOKEN;
+            const projectId = process.env.VERCEL_PROJECT_ID;
+            const teamId = process.env.VERCEL_TEAM_ID;
+            const sha = process.env.COMMIT_SHA;
+
+            if (!token || !projectId) {
+              console.error('VERCEL_TOKEN e/ou VERCEL_PROJECT_ID nao configurados nos secrets do repo.');
+              process.exitCode = 1;
+              return;
+            }
+
+            const get = (path) => new Promise((resolve, reject) => {
+              const req = https.request('https://api.vercel.com' + path, {
+                method: 'GET',
+                headers: { Authorization: 'Bearer ' + token },
+              }, (res) => {
+                let data = '';
+                res.on('data', (chunk) => { data += chunk; });
+                res.on('end', () => {
+                  if (res.statusCode >= 300) return reject(new Error('Vercel API ' + res.statusCode + ' em ' + path + ': ' + data));
+                  resolve(JSON.parse(data));
+                });
+              });
+              req.on('error', reject);
+              req.end();
+            });
+
+            const withTeam = (qs) => {
+              if (teamId) qs.set('teamId', teamId);
+              return qs;
+            };
+
+            const findDeployment = async () => {
+              const qs = withTeam(new URLSearchParams({ projectId, limit: '20' }));
+              const result = await get('/v6/deployments?' + qs.toString());
+              return (result.deployments || []).find((d) => d.meta && d.meta.githubCommitSha === sha);
+            };
+
+            const getState = async (id) => {
+              const qs = withTeam(new URLSearchParams());
+              const suffix = qs.toString() ? '?' + qs.toString() : '';
+              const result = await get('/v13/deployments/' + id + suffix);
+              return result.readyState || result.state;
+            };
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            (async () => {
+              let deployment = null;
+              const findDeadline = Date.now() + 10 * 60 * 1000;
+              while (!deployment && Date.now() < findDeadline) {
+                deployment = await findDeployment();
+                if (!deployment) await sleep(10000);
+              }
+
+              if (!deployment) {
+                console.error('Nenhum deployment encontrado na Vercel pro commit ' + sha + ' depois de 10 minutos.');
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, 'state=NOT_FOUND\n');
+                process.exitCode = 1;
+                return;
+              }
+
+              const deployUrl = 'https://' + deployment.url;
+              let state = deployment.readyState || deployment.state;
+
+              const pollDeadline = Date.now() + 20 * 60 * 1000;
+              while (!['READY', 'ERROR', 'CANCELED'].includes(state) && Date.now() < pollDeadline) {
+                await sleep(15000);
+                state = await getState(deployment.uid);
+              }
+
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, 'state=' + state + '\n' + 'url=' + deployUrl + '\n');
+              console.log('Deployment ' + deployment.uid + ' terminou com estado: ' + state);
+              if (state !== 'READY') process.exitCode = 1;
+            })();
+          "
+
+      - name: Notifica sucesso no Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Disparo manual (workflow_dispatch)' }}
+          COMMIT_SHA: ${{ github.sha }}
+          DEPLOY_URL: ${{ steps.vercel.outputs.url }}
+        run: |
+          node -e "
+            const https = require('node:https');
+            const payload = JSON.stringify({
+              content: [
+                '✅ **Deploy web publicado na Vercel** (branch \`' + process.env.BRANCH + '\`)',
+                '**Commit:** \`' + process.env.COMMIT_SHA + '\` — ' + process.env.COMMIT_MESSAGE.split('\n')[0],
+                '**URL:** ' + process.env.DEPLOY_URL,
+              ].join('\n'),
+            });
+            const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
+              if (res.statusCode >= 300) process.exitCode = 1;
+            });
+            req.on('error', () => { process.exitCode = 1; });
+            req.end(payload);
+          "
+
+      - name: Notifica falha no Discord
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Disparo manual (workflow_dispatch)' }}
+          COMMIT_SHA: ${{ github.sha }}
+          DEPLOY_STATE: ${{ steps.vercel.outputs.state || 'desconhecido' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node -e "
+            const https = require('node:https');
+            const payload = JSON.stringify({
+              content: [
+                '❌ **Deploy web falhou na Vercel** (branch \`' + process.env.BRANCH + '\`, estado: ' + process.env.DEPLOY_STATE + ')',
+                '**Commit:** \`' + process.env.COMMIT_SHA + '\` — ' + process.env.COMMIT_MESSAGE.split('\n')[0],
+                '**Log:** ' + process.env.RUN_URL,
+              ].join('\n'),
+            });
+            const req = https.request(process.env.DISCORD_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
+              if (res.statusCode >= 300) process.exitCode = 1;
+            });
+            req.on('error', () => { process.exitCode = 1; });
+            req.end(payload);
+          "

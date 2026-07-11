@@ -3,13 +3,14 @@ import { useMutation } from '@tanstack/react-query';
 
 import { queryClient } from '../../../../services/query-client';
 
-import { TMutationParams, TListTransactionsResponse, TCreateTransactionBody } from '../../../../types/api';
+import { TMutationParams, TCreateTransactionBody } from '../../../../types/api';
+import { TTransaction } from '../../../../types/models';
 
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 export const useCreateTransactions = () => {
 	return useMutation({
-		mutationFn: async({ body }: TMutationParams<TListTransactionsResponse, TCreateTransactionBody>) => {
+		mutationFn: async({ body }: TMutationParams<TTransaction, TCreateTransactionBody>) => {
 			const axios = await getAxiosInstance();
 			return createTransaction(axios, body);
 		},

@@ -1,7 +1,7 @@
 export const API_ROUTES = {
 	auth: {
-		signIn: '/auth/sign-in',
-		signUp: '/auth/sign-up',
+		signIn: '/auth/sign_in',
+		signUp: '/auth/sign_up',
 	},
 	users: {
 		me: '/users/me',
@@ -19,9 +19,9 @@ export const API_ROUTES = {
 		delete: (id: string | number) => `/transactions/${ id }`,
 	},
 	userWallets: {
-		listInvites: '/user-wallets',
-		createInvite: '/user-wallets',
-		acceptInvite: (id: string | number) => `/user-wallets/${ id }/accept`,
-		rejectInvite: (id: string | number) => `/user-wallets/${ id }/reject`,
+		listInvites: '/user_wallets',
+		createInvite: '/user_wallets',
+		acceptInvite: (id: string | number) => `/user_wallets/${ id }/accept`,
+		rejectInvite: (id: string | number) => `/user_wallets/${ id }/reject`,
 	},
 } as const;

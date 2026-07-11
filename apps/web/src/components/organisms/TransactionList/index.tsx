@@ -106,7 +106,7 @@ const TransactionList = () => {
 
 	const { mutate: deleteTransactionMutation, isPending: is_delete_pending } = useDeleteTransactions();
 
-	const transactions = data_transactions?.transactions || [];
+	const transactions = data_transactions?.data || [];
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const sorted_transactions = useMemo(() => sortTransactions(transactions, sort), [ transactions, sort ]);
 
@@ -317,8 +317,8 @@ const TransactionList = () => {
 											<TableCell>
 												<div className='flex flex-col'>
 													<span className='font-medium'>{transaction_item.description}</span>
-													{transaction_item.user?.name && (
-														<span className='text-xs text-muted-foreground'>{transaction_item.user.name}</span>
+													{transaction_item.user_name && (
+														<span className='text-xs text-muted-foreground'>{transaction_item.user_name}</span>
 													)}
 												</div>
 											</TableCell>
@@ -360,8 +360,8 @@ const TransactionList = () => {
 
 												<div className='flex flex-1 flex-col overflow-hidden'>
 													<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
-													{transaction_item.user?.name && (
-														<span className='truncate text-xs text-muted-foreground'>{transaction_item.user.name}</span>
+													{transaction_item.user_name && (
+														<span className='truncate text-xs text-muted-foreground'>{transaction_item.user_name}</span>
 													)}
 												</div>
 

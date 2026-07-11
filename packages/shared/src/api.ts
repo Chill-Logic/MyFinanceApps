@@ -1,12 +1,22 @@
-import { TInvite, TTransaction, TUser, TWallet } from './models';
+import { TInvite, TTransaction, TWallet } from './models';
 
-export type TSignInResponse = TUser & {
+export type TPaginatedResponse<T> = {
+	data: T[];
+	total_count: number;
+	total_pages: number;
+};
+
+export type TMessageResponse = {
+	message: string;
+};
+
+export type TSignInResponse = {
+	email: string;
+	name: string;
 	token: string;
 };
 
-export type TSignUpResponse = {
-	message: string;
-}
+export type TSignUpResponse = TMessageResponse;
 
 export type TSignInBody = {
 	email: string;
@@ -21,12 +31,11 @@ export type TSignUpBody = {
 
 export type TGetMainWalletResponse = TWallet
 
-export type TListTransactionsResponse = {
+export type TListTransactionsResponse = TPaginatedResponse<TTransaction> & {
 	total: number;
-	transactions: TTransaction[];
 };
 
-export type TIndexWalletsResponse = TWallet[];
+export type TIndexWalletsResponse = TPaginatedResponse<TWallet>;
 
 export type TCreateTransactionBody = {
 	description: string;
@@ -38,7 +47,11 @@ export type TCreateTransactionBody = {
 
 export type TUpdateTransactionBody = Partial<Omit<TCreateTransactionBody, 'wallet_id'>>
 
-export type TListInvitesResponse = TInvite[]
+export type TWalletBody = {
+	name: string;
+};
+
+export type TListInvitesResponse = TPaginatedResponse<TInvite>;
 
 export type TUserWalletInviteBody = {
 	user_email: string;
