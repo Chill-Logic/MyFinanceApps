@@ -5,11 +5,11 @@ import { getAxiosInstance } from '@/hooks/api/useAxiosInstance';
 
 import { queryClient } from '@/services/query-client';
 
-import { type TCreateTransactionBody, type TListTransactionsResponse, type TMutationParams } from '@/types';
+import { type TCreateTransactionBody, type TMutationParams, type TTransaction } from '@/types';
 
 export const useCreateTransactions = () => {
 	return useMutation({
-		mutationFn: async({ body }: TMutationParams<TListTransactionsResponse, TCreateTransactionBody>) => {
+		mutationFn: async({ body }: TMutationParams<TTransaction, TCreateTransactionBody>) => {
 			const axios = getAxiosInstance();
 			return createTransaction(axios, body);
 		},

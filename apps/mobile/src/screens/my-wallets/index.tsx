@@ -45,7 +45,7 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 				<ThemedView
 					style={[
 						styles.transactionsContainer,
-						data_wallets?.length
+						data_wallets?.data.length
 							? styles.transactionsContainerWithData
 							: styles.transactionsContainerEmpty,
 					]}
@@ -54,9 +54,9 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'WalletsInvites'>) => {
 						<ThemedText>Carregando...</ThemedText>
 					)}
 
-					{data_wallets && data_wallets?.length > 0 ? (
+					{data_wallets && data_wallets.data.length > 0 ? (
 						<FlatList
-							data={data_wallets}
+							data={data_wallets.data}
 							renderItem={renderWalletItem}
 							keyExtractor={(item) => item.id}
 							showsVerticalScrollIndicator={false}

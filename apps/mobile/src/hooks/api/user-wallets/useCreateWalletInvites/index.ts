@@ -3,14 +3,13 @@ import { useMutation } from '@tanstack/react-query';
 
 import { queryClient } from '../../../../services/query-client';
 
-import { TMutationParams, TUserWalletInviteBody } from '../../../../types/api';
-import { TInvite } from '../../../../types/models';
+import { TMessageResponse, TMutationParams, TUserWalletInviteBody } from '../../../../types/api';
 
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 export const useCreateWalletInvites = () => {
 	return useMutation({
-		mutationFn: async({ body }: TMutationParams<TInvite, TUserWalletInviteBody>) => {
+		mutationFn: async({ body }: TMutationParams<TMessageResponse, TUserWalletInviteBody>) => {
 			const axios = await getAxiosInstance();
 			return createWalletInvite(axios, body);
 		},

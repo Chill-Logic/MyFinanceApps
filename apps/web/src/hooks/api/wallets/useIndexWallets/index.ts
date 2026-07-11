@@ -14,7 +14,7 @@ export const useIndexWallets = (props?: TUseIndexWalletsProps) => {
 		queryKey: [ QUERY_KEYS.wallet.get_all ],
 		queryFn: async() => {
 			const axios = getAxiosInstance();
-			return indexWallets(axios);
+			return indexWallets(axios, { per_page: 100 });
 		},
 		enabled,
 	});

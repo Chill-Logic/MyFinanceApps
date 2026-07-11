@@ -5,11 +5,11 @@ import { getAxiosInstance } from '@/hooks/api/useAxiosInstance';
 
 import { queryClient } from '@/services/query-client';
 
-import { type TListTransactionsResponse, type TMutationParams, type TTransaction } from '@/types';
+import { type TMessageResponse, type TMutationParams } from '@/types';
 
 export const useDeleteTransactions = () => {
 	return useMutation({
-		mutationFn: async({ id }: TMutationParams<TListTransactionsResponse, TTransaction>) => {
+		mutationFn: async({ id }: TMutationParams<TMessageResponse, {}>) => {
 			const axios = getAxiosInstance();
 			return deleteTransaction(axios, id!);
 		},

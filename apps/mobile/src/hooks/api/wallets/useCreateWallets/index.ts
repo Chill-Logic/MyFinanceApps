@@ -3,14 +3,14 @@ import { useMutation } from '@tanstack/react-query';
 
 import { queryClient } from '../../../../services/query-client';
 
-import { TMutationParams } from '../../../../types/api';
+import { TMutationParams, TWalletBody } from '../../../../types/api';
 import { TWallet } from '../../../../types/models';
 
 import { getAxiosInstance } from '../../useAxiosInstance';
 
 export const useCreateWallets = () => {
 	return useMutation({
-		mutationFn: async({ body }: TMutationParams<TWallet, {}>) => {
+		mutationFn: async({ body }: TMutationParams<TWallet, TWalletBody>) => {
 			const axios = await getAxiosInstance();
 			return createWallet(axios, body);
 		},

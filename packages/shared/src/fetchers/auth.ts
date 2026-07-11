@@ -4,8 +4,8 @@ import { TSignInBody, TSignInResponse, TSignUpBody, TSignUpResponse } from '../a
 import { API_ROUTES } from '../routes';
 
 export const signIn = async(axios: AxiosInstance, body?: TSignInBody) => {
-	const response = await axios.post<TSignInResponse>(API_ROUTES.auth.signIn, body);
-	return response.data;
+	const response = await axios.post<{ data: TSignInResponse }>(API_ROUTES.auth.signIn, body);
+	return response.data.data;
 };
 
 export const signUp = async(axios: AxiosInstance, body?: TSignUpBody) => {

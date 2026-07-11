@@ -47,7 +47,7 @@ const NavMenu = ({ visible, onClose, navigate, onNewWallet, onLogout }: INavMenu
 	const { navItems } = useNavItems();
 
 	const wallets_options = useMemo(() => (
-		data_wallets?.map((wallet) => ({ label: wallet.name, value: wallet.id })) || []
+		data_wallets?.data.map((wallet) => ({ label: wallet.name, value: wallet.id })) || []
 	), [ data_wallets ]);
 
 	const handleNavigate = (route: string) => {
@@ -81,7 +81,7 @@ const NavMenu = ({ visible, onClose, navigate, onNewWallet, onLogout }: INavMenu
 							options={wallets_options}
 							value={user_wallet?.data?.id || ''}
 							onChange={(value: string) => {
-								const new_wallet = data_wallets?.find((wallet) => wallet.id === value);
+								const new_wallet = data_wallets?.data.find((wallet) => wallet.id === value);
 								if (new_wallet) setUserWallet({ data: new_wallet });
 								handleNavigate('Home');
 							}}
@@ -94,8 +94,8 @@ const NavMenu = ({ visible, onClose, navigate, onNewWallet, onLogout }: INavMenu
 							<TouchableOpacity key={item.id} style={styles.menuItem} onPress={() => handleNavigate(item.route)}>
 								<Icon name={item.icon as any} size={20} color={theme.colors.text} />
 								<ThemedText style={styles.menuItemText}>{item.label}</ThemedText>
-								{item.id === 'wallets_invites' && Boolean(data_invites?.length) && (
-									<ThemedText style={styles.invitesCount}>{data_invites?.length}</ThemedText>
+								{item.id === 'wallets_invites' && Boolean(data_invites?.data.length) && (
+									<ThemedText style={styles.invitesCount}>{data_invites?.data.length}</ThemedText>
 								)}
 							</TouchableOpacity>
 						))}

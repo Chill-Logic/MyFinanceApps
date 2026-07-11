@@ -8,7 +8,7 @@ export const useListInvites = () => {
 		queryKey: [ QUERY_KEYS.invite.get_all ],
 		queryFn: async() => {
 			const axios = await getAxiosInstance();
-			return listInvites(axios);
+			return listInvites(axios, { per_page: 100 });
 		},
 	});
 };
