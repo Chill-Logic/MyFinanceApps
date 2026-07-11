@@ -5,6 +5,7 @@ import { colors } from '@myfinance/shared';
 import type { AxiosError } from 'axios';
 
 import useShowCurrentUser from '../../hooks/api/user/useShowCurrentUser';
+import useTabNavigate from '../../hooks/useTabNavigate';
 
 import { useCurrentUserContext } from '../../context/current_user';
 import { useRefresh } from '../../context/refresh';
@@ -21,6 +22,7 @@ import { WalletFormModal } from '../organisms/WalletFormModal';
 const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNode; navigation: IScreenProps<any>['navigation'] }) => {
 	const { current_user, setCurrentUser, logout } = useCurrentUserContext();
 	const { refreshControlProps } = useRefresh({ all: true });
+	const navigateToTab = useTabNavigate(navigation);
 
 	const [ is_wallet_form_modal_visible, setIsWalletFormModalVisible ] = useState(false);
 
@@ -94,7 +96,7 @@ const AuthenticatedLayout = ({ children, navigation }: { children: React.ReactNo
 			</ThemedView>
 
 			<BottomNav
-				navigate={navigation.navigate}
+				navigate={navigateToTab}
 				onNewWallet={() => setIsWalletFormModalVisible(true)}
 				onLogout={handleLogout}
 			/>

@@ -64,7 +64,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 		});
 	}, [ centerAction, fab_scale, center_width ]);
 
-	const [ home_item, invites_item, wallets_item ] = navItems;
+	const [ home_item, wallets_item, invites_item ] = navItems;
 
 	const renderNavItem = (item: TNavItem) => {
 		const is_active = item.route === currentRouteName;
@@ -84,7 +84,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 		<>
 			<ThemedView style={[ styles.nav, { borderTopColor: theme.colors.border } ]}>
 				{renderNavItem(home_item)}
-				{renderNavItem(invites_item)}
+				{renderNavItem(wallets_item)}
 
 				<Animated.View style={[ styles.centerSlot, { width: center_width } ]}>
 					<Animated.View
@@ -101,7 +101,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 					</Animated.View>
 				</Animated.View>
 
-				{renderNavItem(wallets_item)}
+				{renderNavItem(invites_item)}
 
 				<TouchableOpacity style={styles.navItem} onPress={() => setIsMenuOpen(true)}>
 					<Icon name='menu' size={22} color={theme.colors.placeholder} />
