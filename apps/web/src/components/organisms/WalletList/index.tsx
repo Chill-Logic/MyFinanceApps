@@ -109,8 +109,8 @@ const WalletList = () => {
 							<li
 								key={wallet.id}
 								className={cn(
-									'flex items-center gap-3 rounded-lg border p-4',
-									is_active ? 'border-primary bg-primary/10' : 'border-border',
+									'flex items-center gap-3 rounded-lg border bg-card p-4',
+									is_active ? 'border-primary' : 'border-card',
 								)}
 							>
 								<div className='min-w-0 flex-1'>

@@ -86,7 +86,7 @@ const InvitesList = () => {
 						return (
 							<li
 								key={invite.id}
-								className='flex items-center justify-between gap-3 rounded-lg border border-border p-4'
+								className='flex items-center justify-between gap-3 rounded-lg border border-card bg-card p-4'
 							>
 								<div className='min-w-0'>
 									<p className='truncate font-medium text-foreground'>{invite.owner_name}</p>

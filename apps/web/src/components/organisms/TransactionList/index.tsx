@@ -223,7 +223,7 @@ const TransactionList = () => {
 					</Button>
 				</div>
 
-				<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3'>
+				<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-card bg-card px-4 py-3'>
 					<div className='flex flex-col'>
 						<span className='text-xs font-medium uppercase text-muted-foreground'>Saldo</span>
 						{is_loading ? (
@@ -278,7 +278,7 @@ const TransactionList = () => {
 
 				{/* Desktop: tabela ordenável — dados tabulares combinam melhor com a largura disponível */}
 				{!is_loading && transactions.length > 0 && (
-					<div className='hidden rounded-lg border border-border md:block'>
+					<div className='hidden rounded-lg border border-card bg-card md:block'>
 						<Table>
 							<TableHeader>
 								<TableRow className='hover:bg-transparent'>
@@ -354,7 +354,7 @@ const TransactionList = () => {
 										return (
 											<div
 												key={transaction_item.id}
-												className='flex items-center gap-3 rounded-xl border border-border bg-card p-3'
+												className='flex items-center gap-3 rounded-xl border border-card bg-card p-3'
 											>
 												{renderKindIcon(transaction_item)}
 

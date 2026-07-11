@@ -96,7 +96,7 @@ const SettingsPage = () => {
 	const renderDetail = () => {
 		if (active_key === 'appearance') {
 			return (
-				<div className='flex items-center justify-between gap-3 rounded-lg border border-border p-4'>
+				<div className='flex items-center justify-between gap-3 rounded-lg border border-card bg-card p-4'>
 					<div className='min-w-0'>
 						<p className='text-sm font-medium text-foreground'>Tema</p>
 						<p className='text-xs text-muted-foreground'>{theme === 'dark' ? 'Escuro' : 'Claro'}</p>
@@ -111,7 +111,7 @@ const SettingsPage = () => {
 
 		if (active_key === 'about') {
 			return (
-				<div className='rounded-lg border border-border p-4'>
+				<div className='rounded-lg border border-card bg-card p-4'>
 					<AboutInfo />
 				</div>
 			);
