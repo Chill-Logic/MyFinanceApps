@@ -29,6 +29,16 @@ export type TSignUpBody = {
 	password: string;
 }
 
+export type TRecoverPasswordBody = {
+	email: string;
+};
+
+export type TResetPasswordBody = {
+	token: string;
+	password: string;
+	password_confirmation: string;
+};
+
 export type TGetMainWalletResponse = TWallet
 
 export type TListTransactionsResponse = TPaginatedResponse<TTransaction> & {

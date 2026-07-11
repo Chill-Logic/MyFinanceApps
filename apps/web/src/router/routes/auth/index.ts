@@ -1,3 +1,5 @@
+import RecoverPasswordPage from '@/pages/auth/recover-password';
+import ResetPasswordPage from '@/pages/auth/reset-password';
 import SignInPage from '@/pages/auth/sign-in';
 import SignUpPage from '@/pages/auth/sign-up';
 
@@ -19,6 +21,22 @@ export const AuthPaths: IPath[] = [
 		display: 'Sign-up',
 		path: 'auth/sign-up',
 		element: SignUpPage,
+		template: AuthTemplate,
+		isGuestOnly: true,
+	},
+	{
+		id: 'recover-password',
+		display: 'Recuperar senha',
+		path: 'auth/recover-password',
+		element: RecoverPasswordPage,
+		template: AuthTemplate,
+		isGuestOnly: true,
+	},
+	{
+		id: 'reset-password',
+		display: 'Redefinir senha',
+		path: 'auth/reset-password',
+		element: ResetPasswordPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
 	}

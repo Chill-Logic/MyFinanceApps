@@ -2,6 +2,8 @@ export const API_ROUTES = {
 	auth: {
 		signIn: '/auth/sign_in',
 		signUp: '/auth/sign_up',
+		recoverPassword: '/auth/recover_password',
+		resetPassword: '/auth/reset_password',
 	},
 	users: {
 		me: '/users/me',
