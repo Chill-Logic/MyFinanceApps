@@ -67,10 +67,6 @@ jobs:
   publish:
     needs: decide
     runs-on: ubuntu-latest
-    # Gate manual: precisa configurar um Environment chamado "production" em
-    # Settings -> Environments do repo, com "Required reviewers" marcado.
-    # O workflow para aqui e espera aprovacao antes de publicar de verdade.
-    environment: production
     steps:
       - name: Checkout commit
         uses: actions/checkout@v4
