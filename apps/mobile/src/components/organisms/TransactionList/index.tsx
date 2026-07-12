@@ -323,7 +323,7 @@ const TransactionsList = () => {
 					}}
 				/>
 
-				<ThemedView style={[ styles.balanceContainer, { borderColor: theme.colors.border } ]}>
+				<ThemedView style={[ styles.balanceContainer, { backgroundColor: card_surface, borderColor: card_surface } ]}>
 					<ThemedView style={styles.balanceContainerTransparent}>
 						<ThemedText style={styles.balanceLabel}>Saldo</ThemedText>
 						{is_data_transactions_loading ? <Skeleton height={20} width={80} /> : (
