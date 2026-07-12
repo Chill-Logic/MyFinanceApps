@@ -1,6 +1,7 @@
 import { ComponentProps } from 'react';
 import { DayPicker } from 'react-day-picker';
 
+import { ptBR } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -9,9 +10,10 @@ import { buttonVariants } from '@/components/ui/button';
 
 export type TCalendarProps = ComponentProps<typeof DayPicker>;
 
-const Calendar = ({ className, classNames, showOutsideDays = true, ...props }: TCalendarProps) => (
+const Calendar = ({ className, classNames, showOutsideDays = true, locale = ptBR, ...props }: TCalendarProps) => (
 	<DayPicker
 		showOutsideDays={showOutsideDays}
+		locale={locale}
 		className={cn('p-3', className)}
 		classNames={{
 			months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',

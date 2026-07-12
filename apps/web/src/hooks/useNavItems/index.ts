@@ -1,10 +1,10 @@
+import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Mail, Plus, Wallet as WalletIcon, Home, type LucideIcon } from 'lucide-react';
 
-import useToast from '@/hooks/useToast';
-
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
+import { useNewWalletDialog } from '@/context/newWalletDialog';
 
 export type TNavItem = {
 	id: string;
@@ -35,19 +35,25 @@ const NAV_ITEMS: TNavItem[] = [
 
 export const useNavItems = () => {
 	const { pathname } = useLocation();
-	const { toast } = useToast();
 	const { setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
+	const { setIsOpen: setIsNewWalletOpen } = useNewWalletDialog();
 
 	/**
 	 * "Nova Carteira" não é sensível a rota — sempre acessível (menu + dentro da própria
-	 * tela de Carteiras), diferente da ação central abaixo.
+	 * tela de Carteiras), diferente da ação central abaixo. Abre o WalletFormDialog (montado no
+	 * DefaultTemplate) via contexto.
+	 *
+	 * Memoizado (assim como `centerAction`) porque o `BottomNav` tem um `useEffect` que depende
+	 * de `centerAction` — sem referência estável, o objeto novo a cada render fazia o efeito
+	 * rodar em loop infinito ("Maximum update depth exceeded"). Os setters de `useState` são
+	 * referências estáveis, seguras como deps.
 	 */
-	const newWalletAction: TNavAction = {
+	const newWalletAction = useMemo<TNavAction>(() => ({
 		id: 'new_wallet',
 		label: 'Nova Carteira',
 		icon: Plus,
-		onClick: () => toast.info('Em breve'),
-	};
+		onClick: () => setIsNewWalletOpen(true),
+	}), [ setIsNewWalletOpen ]);
 
 	/**
 	 * Ação central da bottom nav (só mobile — no desktop o Sidebar não usa isso, é lista
@@ -56,14 +62,16 @@ export const useNavItems = () => {
 	 * faz sentido um "+" em destaque, então o valor é `null` e quem renderiza decide não
 	 * mostrar nada no lugar.
 	 */
-	const centerAction: TNavAction | null = pathname === '/'
-		? {
-			id: 'new_transaction',
-			label: 'Nova Transação',
-			icon: Plus,
-			onClick: () => setIsNewTransactionOpen(true),
-		}
-		: null;
+	const centerAction = useMemo<TNavAction | null>(() => (
+		pathname === '/'
+			? {
+				id: 'new_transaction',
+				label: 'Nova Transação',
+				icon: Plus,
+				onClick: () => setIsNewTransactionOpen(true),
+			}
+			: null
+	), [ pathname, setIsNewTransactionOpen ]);
 
 	return { navItems: NAV_ITEMS, newWalletAction, centerAction };
 };

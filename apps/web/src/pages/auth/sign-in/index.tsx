@@ -80,6 +80,14 @@ const SignInPage = () => {
 					>
 						Cadastre-se
 					</Button>
+					<Button
+						variant='link'
+						type='button'
+						disabled={is_sign_in_pending}
+						onClick={() => navigate('/auth/recover-password')}
+					>
+						Esqueci minha senha
+					</Button>
 				</div>
 			</div>
 		</form>

@@ -1,222 +1,156 @@
-import { useEffect, useState } from 'react';
-import { TouchableOpacity, StyleSheet } from 'react-native';
-import Toast from 'react-native-toast-message';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors } from '@myfinance/shared';
+import Constants from 'expo-constants';
 
-import { useUpdateWallets } from '../../hooks/api/wallets/useUpdateWallets';
+import { useVersion } from '../../hooks/api/core/useVersion';
 
-import { TWalletState, useWallet } from '../../context/wallet';
+import { useTheme } from '../../context/theme';
 
 import { IScreenProps } from '../../types/screen';
 
-import { Loader } from '../../components/atoms/Loader';
 import { ThemedText } from '../../components/atoms/ThemedText';
-import { ThemedTextInput } from '../../components/atoms/ThemedTextInput';
-import { ThemedView } from '../../components/atoms/ThemedView';
 import AuthenticatedLayout from '../../components/layouts/AuthenticatedLayout';
-import { WalletInviteFormModal } from '../../components/organisms/WalletInviteFormModal';
+import { AccountInfoFormModal } from '../../components/organisms/AccountInfoFormModal';
+import { AccountPasswordFormModal } from '../../components/organisms/AccountPasswordFormModal';
 
+const app_version = Constants.expoConfig?.version;
+
+/*
+ * Normaliza a data do commit pra "DD/MM/AAAA às HH:MM" (formato do Rails ou ISO do git) só
+ * extraindo os campos com regex — sem `new Date()`, aqui só interessa exibir o que veio.
+ */
+const formatVersionDate = (raw?: string) => {
+	if (!raw || raw === 'unknown') return raw ?? '—';
+
+	const match = raw.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+	if (!match) return raw;
+
+	const [ , year, month, day, hour, minute ] = match;
+	return `${ day }/${ month }/${ year } às ${ hour }:${ minute }`;
+};
+
+/**
+ * Configurações do app (não mais da carteira — renomear/convidar/excluir carteira vivem no menu de
+ * ações ⋮ de cada carteira, na MyWalletsScreen). Lista com "Conta" (Informações pessoais / Atualizar
+ * senha, cada um abre um modal) e "Sobre" (versão do app + branch/commit/data da API).
+ */
 const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) => {
-	const { user_wallet, setUserWallet } = useWallet();
-	const [ is_modal_visible, setIsModalVisible ] = useState(false);
-	const [ wallet_name, setWalletName ] = useState('');
-	const { mutate: updateWalletMutation, isPending: is_update_wallet_pending } = useUpdateWallets();
+	const { theme, mode, toggleTheme } = useTheme();
+	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
+	const { data: api_version } = useVersion();
 
-	const handleSave = () => {
-		if (user_wallet.data?.id) {
-			updateWalletMutation({
-				id: user_wallet.data.id,
-				body: { name: wallet_name },
-				onSuccess: () => {
-					Toast.show({
-						type: 'success',
-						text1: 'Carteira atualizada!',
-						text2: 'A carteira foi atualizada com sucesso',
-					});
-					setIsModalVisible(false);
-					setUserWallet(prev => (
-						{
-							...prev,
-							data: {
-								...prev.data,
-								name: wallet_name,
-							},
-						} as TWalletState
-					));
-				},
-				onError: (error) => {
-					Toast.show({
-						type: 'error',
-						text1: 'Erro ao atualizar carteira!',
-						text2: getApiErrorMessage(error, 'Ocorreu um erro ao atualizar a carteira'),
-					});
-				},
-			});
-		}
-	};
-
-	useEffect(() => {
-		if (user_wallet.data?.name) {
-			setWalletName(user_wallet.data.name);
-		}
-	}, [ user_wallet.data?.name ]);
+	const [ is_info_open, setIsInfoOpen ] = useState(false);
+	const [ is_password_open, setIsPasswordOpen ] = useState(false);
 
 	return (
 		<AuthenticatedLayout navigation={navigation}>
-			<ThemedView style={styles.container}>
-				<ThemedView style={styles.content}>
-					<ThemedView style={styles.formGroup}>
-						<ThemedTextInput
-							label='Nome da carteira'
-							value={wallet_name}
-							onChangeText={(text) => setWalletName(text)}
-							placeholder='Digite o nome da carteira'
-							keyboardType='default'
-							autoCapitalize='none'
-						/>
-					</ThemedView>
-				</ThemedView>
+			<ScrollView showsVerticalScrollIndicator={false}>
+				<ThemedText style={styles.sectionLabel}>Aparência</ThemedText>
 
-				<ThemedView style={styles.footer}>
-					<ThemedView style={styles.buttonsContainer}>
-						<TouchableOpacity
-							style={styles.actionButton}
-							disabled={is_update_wallet_pending}
-							onPress={() => {
-								setIsModalVisible(true);
-							}}
-						>
-							<Icon name='person-add' size={24} color='#fff' />
-							<ThemedText style={styles.actionButtonText}>
-								Convidar
-							</ThemedText>
-						</TouchableOpacity>
+				<View style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}>
+					<Icon name='dark-mode' size={22} color={theme.colors.text} />
+					<View style={styles.rowInfo}>
+						<ThemedText style={styles.rowTitle}>Tema escuro</ThemedText>
+						<ThemedText style={styles.rowDescription}>{mode === 'dark' ? 'Ativado' : 'Desativado'}</ThemedText>
+					</View>
+					<Switch
+						value={mode === 'dark'}
+						onValueChange={toggleTheme}
+						trackColor={{ true: colors['brand-secondary'], false: '#767577' }}
+						thumbColor='#ffffff'
+					/>
+				</View>
 
-						<TouchableOpacity
-							disabled={is_update_wallet_pending || is_modal_visible || user_wallet.data?.name === wallet_name || !wallet_name}
-							onPress={handleSave}
-							style={[ styles.actionButton, is_update_wallet_pending || is_modal_visible || user_wallet.data?.name === wallet_name || !wallet_name ? styles.actionButtonDisabled : {} ]}
-						>
-							<Icon name='save' size={24} color='#fff' />
-							<ThemedText style={styles.actionButtonText}>
-								{(is_update_wallet_pending) ? <Loader /> : 'Salvar'}
-							</ThemedText>
-						</TouchableOpacity>
-					</ThemedView>
-				</ThemedView>
-			</ThemedView>
+				<ThemedText style={styles.sectionLabel}>Conta</ThemedText>
 
-			<WalletInviteFormModal
-				visible={is_modal_visible}
-				onClose={() => setIsModalVisible(false)}
-			/>
+				<TouchableOpacity
+					style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}
+					onPress={() => setIsInfoOpen(true)}
+				>
+					<Icon name='person' size={22} color={theme.colors.text} />
+					<View style={styles.rowInfo}>
+						<ThemedText style={styles.rowTitle}>Informações pessoais</ThemedText>
+						<ThemedText style={styles.rowDescription}>Nome e e-mail</ThemedText>
+					</View>
+					<Icon name='chevron-right' size={22} color={theme.colors.placeholder} />
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}
+					onPress={() => setIsPasswordOpen(true)}
+				>
+					<Icon name='lock' size={22} color={theme.colors.text} />
+					<View style={styles.rowInfo}>
+						<ThemedText style={styles.rowTitle}>Atualizar senha</ThemedText>
+						<ThemedText style={styles.rowDescription}>Trocar sua senha</ThemedText>
+					</View>
+					<Icon name='chevron-right' size={22} color={theme.colors.placeholder} />
+				</TouchableOpacity>
+
+				<ThemedText style={styles.sectionLabel}>Sobre</ThemedText>
+
+				<View style={[ styles.aboutBox, { backgroundColor: card_surface, borderColor: card_surface } ]}>
+					<ThemedText style={styles.aboutLine}>App: v{app_version}</ThemedText>
+					{api_version ? (
+						<>
+							<ThemedText style={styles.aboutLine}>Branch: {api_version.branch}</ThemedText>
+							<ThemedText style={styles.aboutLine}>Commit: {api_version.hash}</ThemedText>
+							<ThemedText style={styles.aboutLine}>Data: {formatVersionDate(api_version.date)}</ThemedText>
+						</>
+					) : (
+						<ThemedText style={styles.aboutLine}>Carregando versão da API…</ThemedText>
+					)}
+				</View>
+			</ScrollView>
+
+			<AccountInfoFormModal visible={is_info_open} onClose={() => setIsInfoOpen(false)} />
+			<AccountPasswordFormModal visible={is_password_open} onClose={() => setIsPasswordOpen(false)} />
 		</AuthenticatedLayout>
 	);
 };
 
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-	},
-	content: {
-		flex: 1,
-	},
-	formGroup: {
-		marginBottom: 15,
-	},
-	footer: {
-		paddingTop: 20,
-		paddingBottom: 10,
-	},
-	buttonsContainer: {
-		flexDirection: 'row',
-		gap: 15,
-	},
-	actionButton: {
-		flex: 1,
-		height: 50,
-		backgroundColor: colors['brand-secondary'],
-		borderRadius: 5,
-		justifyContent: 'center',
-		alignItems: 'center',
-		flexDirection: 'row',
-		gap: 10,
-	},
-	actionButtonDisabled: {
-		opacity: 0.5,
-	},
-	actionButtonText: {
-		color: 'white',
-		fontSize: 18,
-	},
-	balanceContainer: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		marginTop: 16,
-		marginBottom: 16,
-		paddingHorizontal: 4,
-	},
-	balanceLabel: {
-		fontWeight: 'bold',
+	sectionLabel: {
+		fontSize: 13,
+		fontWeight: '700',
 		textTransform: 'uppercase',
-		fontSize: 16,
+		color: '#868686',
+		marginTop: 8,
+		marginBottom: 8,
 	},
-	textGreen: {
-		color: 'green',
-		fontWeight: 'bold',
-		fontSize: 16,
-	},
-	textRed: {
-		color: 'red',
-		fontWeight: 'bold',
-		fontSize: 16,
-	},
-	transactionsList: {
-		maxHeight: '95%',
-	},
-	emptyMessage: {
-		textAlign: 'center',
-		fontSize: 16,
-		color: '#666',
-	},
-	transactionSeparator: {
-		height: 1,
-		backgroundColor: '#ccc',
-	},
-	inviteItem: {
-		padding: 10,
-		borderRadius: 5,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	inviteInfo: {
-		flexDirection: 'column',
-		gap: 5,
-	},
-	inviteOwnerName: {
-		fontSize: 20,
-		fontWeight: 'bold',
-	},
-	inviteWalletName: {
-		fontSize: 16,
-		fontWeight: 'bold',
-	},
-	inviteActions: {
+	row: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 10,
-		marginTop: 10,
+		gap: 12,
+		borderWidth: 1,
+		borderRadius: 8,
+		padding: 14,
+		marginBottom: 10,
 	},
-	acceptButton: {
-		padding: 10,
-		borderRadius: 5,
+	rowInfo: {
+		flex: 1,
 	},
-	rejectButton: {
-		padding: 10,
-		borderRadius: 5,
+	rowTitle: {
+		fontSize: 15,
+		fontWeight: '600',
+	},
+	rowDescription: {
+		fontSize: 12,
+		color: '#868686',
+		marginTop: 2,
+	},
+	aboutBox: {
+		borderWidth: 1,
+		borderRadius: 8,
+		padding: 14,
+		gap: 4,
+	},
+	aboutLine: {
+		fontSize: 12,
+		color: '#868686',
 	},
 });
 

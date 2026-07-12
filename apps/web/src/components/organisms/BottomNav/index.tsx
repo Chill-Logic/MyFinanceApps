@@ -7,8 +7,8 @@ import useNavItems, { type TNavAction } from '@/hooks/useNavItems';
 
 import { cn } from '@/lib/utils';
 
-import NavLinks from '@/components/organisms/NavLinks';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import NavMenu from '@/components/organisms/NavMenu';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 interface IProps {
 	className?: string;
@@ -83,17 +83,28 @@ const BottomNav = ({ className }: IProps) => {
 				{wallets_item.label}
 			</NavLink>
 
-			<Popover open={open} onOpenChange={setOpen}>
-				<PopoverTrigger asChild>
+			{/*
+			 * Bottom sheet (slide-up + handle + backdrop) no lugar do Popover pequeno anterior —
+			 * mesma cara nativa do menu do apps/mobile. O X padrão do Sheet fica escondido
+			 * (`hideClose`): fecha por backdrop/Esc/toque num item, como no mobile.
+			 *
+			 * Altura FIXA (`h-[70dvh]`), não `max-h` — igual ao snap fixo (~60%) do sheet do
+			 * mobile. Com `max-h`, expandir/colapsar a lista de carteiras redimensionava o sheet
+			 * inteiro e o scroll engatava/desengatava a cada toggle (jank). Fixa, o container de
+			 * scroll fica estável: expandir só adiciona conteúdo rolável, sem redimensionar nada.
+			 */}
+			<Sheet open={open} onOpenChange={setOpen}>
+				<SheetTrigger asChild>
 					<button type='button' className='flex flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium text-muted-foreground'>
 						<Menu className='h-5 w-5' />
 						Menu
 					</button>
-				</PopoverTrigger>
-				<PopoverContent side='top' align='end' sideOffset={16}>
-					<NavLinks onNavigate={() => setOpen(false)} />
-				</PopoverContent>
-			</Popover>
+				</SheetTrigger>
+				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-2xl p-0'>
+					<div className='mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border' />
+					<NavMenu onClose={() => setOpen(false)} />
+				</SheetContent>
+			</Sheet>
 		</nav>
 	);
 };

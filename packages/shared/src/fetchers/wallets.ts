@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios';
 
-import { TGetMainWalletResponse, TIndexWalletsResponse, TWalletBody } from '../api';
+import { TGetMainWalletResponse, TIndexWalletsResponse, TMessageResponse, TWalletBody } from '../api';
 import { TWallet } from '../models';
 import { API_ROUTES } from '../routes';
 
@@ -28,4 +28,9 @@ export const createWallet = async(axios: AxiosInstance, body?: TWalletBody) => {
 export const updateWallet = async(axios: AxiosInstance, id: string | number, body?: TWalletBody) => {
 	const response = await axios.patch<{ data: TWallet }>(API_ROUTES.wallets.update(id), { wallet: body });
 	return response.data.data;
+};
+
+export const deleteWallet = async(axios: AxiosInstance, id: string | number) => {
+	const response = await axios.delete<TMessageResponse>(API_ROUTES.wallets.delete(id));
+	return response.data;
 };

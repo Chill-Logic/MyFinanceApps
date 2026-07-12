@@ -29,6 +29,24 @@ export type TSignUpBody = {
 	password: string;
 }
 
+export type TRecoverPasswordBody = {
+	email: string;
+};
+
+export type TUpdateUserBody = {
+	name?: string;
+	email?: string;
+	current_password?: string;
+	password?: string;
+	password_confirmation?: string;
+};
+
+export type TResetPasswordBody = {
+	token: string;
+	password: string;
+	password_confirmation: string;
+};
+
 export type TGetMainWalletResponse = TWallet
 
 export type TListTransactionsResponse = TPaginatedResponse<TTransaction> & {
@@ -56,6 +74,19 @@ export type TListInvitesResponse = TPaginatedResponse<TInvite>;
 export type TUserWalletInviteBody = {
 	user_email: string;
 	wallet_id: string;
+};
+
+export type TEnumOption = {
+	value: string;
+	label: string;
+};
+
+export type TEnumOptionsResponse = TEnumOption[];
+
+export type TVersionResponse = {
+	hash: string;
+	date: string;
+	branch: string;
 };
 
 export type TMutationParams<TResponse, TBody, TComplements = {}> = {

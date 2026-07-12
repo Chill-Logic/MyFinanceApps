@@ -1,9 +1,5 @@
-import Typography from '@/components/atoms/Typography';
+import InvitesList from '@/components/organisms/InvitesList';
 
-const WalletsInvitesPage = () => (
-	<Typography variant='large' className='dark:text-white'>
-		Convites — em construção
-	</Typography>
-);
+const WalletsInvitesPage = () => <InvitesList />;
 
 export default WalletsInvitesPage;
