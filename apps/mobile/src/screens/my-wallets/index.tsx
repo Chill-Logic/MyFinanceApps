@@ -78,13 +78,15 @@ const MyWalletsScreen = ({ navigation }: IScreenProps<'MyWallets'>) => {
 		const balance_color = Number(item.total) >= 0 ? styles.textGreen : styles.textRed;
 
 		return (
-			<ThemedView style={[ styles.walletRow, { backgroundColor: card_surface, borderColor: is_active ? colors['brand-secondary'] : theme.colors.border } ]}>
+			<ThemedView style={[ styles.walletRow, { backgroundColor: card_surface, borderColor: is_active ? colors['brand-secondary'] : card_surface } ]}>
 				<View style={styles.walletInfo}>
 					<ThemedText>{item.name}</ThemedText>
 					{Boolean(item.total) && (
 						<ThemedText style={balance_color}>Total: {MoneyUtils.formatMoney(Number(item.total))}</ThemedText>
 					)}
 				</View>
+
+				{is_active && <Icon name='check-circle' size={20} color={colors['brand-secondary']} />}
 
 				{is_owner && (
 					<TouchableOpacity

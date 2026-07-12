@@ -39,6 +39,7 @@ const formatVersionDate = (raw?: string) => {
  */
 const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) => {
 	const { theme, mode, toggleTheme } = useTheme();
+	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
 	const { data: api_version } = useVersion();
 
 	const [ is_info_open, setIsInfoOpen ] = useState(false);
@@ -49,7 +50,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 			<ScrollView showsVerticalScrollIndicator={false}>
 				<ThemedText style={styles.sectionLabel}>Aparência</ThemedText>
 
-				<View style={[ styles.row, { borderColor: theme.colors.border } ]}>
+				<View style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}>
 					<Icon name='dark-mode' size={22} color={theme.colors.text} />
 					<View style={styles.rowInfo}>
 						<ThemedText style={styles.rowTitle}>Tema escuro</ThemedText>
@@ -66,7 +67,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 				<ThemedText style={styles.sectionLabel}>Conta</ThemedText>
 
 				<TouchableOpacity
-					style={[ styles.row, { borderColor: theme.colors.border } ]}
+					style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}
 					onPress={() => setIsInfoOpen(true)}
 				>
 					<Icon name='person' size={22} color={theme.colors.text} />
@@ -78,7 +79,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 				</TouchableOpacity>
 
 				<TouchableOpacity
-					style={[ styles.row, { borderColor: theme.colors.border } ]}
+					style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}
 					onPress={() => setIsPasswordOpen(true)}
 				>
 					<Icon name='lock' size={22} color={theme.colors.text} />
@@ -91,7 +92,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 
 				<ThemedText style={styles.sectionLabel}>Sobre</ThemedText>
 
-				<View style={[ styles.aboutBox, { borderColor: theme.colors.border } ]}>
+				<View style={[ styles.aboutBox, { backgroundColor: card_surface, borderColor: card_surface } ]}>
 					<ThemedText style={styles.aboutLine}>App: v{app_version}</ThemedText>
 					{api_version ? (
 						<>
