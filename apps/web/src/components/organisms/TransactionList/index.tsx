@@ -21,6 +21,7 @@ import { useDeleteTransactions } from '@/hooks/api/transactions/useDeleteTransac
 import { useListTransactions } from '@/hooks/api/transactions/useListTransactions';
 import useToast from '@/hooks/useToast';
 
+import { useMonthSelection } from '@/context/monthSelection';
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
 import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
@@ -85,7 +86,7 @@ const TransactionList = () => {
 	const { toast } = useToast();
 	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
-	const [ month_year, setMonthYear ] = useState({ month: new Date().getMonth(), year: new Date().getFullYear() });
+	const { month_year, setMonthYear } = useMonthSelection();
 	const [ editing_transaction, setEditingTransaction ] = useState<TTransaction | null>(null);
 	const [ deleting_transaction, setDeletingTransaction ] = useState<TTransaction | null>(null);
 	const [ sort, setSort ] = useState<TSortState>({ field: 'transaction_date', direction: 'desc' });

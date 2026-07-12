@@ -19,6 +19,7 @@ import { colors, getApiErrorMessage } from '@myfinance/shared';
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
 
+import { useMonthSelection } from '../../../context/monthSelection';
 import { useNewTransactionDialog } from '../../../context/newTransactionDialog';
 import { useRefresh } from '../../../context/refresh';
 import { useTheme } from '../../../context/theme';
@@ -92,10 +93,7 @@ const TransactionsList = () => {
 	const { user_wallet } = useWallet();
 	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
-	const [ month_year_selector_values, setMonthYearSelectorValues ] = useState({
-		month: new Date().getMonth(),
-		year: new Date().getFullYear(),
-	});
+	const { month_year_selector_values, setMonthYearSelectorValues } = useMonthSelection();
 
 	const { start_date, end_date } = DateUtils.getMonthRange(month_year_selector_values.year, month_year_selector_values.month);
 
