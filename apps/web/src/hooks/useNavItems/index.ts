@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Mail, Plus, Wallet as WalletIcon, Home, type LucideIcon } from 'lucide-react';
+import { CreditCard, Mail, Plus, Wallet as WalletIcon, Home, type LucideIcon } from 'lucide-react';
 
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
 import { useNewWalletDialog } from '@/context/newWalletDialog';
@@ -9,6 +9,8 @@ import { useNewWalletDialog } from '@/context/newWalletDialog';
 export type TNavItem = {
 	id: string;
 	label: string;
+	/** Rótulo curto pra bottom nav (onde o espaço é apertado). Cai pra `label` se ausente. */
+	short?: string;
 	path: string;
 	icon: LucideIcon;
 };
@@ -29,9 +31,16 @@ export type TNavAction = {
  */
 const NAV_ITEMS: TNavItem[] = [
 	{ id: 'home', label: 'Início', path: '/', icon: Home },
-	{ id: 'wallets_invites', label: 'Convites', path: '/wallets/invites', icon: Mail },
+	{ id: 'finances', label: 'Contas & Cartões', short: 'Contas', path: '/accounts', icon: CreditCard },
 	{ id: 'my_wallets', label: 'Carteiras', path: '/wallets', icon: WalletIcon },
+	{ id: 'wallets_invites', label: 'Convites', path: '/wallets/invites', icon: Mail },
 ];
+
+/*
+ * Subconjunto exibido na bottom nav do mobile (só 3 cabem ao lado do FAB + hambúrguer).
+ * "Convites" fica de fora aqui — vive no menu do hambúrguer (NavMenu), onde já aparece com badge.
+ */
+const BOTTOM_NAV_IDS = [ 'home', 'finances', 'my_wallets' ];
 
 export const useNavItems = () => {
 	const { pathname } = useLocation();
@@ -73,7 +82,9 @@ export const useNavItems = () => {
 			: null
 	), [ pathname, setIsNewTransactionOpen ]);
 
-	return { navItems: NAV_ITEMS, newWalletAction, centerAction };
+	const bottomNavItems = NAV_ITEMS.filter((item) => BOTTOM_NAV_IDS.includes(item.id));
+
+	return { navItems: NAV_ITEMS, bottomNavItems, newWalletAction, centerAction };
 };
 
 export default useNavItems;

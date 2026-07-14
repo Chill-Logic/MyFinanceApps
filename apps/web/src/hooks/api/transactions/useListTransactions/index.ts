@@ -12,7 +12,7 @@ export const useListTransactions = (props?: TUseListTransactionsProps) => {
 	const { enabled = true, params } = props || {};
 
 	return useQuery({
-		queryKey: [ QUERY_KEYS.transaction.get_all, params?.wallet_id, params?.start_date, params?.end_date ],
+		queryKey: [ QUERY_KEYS.transaction.get_all, params?.wallet_id, params?.reference, params?.source_type, params?.source_id, params?.per_page ],
 		queryFn: async() => {
 			const axios = getAxiosInstance();
 			return listTransactions(axios, params);

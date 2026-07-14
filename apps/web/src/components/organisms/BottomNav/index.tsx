@@ -15,7 +15,7 @@ interface IProps {
 }
 
 const BottomNav = ({ className }: IProps) => {
-	const { navItems, centerAction } = useNavItems();
+	const { bottomNavItems, centerAction } = useNavItems();
 	const [ open, setOpen ] = useState(false);
 
 	/*
@@ -32,7 +32,7 @@ const BottomNav = ({ className }: IProps) => {
 		if (centerAction) setDisplayedAction(centerAction);
 	}, [ centerAction ]);
 
-	const [ home_item, invites_item, wallets_item ] = navItems;
+	const [ home_item, finances_item, wallets_item ] = bottomNavItems;
 
 	const link_class = ({ isActive }: { isActive: boolean }) => cn(
 		'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium text-muted-foreground transition-colors',
@@ -48,11 +48,11 @@ const BottomNav = ({ className }: IProps) => {
 		>
 			<NavLink to={home_item.path} end className={link_class}>
 				<home_item.icon className='h-5 w-5' />
-				{home_item.label}
+				{home_item.short || home_item.label}
 			</NavLink>
-			<NavLink to={invites_item.path} end className={link_class}>
-				<invites_item.icon className='h-5 w-5' />
-				{invites_item.label}
+			<NavLink to={finances_item.path} end className={link_class}>
+				<finances_item.icon className='h-5 w-5' />
+				{finances_item.short || finances_item.label}
 			</NavLink>
 
 			<div
@@ -80,7 +80,7 @@ const BottomNav = ({ className }: IProps) => {
 
 			<NavLink to={wallets_item.path} end className={link_class}>
 				<wallets_item.icon className='h-5 w-5' />
-				{wallets_item.label}
+				{wallets_item.short || wallets_item.label}
 			</NavLink>
 
 			{/*

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { DateUtils, getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -9,16 +9,24 @@ import {
 	ArrowUp,
 	ArrowUpDown,
 	ArrowUpRight,
+	CheckCircle2,
 	ChevronLeft,
 	ChevronRight,
+	CircleDashed,
+	CreditCard,
 	Loader2,
 	MoreVertical,
 	Plus,
 	Receipt,
+	Wallet,
 } from 'lucide-react';
 
+import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
+import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteTransactions } from '@/hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '@/hooks/api/transactions/useListTransactions';
+import { useSettleTransaction } from '@/hooks/api/transactions/useSettleTransaction';
+import { useUnsettleTransaction } from '@/hooks/api/transactions/useUnsettleTransaction';
 import useToast from '@/hooks/useToast';
 
 import { useMonthSelection } from '@/context/monthSelection';
@@ -38,7 +46,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -91,29 +99,64 @@ const TransactionList = () => {
 	const [ deleting_transaction, setDeletingTransaction ] = useState<TTransaction | null>(null);
 	const [ sort, setSort ] = useState<TSortState>({ field: 'transaction_date', direction: 'desc' });
 
-	const { start_date, end_date } = DateUtils.getMonthRange(month_year.year, month_year.month);
+	const wallet_id = user_wallet.data?.id;
+	const reference = `${ month_year.year }-${ String(month_year.month + 1).padStart(2, '0') }`;
+
+	/*
+	 * A lista quer TODAS as transações do mês numa "página" só (a paginação do backend atrapalha a
+	 * leitura). Começamos com um teto padrão e, quando a resposta traz `total_count` maior que o teto
+	 * atual, subimos o `per_page` pra esse total e o React Query refaz a busca. É à prova de loop:
+	 * assim que `per_page >= total_count`, a condição abaixo fica falsa e para (buscar o total exato
+	 * faz a próxima resposta vir com `total_count === items_per_page`, nunca maior).
+	 */
+	const [ items_per_page, setItemsPerPage ] = useState(30);
 
 	// `enabled` evita bater na API com wallet_id vazio antes da carteira carregar
 	const { data: data_transactions, isLoading: is_transactions_loading } = useListTransactions({
-		enabled: Boolean(user_wallet.data?.id),
-		params: {
-			wallet_id: user_wallet.data?.id || '',
-			start_date,
-			end_date,
-		},
+		enabled: Boolean(wallet_id),
+		params: { wallet_id: wallet_id || '', reference, per_page: items_per_page },
 	});
+
+	const total_count = data_transactions?.total_count;
+
+	useEffect(() => {
+		if (total_count && total_count > items_per_page) {
+			setItemsPerPage(total_count);
+		}
+	}, [ total_count, items_per_page ]);
+
+	/*
+	 * Índices de contas/créditos só pra resolver o NOME da origem de cada transação (o payload da
+	 * transação traz só `source_id`). Ficam em cache e são compartilhados com a tela Contas & Cartões.
+	 */
+	const { data: accounts_data } = useIndexAccounts({ enabled: Boolean(wallet_id), params: { wallet_id: wallet_id || '' } });
+	const { data: credit_balances_data } = useIndexCreditBalances({ enabled: Boolean(wallet_id), params: { wallet_id: wallet_id || '' } });
+
+	const source_names = useMemo(() => {
+		const map = new Map<string, string>();
+		(accounts_data?.data || []).forEach((account) => map.set(account.id, account.name));
+		(credit_balances_data?.data || []).forEach((credit_balance) => map.set(credit_balance.id, credit_balance.name));
+		return map;
+	}, [ accounts_data, credit_balances_data ]);
 
 	const is_loading = is_wallet_loading || is_transactions_loading;
 
 	const { mutate: deleteTransactionMutation, isPending: is_delete_pending } = useDeleteTransactions();
+	const { mutate: settleTransactionMutation } = useSettleTransaction();
+	const { mutate: unsettleTransactionMutation } = useUnsettleTransaction();
 
 	const transactions = data_transactions?.data || [];
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const sorted_transactions = useMemo(() => sortTransactions(transactions, sort), [ transactions, sort ]);
 
-	const total_deposit = transactions.filter((item) => item.kind === 'deposit').reduce((acc, item) => acc + item.value, 0);
-	const total_withdraw = transactions.filter((item) => item.kind === 'withdraw').reduce((acc, item) => acc + item.value, 0);
-	const total = Number(data_transactions?.total ?? 0);
+	const non_draft = transactions.filter((item) => !item.draft);
+	const total_deposit = non_draft.filter((item) => item.kind === 'deposit').reduce((acc, item) => acc + item.value, 0);
+	const total_withdraw = non_draft.filter((item) => item.kind === 'withdraw').reduce((acc, item) => acc + item.value, 0);
+	const total_settled = Number(data_transactions?.total_settled ?? 0);
+	const total_projected = Number(data_transactions?.total_projected ?? 0);
+	const pending_count = transactions.filter((item) => !item.settled && !item.draft).length;
+	const has_projection_gap = total_projected !== total_settled;
+	const pending_suffix = pending_count > 0 ? ` · ${ pending_count } pendente${ pending_count > 1 ? 's' : '' }` : '';
 
 	const changeMonth = (offset: number) => {
 		const date = new Date(month_year.year, month_year.month + offset, 1);
@@ -155,6 +198,22 @@ const TransactionList = () => {
 		});
 	};
 
+	const handleToggleSettle = (transaction_item: TTransaction) => {
+		if (transaction_item.settled) {
+			unsettleTransactionMutation({
+				id: transaction_item.id,
+				onSuccess: () => toast.success('Efetivação desfeita'),
+				onError: (error) => toast.error(getApiErrorMessage(error, 'Não foi possível desfazer')),
+			});
+			return;
+		}
+		settleTransactionMutation({
+			id: transaction_item.id,
+			onSuccess: () => toast.success('Transação efetivada'),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Não foi possível efetivar')),
+		});
+	};
+
 	const renderKindIcon = (transaction_item: TTransaction) => {
 		const is_deposit = transaction_item.kind === 'deposit';
 
@@ -170,6 +229,32 @@ const TransactionList = () => {
 		);
 	};
 
+	const renderSourceMeta = (transaction_item: TTransaction) => {
+		const is_credit = transaction_item.source_type === 'CreditBalance';
+		const name = source_names.get(transaction_item.source_id);
+
+		return (
+			<div className='mt-0.5 flex flex-wrap items-center gap-1.5'>
+				<span
+					className={cn(
+						'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+						is_credit ? 'border-feedback-info-default/50 text-feedback-info-default' : 'border-brand-secondary/50 text-brand-secondary',
+					)}
+				>
+					{is_credit ? <CreditCard className='h-3 w-3' /> : <Wallet className='h-3 w-3' />}
+					{name || (is_credit ? 'Crédito' : 'Conta')}
+				</span>
+
+				{transaction_item.draft && (
+					<span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'>Rascunho</span>
+				)}
+				{!transaction_item.draft && !transaction_item.settled && (
+					<span className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark'>Pendente</span>
+				)}
+			</div>
+		);
+	};
+
 	const renderActionsMenu = (transaction_item: TTransaction) => (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -178,9 +263,17 @@ const TransactionList = () => {
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align='end'>
+				{!transaction_item.draft && (
+					<DropdownMenuItem onClick={() => handleToggleSettle(transaction_item)}>
+						{transaction_item.settled
+							? <><CircleDashed className='mr-2 h-4 w-4' /> Desfazer efetivação</>
+							: <><CheckCircle2 className='mr-2 h-4 w-4' /> Efetivar</>}
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem onClick={() => setEditingTransaction(transaction_item)}>
 					Editar
 				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<DropdownMenuItem className='text-destructive' onClick={() => setDeletingTransaction(transaction_item)}>
 					Excluir
 				</DropdownMenuItem>
@@ -190,14 +283,6 @@ const TransactionList = () => {
 
 	return (
 		<div className='flex h-full flex-col gap-4'>
-			{/*
-			 * Fora da área rolável de propósito (não é mais `sticky`) — dentro de um único
-			 * scroll container compartilhado com o resto da página, `sticky` dependia da
-			 * altura exata da cadeia de ancestrais (`main`/`.container`) pra saber até onde
-			 * "grudar", e na prática o resumo saía de vista ao rolar em vez de ficar fixo.
-			 * Isolando a lista no próprio scroll container abaixo, o resumo nunca entra
-			 * na área que rola, então não tem ambiguidade nenhuma pra resolver.
-			 */}
 			<div className='flex flex-col gap-4'>
 				<div className='flex flex-wrap items-center justify-center gap-3 md:justify-between'>
 					<div className='flex items-center gap-2'>
@@ -216,7 +301,7 @@ const TransactionList = () => {
 					<Button
 						type='button'
 						onClick={() => setIsNewTransactionOpen(true)}
-						disabled={!user_wallet.data?.id}
+						disabled={!wallet_id}
 						className='hidden gap-2 md:inline-flex'
 					>
 						<Plus className='h-4 w-4' />
@@ -228,11 +313,18 @@ const TransactionList = () => {
 					<div className='flex flex-col'>
 						<span className='text-xs font-medium uppercase text-muted-foreground'>Saldo</span>
 						{is_loading ? (
-							<Skeleton className='h-5 w-20' />
+							<Skeleton className='h-5 w-24' />
 						) : (
-							<span className={cn('text-base font-semibold', total >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
-								{MoneyUtils.formatMoney(total)}
-							</span>
+							<div className='flex flex-wrap items-baseline gap-x-2'>
+								<span className={cn('text-base font-semibold', total_settled >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
+									{MoneyUtils.formatMoney(total_settled)}
+								</span>
+								{/* Previsto sempre visível (mesmo sem pendentes) — cor de alerta só quando difere do efetivado. */}
+								<span className='text-xs text-muted-foreground'>
+									previsto <span className={cn('font-medium', has_projection_gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatMoney(total_projected)}</span>
+									{pending_suffix}
+								</span>
+							</div>
 						)}
 					</div>
 
@@ -270,7 +362,7 @@ const TransactionList = () => {
 							<span className='font-medium'>Nenhuma transação neste mês</span>
 							<span className='text-sm text-muted-foreground'>Registre uma entrada ou saída pra começar</span>
 						</div>
-						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!user_wallet.data?.id} className='gap-2'>
+						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id} className='gap-2'>
 							<Plus className='h-4 w-4' />
 							Adicionar transação
 						</Button>
@@ -311,16 +403,14 @@ const TransactionList = () => {
 									const is_deposit = transaction_item.kind === 'deposit';
 
 									return (
-										<TableRow key={transaction_item.id}>
+										<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
 											<TableCell className='text-muted-foreground'>
 												{format(new Date(transaction_item.transaction_date), 'dd/MM/yyyy')}
 											</TableCell>
 											<TableCell>
 												<div className='flex flex-col'>
 													<span className='font-medium'>{transaction_item.description}</span>
-													{transaction_item.user_name && (
-														<span className='text-xs text-muted-foreground'>{transaction_item.user_name}</span>
-													)}
+													{renderSourceMeta(transaction_item)}
 												</div>
 											</TableCell>
 											<TableCell>
@@ -355,18 +445,16 @@ const TransactionList = () => {
 										return (
 											<div
 												key={transaction_item.id}
-												className='flex items-center gap-3 rounded-xl border border-card bg-card p-3'
+												className={cn('flex items-center gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
 											>
 												{renderKindIcon(transaction_item)}
 
 												<div className='flex flex-1 flex-col overflow-hidden'>
 													<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
-													{transaction_item.user_name && (
-														<span className='truncate text-xs text-muted-foreground'>{transaction_item.user_name}</span>
-													)}
+													{renderSourceMeta(transaction_item)}
 												</div>
 
-												<span className={cn('text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
+												<span className={cn('shrink-0 text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
 													{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
 												</span>
 
