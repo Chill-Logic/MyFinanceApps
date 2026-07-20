@@ -796,6 +796,10 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
 
 ## Convenções deste repositório
 
+- **NUNCA subir o servidor de desenvolvimento** (`npm run webapp:dev`, `npm run mobile:start`, `expo
+  start`, `vite dev`/`vite preview`, ou qualquer processo que sirva/rode o app). O dono do repo testa
+  **sempre na mão** — deixe a execução do app pra ele. Pode rodar typecheck, lint, testes e build
+  (validação estática), só não iniciar servidor nem abrir o app.
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
 - Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os
