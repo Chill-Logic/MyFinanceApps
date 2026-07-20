@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
@@ -102,28 +102,12 @@ const TransactionList = () => {
 	const wallet_id = user_wallet.data?.id;
 	const reference = `${ month_year.year }-${ String(month_year.month + 1).padStart(2, '0') }`;
 
-	/*
-	 * A lista quer TODAS as transações do mês numa "página" só (a paginação do backend atrapalha a
-	 * leitura). Começamos com um teto padrão e, quando a resposta traz `total_count` maior que o teto
-	 * atual, subimos o `per_page` pra esse total e o React Query refaz a busca. É à prova de loop:
-	 * assim que `per_page >= total_count`, a condição abaixo fica falsa e para (buscar o total exato
-	 * faz a próxima resposta vir com `total_count === items_per_page`, nunca maior).
-	 */
-	const [ items_per_page, setItemsPerPage ] = useState(30);
-
-	// `enabled` evita bater na API com wallet_id vazio antes da carteira carregar
+	// `enabled` evita bater na API com wallet_id vazio antes da carteira carregar.
+	// O index de transações não é paginado (backend retorna o mês inteiro), então basta buscar uma vez.
 	const { data: data_transactions, isLoading: is_transactions_loading } = useListTransactions({
 		enabled: Boolean(wallet_id),
-		params: { wallet_id: wallet_id || '', reference, per_page: items_per_page },
+		params: { wallet_id: wallet_id || '', reference },
 	});
-
-	const total_count = data_transactions?.total_count;
-
-	useEffect(() => {
-		if (total_count && total_count > items_per_page) {
-			setItemsPerPage(total_count);
-		}
-	}, [ total_count, items_per_page ]);
 
 	/*
 	 * Índices de contas/créditos só pra resolver o NOME da origem de cada transação (o payload da
@@ -369,104 +353,106 @@ const TransactionList = () => {
 					</div>
 				)}
 
-				{/* Desktop: tabela ordenável — dados tabulares combinam melhor com a largura disponível */}
-				{!is_loading && transactions.length > 0 && (
-					<div className='hidden rounded-lg border border-card bg-card md:block'>
-						<Table>
-							<TableHeader>
-								<TableRow className='hover:bg-transparent'>
-									<TableHead className='w-32'>
-										<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 hover:text-foreground'>
+				<div className='mb-6'>
+					{/* Desktop: tabela ordenável — dados tabulares combinam melhor com a largura disponível */}
+					{!is_loading && transactions.length > 0 && (
+						<div className='hidden rounded-lg border border-card bg-card md:block'>
+							<Table>
+								<TableHeader>
+									<TableRow className='hover:bg-transparent'>
+										<TableHead className='w-32'>
+											<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 hover:text-foreground'>
 											Data {renderSortIcon('transaction_date')}
-										</button>
-									</TableHead>
-									<TableHead>
-										<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 hover:text-foreground'>
+											</button>
+										</TableHead>
+										<TableHead>
+											<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 hover:text-foreground'>
 											Descrição {renderSortIcon('description')}
-										</button>
-									</TableHead>
-									<TableHead className='w-32'>
-										<button type='button' onClick={() => toggleSort('kind')} className='flex items-center gap-1 hover:text-foreground'>
+											</button>
+										</TableHead>
+										<TableHead className='w-32'>
+											<button type='button' onClick={() => toggleSort('kind')} className='flex items-center gap-1 hover:text-foreground'>
 											Tipo {renderSortIcon('kind')}
-										</button>
-									</TableHead>
-									<TableHead className='w-40 text-right'>
-										<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 hover:text-foreground'>
+											</button>
+										</TableHead>
+										<TableHead className='w-40 text-right'>
+											<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 hover:text-foreground'>
 											Valor {renderSortIcon('value')}
-										</button>
-									</TableHead>
-									<TableHead className='w-12' />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{sorted_transactions.map((transaction_item) => {
-									const is_deposit = transaction_item.kind === 'deposit';
-
-									return (
-										<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
-											<TableCell className='text-muted-foreground'>
-												{format(new Date(transaction_item.transaction_date), 'dd/MM/yyyy')}
-											</TableCell>
-											<TableCell>
-												<div className='flex flex-col'>
-													<span className='font-medium'>{transaction_item.description}</span>
-													{renderSourceMeta(transaction_item)}
-												</div>
-											</TableCell>
-											<TableCell>
-												<div className='flex items-center gap-2'>
-													{renderKindIcon(transaction_item)}
-													{is_deposit ? 'Entrada' : 'Saída'}
-												</div>
-											</TableCell>
-											<TableCell className={cn('text-right font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
-												{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-											</TableCell>
-											<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
-										</TableRow>
-									);
-								})}
-							</TableBody>
-						</Table>
-					</div>
-				)}
-
-				{/* Mobile: cards agrupados por dia — tabela não funciona bem em tela estreita */}
-				{!is_loading && groups.length > 0 && (
-					<div className='flex flex-col gap-4 md:hidden'>
-						{groups.map((group) => (
-							<div key={group.label} className='flex flex-col gap-2'>
-								<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>
-
-								<div className='flex flex-col gap-2'>
-									{group.items.map((transaction_item) => {
+											</button>
+										</TableHead>
+										<TableHead className='w-12' />
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{sorted_transactions.map((transaction_item) => {
 										const is_deposit = transaction_item.kind === 'deposit';
 
 										return (
-											<div
-												key={transaction_item.id}
-												className={cn('flex items-center gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
-											>
-												{renderKindIcon(transaction_item)}
-
-												<div className='flex flex-1 flex-col overflow-hidden'>
-													<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
-													{renderSourceMeta(transaction_item)}
-												</div>
-
-												<span className={cn('shrink-0 text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
+											<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
+												<TableCell className='text-muted-foreground'>
+													{format(new Date(transaction_item.transaction_date), 'dd/MM/yyyy')}
+												</TableCell>
+												<TableCell>
+													<div className='flex flex-col'>
+														<span className='font-medium'>{transaction_item.description}</span>
+														{renderSourceMeta(transaction_item)}
+													</div>
+												</TableCell>
+												<TableCell>
+													<div className='flex items-center gap-2'>
+														{renderKindIcon(transaction_item)}
+														{is_deposit ? 'Entrada' : 'Saída'}
+													</div>
+												</TableCell>
+												<TableCell className={cn('text-right font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
 													{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-												</span>
-
-												{renderActionsMenu(transaction_item)}
-											</div>
+												</TableCell>
+												<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
+											</TableRow>
 										);
 									})}
+								</TableBody>
+							</Table>
+						</div>
+					)}
+
+					{/* Mobile: cards agrupados por dia — tabela não funciona bem em tela estreita */}
+					{!is_loading && groups.length > 0 && (
+						<div className='flex flex-col gap-4 md:hidden'>
+							{groups.map((group) => (
+								<div key={group.label} className='flex flex-col gap-2'>
+									<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>
+
+									<div className='flex flex-col gap-2'>
+										{group.items.map((transaction_item) => {
+											const is_deposit = transaction_item.kind === 'deposit';
+
+											return (
+												<div
+													key={transaction_item.id}
+													className={cn('flex items-center gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
+												>
+													{renderKindIcon(transaction_item)}
+
+													<div className='flex flex-1 flex-col overflow-hidden'>
+														<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
+														{renderSourceMeta(transaction_item)}
+													</div>
+
+													<span className={cn('shrink-0 text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
+														{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
+													</span>
+
+													{renderActionsMenu(transaction_item)}
+												</div>
+											);
+										})}
+									</div>
 								</div>
-							</div>
-						))}
-					</div>
-				)}
+							))}
+						</div>
+					)}
+				</div>
 			</div>
 
 			<TransactionFormDialog

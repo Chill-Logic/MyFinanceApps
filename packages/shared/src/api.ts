@@ -51,7 +51,13 @@ export type TResetPasswordBody = {
 
 export type TGetMainWalletResponse = TWallet
 
-export type TListTransactionsResponse = TPaginatedResponse<TTransaction> & {
+/*
+ * O index de transações NÃO é paginado (o backend removeu a paginação em 2026-07-19 — retorna o mês
+ * inteiro de uma vez). Por isso não herda `total_pages` de `TPaginatedResponse`.
+ */
+export type TListTransactionsResponse = {
+	data: TTransaction[];
+	total_count: number;
 	/* Saldo do período só com transações efetivadas. */
 	total_settled: number;
 	/* Saldo do período incluindo pendentes (rascunhos sempre fora). */

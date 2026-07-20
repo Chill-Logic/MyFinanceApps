@@ -14,8 +14,6 @@ export type TListTransactionsParams = {
 	source_type?: TTransactionSourceType;
 	source_id?: string;
 	terms?: string;
-	page?: number;
-	per_page?: number;
 };
 
 export const listTransactions = async(axios: AxiosInstance, params?: TListTransactionsParams) => {
