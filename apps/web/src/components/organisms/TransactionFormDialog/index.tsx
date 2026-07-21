@@ -30,6 +30,9 @@ interface IProps {
 	onOpenChange: (open: boolean)=> void;
 	transaction?: TTransaction | null;
 	suggestedDate?: Date;
+	/* Origem pré-selecionada na criação (ex.: a origem que a lista está filtrando). */
+	defaultSourceType?: TTransactionSourceType;
+	defaultSourceId?: string;
 }
 
 type TFormValues = {
@@ -44,8 +47,8 @@ type TFormValues = {
 	draft: boolean;
 };
 
-const buildDefaultValues = (suggestedDate?: Date): TFormValues => ({
-	origin: '',
+const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => ({
+	origin,
 	credit_card_id: '',
 	kind: 'withdraw',
 	description: '',
@@ -65,20 +68,21 @@ const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''
 	return { source_type: (source_type as TTransactionSourceType) || '', source_id: source_id || '' };
 };
 
-const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate }: IProps) => {
+const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId }: IProps) => {
 	const navigate = useNavigate();
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
 
 	const wallet_id = user_wallet.data?.id;
 	const is_editing = Boolean(transaction);
+	const default_origin = defaultSourceType && defaultSourceId ? `${ defaultSourceType }:${ defaultSourceId }` : '';
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
 	const { mutate: settleTransactionMutation, isPending: is_settle_pending } = useSettleTransaction();
 	const { data: kind_options } = useEnumOptions({ entity: 'transaction', type: 'kind' });
 
-	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate));
+	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate, default_origin));
 
 	const { source_type, source_id } = parseOrigin(values.origin);
 	const is_credit = source_type === 'CreditBalance';
@@ -123,9 +127,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate 
 				draft: transaction.draft,
 			});
 		} else {
-			setValues(buildDefaultValues(suggestedDate));
+			setValues(buildDefaultValues(suggestedDate, default_origin));
 		}
-	}, [ open, transaction, suggestedDate ]);
+	}, [ open, transaction, suggestedDate, default_origin ]);
 
 	/*
 	 * Auto-seleciona o único cartão do crédito escolhido, sem sobrescrever uma escolha que já
