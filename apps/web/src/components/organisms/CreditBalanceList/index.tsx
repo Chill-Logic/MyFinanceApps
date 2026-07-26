@@ -1,9 +1,12 @@
 import { useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TCreditBalance, type TCreditCard } from '@myfinance/shared';
-import { AlertTriangle, CreditCard as CreditCardIcon, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { AlertTriangle, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { useDeleteCreditBalance } from '@/hooks/api/credit-balances/useDeleteCreditBalance';
+import { useGetInvoice } from '@/hooks/api/credit-balances/useGetInvoice';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteCreditCard } from '@/hooks/api/credit-cards/useDeleteCreditCard';
 import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
@@ -29,10 +32,17 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/* "2026-09-10" → "10/09" sem passar por Date (evita deslocamento de fuso). */
-const formatDueDate = (iso: string): string => {
-	const [ , month, day ] = iso.split('-');
+/* "2026-09-10" ou "2026-09-10T00:00:00-03:00" → "10/09", só string (evita deslocamento de fuso). */
+const formatDayMonth = (iso: string): string => {
+	const [ , month, day ] = iso.split('T')[0].split('-');
 	return day && month ? `${ day }/${ month }` : iso;
+};
+
+/* Referência do ciclo a partir de um offset de meses em relação a hoje (YYYY-MM-DD). */
+const referenceFromOffset = (offset: number): string => {
+	const now = new Date();
+	const date = new Date(now.getFullYear(), now.getMonth() + offset, now.getDate());
+	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-${ String(date.getDate()).padStart(2, '0') }`;
 };
 
 interface ICreditBalanceCardProps {
@@ -54,12 +64,24 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 	const [ is_card_create_open, setIsCardCreateOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	const [ deleting_card, setDeletingCard ] = useState<TCreditCard | null>(null);
+	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
+	const [ cycle_offset, setCycleOffset ] = useState(0);
+
+	const is_current_cycle = cycle_offset === 0;
+	const reference_date = referenceFromOffset(cycle_offset);
+	const { data: navigated_invoice, isFetching: is_invoice_fetching } = useGetInvoice({
+		id: creditBalance.id,
+		enabled: !is_current_cycle,
+		params: { date: reference_date },
+	});
 
 	const cards = cards_data?.data || [];
-	const invoice = creditBalance.current_invoice;
+	const invoice = is_current_cycle ? creditBalance.current_invoice : navigated_invoice;
+	const is_invoice_loading = !is_current_cycle && is_invoice_fetching && !invoice;
+	const reference_label = format(new Date(`${ reference_date }T00:00:00`), 'MMMM yyyy', { locale: ptBR });
 	const limit = creditBalance.credit_limit || 0;
 	const used_pct = limit > 0 ? Math.min(100, Math.max(0, (creditBalance.used / limit) * 100)) : 0;
-	const can_pay = !invoice.paid && invoice.amount > 0;
+	const can_pay = Boolean(invoice) && !invoice!.paid && invoice!.amount > 0;
 
 	const handleDeleteBalance = () => {
 		deleteBalanceMutation({
@@ -141,17 +163,57 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 				</div>
 			</div>
 
-			<div className='flex items-center justify-between gap-3 border-t border-dashed border-border pt-3'>
-				<div>
-					<p className='text-[11px] uppercase tracking-wide text-muted-foreground'>Fatura atual</p>
-					<p className='text-lg font-semibold'>{MoneyUtils.formatMoney(invoice.amount)}</p>
-					<p className={cn('text-xs font-medium', invoice.paid ? 'text-feedback-success-default' : 'text-feedback-warning-dark')}>
-						{invoice.paid ? 'Paga' : `vence ${ formatDueDate(invoice.due_date) }`}
-					</p>
+			<div className='flex flex-col gap-2 border-t border-dashed border-border pt-3'>
+				<div className='flex items-center justify-between gap-2'>
+					<Button
+						type='button'
+						variant='ghost'
+						size='icon'
+						className='h-7 w-7 shrink-0'
+						onClick={() => setCycleOffset((offset) => offset - 1)}
+						aria-label='Fatura anterior'
+					>
+						<ChevronLeft className='h-4 w-4' />
+					</Button>
+					<div className='flex flex-col items-center'>
+						<span className='text-[11px] uppercase tracking-wide text-muted-foreground'>
+							{is_current_cycle ? 'Fatura atual' : 'Fatura'}
+						</span>
+						<span className='text-sm font-medium capitalize'>{reference_label}</span>
+					</div>
+					<Button
+						type='button'
+						variant='ghost'
+						size='icon'
+						className='h-7 w-7 shrink-0'
+						onClick={() => setCycleOffset((offset) => offset + 1)}
+						aria-label='Próxima fatura'
+					>
+						<ChevronRight className='h-4 w-4' />
+					</Button>
 				</div>
-				<Button type='button' onClick={() => setIsPayOpen(true)} disabled={!can_pay}>
-					{invoice.paid ? 'Fatura paga' : 'Pagar fatura'}
-				</Button>
+
+				<div className='flex items-center justify-between gap-3'>
+					<div>
+						{is_invoice_loading ? (
+							<Skeleton className='h-7 w-24' />
+						) : (
+							<p className='text-lg font-semibold'>{MoneyUtils.formatMoney(invoice?.amount ?? 0)}</p>
+						)}
+						{invoice && (
+							<p className='text-xs text-muted-foreground'>
+								{formatDayMonth(invoice.cycle_start)} – {formatDayMonth(invoice.cycle_end)}
+								{' · '}
+								<span className={cn('font-medium', invoice.paid ? 'text-feedback-success-default' : 'text-feedback-warning-dark')}>
+									{invoice.paid ? 'paga' : `vence ${ formatDayMonth(invoice.due_date) }`}
+								</span>
+							</p>
+						)}
+					</div>
+					<Button type='button' onClick={() => setIsPayOpen(true)} disabled={!can_pay}>
+						{invoice?.paid ? 'Fatura paga' : 'Pagar fatura'}
+					</Button>
+				</div>
 			</div>
 
 			<div className='flex flex-col gap-2 border-t border-border pt-3'>
@@ -199,7 +261,13 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 			</div>
 
 			<CreditBalanceFormDialog open={is_edit_open} onOpenChange={setIsEditOpen} creditBalance={creditBalance} />
-			<PayInvoiceDialog open={is_pay_open} onOpenChange={setIsPayOpen} creditBalance={creditBalance} />
+			<PayInvoiceDialog
+				open={is_pay_open}
+				onOpenChange={setIsPayOpen}
+				creditBalance={creditBalance}
+				invoice={invoice}
+				referenceDate={is_current_cycle ? undefined : reference_date}
+			/>
 			<CreditCardFormDialog open={is_card_create_open} onOpenChange={setIsCardCreateOpen} creditBalanceId={creditBalance.id} />
 			<CreditCardFormDialog
 				open={Boolean(editing_card)}

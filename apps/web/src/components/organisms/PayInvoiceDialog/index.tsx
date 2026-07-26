@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-import { getApiErrorMessage, MoneyUtils, type TCreditBalance } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, MoneyUtils, type TCreditBalance, type TCurrentInvoice } from '@myfinance/shared';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { usePayInvoice } from '@/hooks/api/credit-balances/usePayInvoice';
@@ -16,9 +16,13 @@ interface IProps {
 	open: boolean;
 	onOpenChange: (open: boolean)=> void;
 	creditBalance: TCreditBalance | null;
+	/* Fatura do ciclo selecionado; ausente = fatura corrente do `creditBalance`. */
+	invoice?: TCurrentInvoice | null;
+	/* Data de referência do ciclo (YYYY-MM-DD); ausente = ciclo atual. */
+	referenceDate?: string;
 }
 
-const PayInvoiceDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
+const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenceDate }: IProps) => {
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
 
@@ -36,7 +40,8 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 		if (open) setAccountId('');
 	}, [ open ]);
 
-	const invoice_amount = creditBalance?.current_invoice.amount ?? 0;
+	const active_invoice = invoice ?? creditBalance?.current_invoice ?? null;
+	const invoice_amount = active_invoice?.amount ?? 0;
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -44,7 +49,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 
 		payInvoiceMutation({
 			id: creditBalance.id,
-			body: { account_id },
+			body: { account_id, ...(referenceDate ? { date: referenceDate } : {}) },
 			onSuccess: () => {
 				toast.success('Fatura paga!');
 				onOpenChange(false);
@@ -62,7 +67,12 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 
 				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
 					<div className='flex items-baseline justify-between rounded-lg border border-card bg-card px-4 py-3'>
-						<span className='text-sm text-muted-foreground'>Valor da fatura</span>
+						<div className='flex flex-col'>
+							<span className='text-sm text-muted-foreground'>Valor da fatura</span>
+							{active_invoice?.due_date && (
+								<span className='text-xs text-muted-foreground'>vence {DateUtils.formateTo(active_invoice.due_date, 'dd/MM/yyyy')}</span>
+							)}
+						</div>
 						<span className='text-lg font-semibold'>{MoneyUtils.formatMoney(invoice_amount)}</span>
 					</div>
 

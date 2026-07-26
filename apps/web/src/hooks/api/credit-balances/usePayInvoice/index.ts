@@ -16,6 +16,7 @@ export const usePayInvoice = () => {
 		onSuccess: (data, { onSuccess }) => {
 			// Pagar fatura mexe em: fatura (paga), saldo da conta pagadora, transações e saldo da carteira
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_invoice ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });
