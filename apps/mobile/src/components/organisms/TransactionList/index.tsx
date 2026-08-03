@@ -658,7 +658,8 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 10,
-		padding: 10,
+		paddingVertical: 13,
+		paddingHorizontal: 12,
 		borderRadius: 10,
 	},
 	transactionLeft: {
