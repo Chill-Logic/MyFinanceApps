@@ -15,9 +15,14 @@ import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { useNavigation } from '@react-navigation/native';
 
+import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
+import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
+import { useSettleTransaction } from '../../../hooks/api/transactions/useSettleTransaction';
+import { useUnsettleTransaction } from '../../../hooks/api/transactions/useUnsettleTransaction';
 
 import { useMonthSelection } from '../../../context/monthSelection';
 import { useNewTransactionDialog } from '../../../context/newTransactionDialog';
@@ -26,11 +31,11 @@ import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { DateUtils } from '../../../utils/date';
 import { MoneyUtils } from '../../../utils/money';
-import { TextUtils } from '../../../utils/text';
 
-import { TTransaction } from '../../../types/models';
+import { TTransaction, TTransactionSourceType } from '../../../types/models';
 
 import MonthYearSelector from '../../atoms/MonthYearSelector';
+import SegmentedControl from '../../atoms/SegmentedControl';
 import Skeleton from '../../atoms/Skeleton';
 import { ThemedText } from '../../atoms/ThemedText';
 import { ThemedView } from '../../atoms/ThemedView';
@@ -46,6 +51,34 @@ const MONTHS_LOWER = [
 type TTransactionGroup = {
 	title: string;
 	data: TTransaction[];
+};
+
+/* Abas por TIPO de origem (mesma separação do web) — o backend traz o mês inteiro, filtramos no cliente. */
+const SOURCE_TABS: { id: TTransactionSourceType; label: string; icon: string }[] = [
+	{ id: 'Account', label: 'Contas', icon: 'account-balance-wallet' },
+	{ id: 'CreditBalance', label: 'Cartões', icon: 'credit-card' },
+];
+
+/*
+ * Resumo calculado no cliente (espelha o web e o backend): efetivado = entre os não-rascunho E
+ * efetivados, entradas − saídas; previsto = entre todos os não-rascunho; conta os pendentes; rascunhos
+ * ficam fora dos dois. Funciona pra qualquer recorte (todas as origens ou uma aba) sem depender do
+ * `total_settled`/`total_projected` da resposta (que é sempre "de tudo").
+ */
+const buildSummary = (items: TTransaction[]) => {
+	const non_draft = items.filter((item) => !item.draft);
+	const balance = (list: TTransaction[]) => (
+		list.filter((i) => i.kind === 'deposit').reduce((acc, i) => acc + i.value, 0)
+		- list.filter((i) => i.kind === 'withdraw').reduce((acc, i) => acc + i.value, 0)
+	);
+
+	const deposit = non_draft.filter((i) => i.kind === 'deposit').reduce((acc, i) => acc + i.value, 0);
+	const withdraw = non_draft.filter((i) => i.kind === 'withdraw').reduce((acc, i) => acc + i.value, 0);
+	const projected = balance(non_draft);
+	const settled = balance(non_draft.filter((i) => i.settled));
+	const pending = non_draft.filter((i) => !i.settled).length;
+
+	return { deposit, withdraw, settled, projected, gap: projected !== settled, pending };
 };
 
 const isSameDay = (a: Date, b: Date) => (
@@ -91,22 +124,67 @@ const TransactionsList = () => {
 	const { theme, mode } = useTheme();
 	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
 	const { user_wallet } = useWallet();
+	const navigation = useNavigation<{ navigate(route: string): void }>();
 	const { is_open: is_new_transaction_open, setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 
 	const { month_year_selector_values, setMonthYearSelectorValues } = useMonthSelection();
 
-	const { start_date, end_date } = DateUtils.getMonthRange(month_year_selector_values.year, month_year_selector_values.month);
+	/* Mês de referência no formato YYYY-MM (mês é 0-indexado no contexto, +1 pro calendário). */
+	const reference = `${ month_year_selector_values.year }-${ String(month_year_selector_values.month + 1).padStart(2, '0') }`;
+
+	/*
+	 * `enabled` amarrado à presença do `wallet_id`: sem isso, a query dispara com `wallet_id: ''`
+	 * enquanto a carteira ainda está carregando (o fallback `|| ''` NÃO segura a requisição, só
+	 * troca o valor), e o backend responde 422 "Carteira não encontrada". Mesmo padrão já
+	 * documentado no web: query cujo parâmetro depende de outro dado assíncrono precisa de
+	 * `enabled` nesse dado, não só de um fallback.
+	 */
+	const wallet_id = user_wallet.data?.id;
 
 	const { data: data_transactions, isLoading: is_data_transactions_loading } = useListTransactions({
+		enabled: Boolean(wallet_id),
 		params: {
-			wallet_id: user_wallet.data?.id || '',
-			start_date: start_date,
-			end_date: end_date,
+			wallet_id: wallet_id || '',
+			reference,
 		},
 	});
 
+	/* Contas/créditos: resolvem o nome da origem por linha e guiam o empty-state de cada aba. */
+	const { data: accounts_data } = useIndexAccounts({ enabled: Boolean(wallet_id), params: { wallet_id: wallet_id || '' } });
+	const { data: credit_balances_data } = useIndexCreditBalances({ enabled: Boolean(wallet_id), params: { wallet_id: wallet_id || '' } });
+
+	const accounts = useMemo(() => accounts_data?.data || [], [ accounts_data ]);
+	const credit_balances = useMemo(() => credit_balances_data?.data || [], [ credit_balances_data ]);
+
+	const source_names = useMemo(() => {
+		const map = new Map<string, string>();
+		accounts.forEach((account) => map.set(account.id, account.name));
+		credit_balances.forEach((credit_balance) => map.set(credit_balance.id, credit_balance.name));
+		return map;
+	}, [ accounts, credit_balances ]);
+
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
+	const [ source_type, setSourceType ] = useState<TTransactionSourceType>('Account');
+
+	const { mutate: settleTransaction } = useSettleTransaction();
+	const { mutate: unsettleTransaction } = useUnsettleTransaction();
+
+	const handleToggleSettle = (transaction_item: TTransaction) => {
+		if (transaction_item.settled) {
+			unsettleTransaction({
+				id: transaction_item.id,
+				onSuccess: () => Toast.show({ type: 'success', text1: 'Efetivação desfeita' }),
+				onError: (error) => Toast.show({ type: 'error', text1: 'Não foi possível desfazer', text2: getApiErrorMessage(error, 'Tente novamente') }),
+			});
+			return;
+		}
+		settleTransaction({
+			id: transaction_item.id,
+			onSuccess: () => Toast.show({ type: 'success', text1: 'Transação efetivada' }),
+			onError: (error) => Toast.show({ type: 'error', text1: 'Não foi possível efetivar', text2: getApiErrorMessage(error, 'Tente novamente') }),
+		});
+	};
 
 	const { refreshControlProps } = useRefresh({
 		keys: [
@@ -193,11 +271,17 @@ const TransactionsList = () => {
 		}),
 	).current;
 
-	const transactions = useMemo(() => data_transactions?.data || [], [ data_transactions ]);
+	const all_transactions = useMemo(() => data_transactions?.data || [], [ data_transactions ]);
+	const transactions = useMemo(() => all_transactions.filter((item) => item.source_type === source_type), [ all_transactions, source_type ]);
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
-	const total = Number(data_transactions?.total ?? 0);
-	const total_deposit = transactions.filter((item) => item.kind === 'deposit').reduce((acc, item) => acc + item.value, 0);
-	const total_withdraw = transactions.filter((item) => item.kind === 'withdraw').reduce((acc, item) => acc + item.value, 0);
+	const sources_of_type = source_type === 'Account' ? accounts : credit_balances;
+
+	/*
+	 * Total do mês = TODAS as origens (a aba filtra só a lista, não o card de total — mesmo comportamento
+	 * do web no mobile). `grand.settled` = saldo efetivado; `grand.projected` = previsto (inclui pendentes);
+	 * rascunhos ficam fora dos dois.
+	 */
+	const grand = useMemo(() => buildSummary(all_transactions), [ all_transactions ]);
 
 	const isFormOpen = is_new_transaction_open || Boolean(transaction);
 
@@ -259,10 +343,33 @@ const TransactionsList = () => {
 				]}
 			>
 				<Icon
-					name={is_deposit ? 'arrow-upward' : 'arrow-downward'}
+					name={is_deposit ? 'north-east' : 'south-east'}
 					size={16}
 					color={is_deposit ? colors['feedback-success-dark'] : colors['feedback-danger-dark']}
 				/>
+			</View>
+		);
+	};
+
+	/*
+	 * Meta por linha (espelha o `renderMeta` do web): chip com o NOME da origem (qual conta/crédito),
+	 * colorido por tipo, + selos de estado (Rascunho/Pendente). Dentro de uma aba há vários sources
+	 * misturados, então o chip é o que diz de onde cada transação saiu.
+	 */
+	const renderTransactionMeta = (transaction_item: TTransaction) => {
+		const is_credit = transaction_item.source_type === 'CreditBalance';
+		const name = source_names.get(transaction_item.source_id) || (is_credit ? 'Crédito' : 'Conta');
+		const is_pending = !transaction_item.draft && !transaction_item.settled;
+		const chip_color = is_credit ? colors['feedback-info-default'] : colors['brand-secondary'];
+
+		return (
+			<View style={styles.metaRow}>
+				<View style={[ styles.originChip, { borderColor: chip_color } ]}>
+					<Icon name={is_credit ? 'credit-card' : 'account-balance-wallet'} size={11} color={chip_color} />
+					<ThemedText style={[ styles.originChipText, { color: chip_color } ]} numberOfLines={1}>{name}</ThemedText>
+				</View>
+				{transaction_item.draft && <ThemedText style={[ styles.stateBadge, styles.draftBadge ]}>Rascunho</ThemedText>}
+				{is_pending && <ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Pendente</ThemedText>}
 			</View>
 		);
 	};
@@ -275,8 +382,8 @@ const TransactionsList = () => {
 			{renderKindIcon(transaction_item)}
 
 			<ThemedView style={[ styles.transactionLeft, { backgroundColor: 'transparent' } ]}>
-				<ThemedText style={styles.transactionDescription}>{TextUtils.truncate({ text: transaction_item.description, maxLength: 35 })}</ThemedText>
-				{transaction_item.user_name && <ThemedText style={[ styles.transactionUserName, { color: theme.colors.placeholder } ]}>{transaction_item.user_name}</ThemedText>}
+				<ThemedText style={styles.transactionDescription} numberOfLines={1}>{transaction_item.description}</ThemedText>
+				{renderTransactionMeta(transaction_item)}
 			</ThemedView>
 
 			<ThemedText
@@ -285,7 +392,7 @@ const TransactionsList = () => {
 					getTransactionColor(transaction_item.kind),
 				]}
 			>
-				{MoneyUtils.formatMoney(transaction_item.value)}
+				{transaction_item.kind === 'deposit' ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
 			</ThemedText>
 
 			<TouchableOpacity
@@ -322,12 +429,26 @@ const TransactionsList = () => {
 				/>
 
 				<ThemedView style={[ styles.balanceContainer, { backgroundColor: card_surface, borderColor: card_surface } ]}>
-					<ThemedView style={styles.balanceContainerTransparent}>
-						<ThemedText style={styles.balanceLabel}>Saldo</ThemedText>
-						{is_data_transactions_loading ? <Skeleton height={20} width={80} /> : (
-							<ThemedText style={[ styles.balanceValue, total >= 0 ? styles.textGreen : styles.textRed ]}>
-								{MoneyUtils.formatMoney(total)}
-							</ThemedText>
+					<ThemedView style={styles.balanceTopRow}>
+						<ThemedView style={styles.balanceContainerTransparent}>
+							<ThemedText style={styles.balanceLabel}>Saldo efetivado</ThemedText>
+							{is_data_transactions_loading ? <Skeleton height={20} width={90} /> : (
+								<ThemedText style={[ styles.balanceValue, grand.settled >= 0 ? styles.textGreen : styles.textRed ]}>
+									{MoneyUtils.formatMoney(grand.settled)}
+								</ThemedText>
+							)}
+						</ThemedView>
+
+						{!is_data_transactions_loading && (
+							<ThemedView style={styles.previstoBox}>
+								<ThemedText style={styles.balanceLabelSmall}>Previsto</ThemedText>
+								<ThemedText style={[ styles.previstoValue, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>
+									{MoneyUtils.formatMoney(grand.projected)}
+								</ThemedText>
+								{grand.pending > 0 && (
+									<ThemedText style={styles.pendingCount}>{grand.pending} pendente{grand.pending > 1 ? 's' : ''}</ThemedText>
+								)}
+							</ThemedView>
 						)}
 					</ThemedView>
 
@@ -335,18 +456,24 @@ const TransactionsList = () => {
 						<ThemedView style={styles.balanceContainerTransparent}>
 							<ThemedText style={styles.balanceLabelSmall}>Entrada</ThemedText>
 							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
-								<ThemedText style={styles.textGreen}>{MoneyUtils.formatMoney(total_deposit)}</ThemedText>
+								<ThemedText style={styles.textGreen}>{MoneyUtils.formatMoney(grand.deposit)}</ThemedText>
 							)}
 						</ThemedView>
 
 						<ThemedView style={styles.balanceContainerTransparent}>
 							<ThemedText style={styles.balanceLabelSmall}>Saída</ThemedText>
 							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
-								<ThemedText style={styles.textRed}>{MoneyUtils.formatMoney(total_withdraw)}</ThemedText>
+								<ThemedText style={styles.textRed}>{MoneyUtils.formatMoney(grand.withdraw)}</ThemedText>
 							)}
 						</ThemedView>
 					</ThemedView>
 				</ThemedView>
+
+				<SegmentedControl
+					segments={SOURCE_TABS.map((tab) => ({ value: tab.id, label: tab.label, icon: tab.icon }))}
+					value={source_type}
+					onChange={(next) => setSourceType(next as TTransactionSourceType)}
+				/>
 			</ThemedView>
 
 			<ThemedView style={styles.listContainer} {...pan_responder.panHandlers}>
@@ -359,7 +486,23 @@ const TransactionsList = () => {
 						</ThemedView>
 					)}
 
-					{!is_data_transactions_loading && groups.length === 0 && (
+					{!is_data_transactions_loading && groups.length === 0 && sources_of_type.length === 0 && (
+						<ThemedView style={styles.emptyContainer}>
+							<Icon name={source_type === 'Account' ? 'account-balance-wallet' : 'credit-card'} size={40} color={theme.colors.placeholder} />
+							<ThemedText style={styles.emptyMessage}>
+								{source_type === 'Account' ? 'Nenhuma conta ainda' : 'Nenhum cartão de crédito ainda'}
+							</ThemedText>
+							<ThemedText style={styles.emptySubMessage}>
+								Crie {source_type === 'Account' ? 'uma conta' : 'um crédito'} em Contas & Cartões para ver as transações aqui.
+							</ThemedText>
+							<TouchableOpacity style={styles.emptyButton} onPress={() => navigation.navigate('Finances')}>
+								<Icon name='arrow-forward' size={18} color='white' />
+								<ThemedText style={styles.emptyButtonText}>Ir para Contas & Cartões</ThemedText>
+							</TouchableOpacity>
+						</ThemedView>
+					)}
+
+					{!is_data_transactions_loading && groups.length === 0 && sources_of_type.length > 0 && (
 						<ThemedView style={styles.emptyContainer}>
 							<Icon name='receipt-long' size={40} color={theme.colors.placeholder} />
 							<ThemedText style={styles.emptyMessage}>
@@ -418,6 +561,24 @@ const TransactionsList = () => {
 					onPress={() => setActionsTransaction(null)}
 				>
 					<ThemedView style={styles.actionsSheet}>
+						{actions_transaction && !actions_transaction.draft && (
+							<TouchableOpacity
+								style={styles.actionsSheetItem}
+								onPress={() => {
+									const target = actions_transaction;
+									setActionsTransaction(null);
+									if (target) handleToggleSettle(target);
+								}}
+							>
+								<Icon
+									name={actions_transaction.settled ? 'radio-button-unchecked' : 'check-circle'}
+									size={20}
+									color={actions_transaction.settled ? theme.colors.placeholder : colors['feedback-success-default']}
+								/>
+								<ThemedText style={styles.actionsSheetItemText}>{actions_transaction.settled ? 'Desfazer efetivação' : 'Efetivar'}</ThemedText>
+							</TouchableOpacity>
+						)}
+
 						<TouchableOpacity
 							style={styles.actionsSheetItem}
 							onPress={() => {
@@ -482,9 +643,6 @@ const styles = StyleSheet.create({
 	},
 	transactionDescription: {
 		fontWeight: 'bold',
-	},
-	transactionUserName: {
-		fontSize: 12,
 	},
 	transactionValue: {
 		marginRight: 4,
@@ -551,18 +709,70 @@ const styles = StyleSheet.create({
 		marginBottom: 8,
 	},
 	balanceContainer: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		gap: 12,
+		gap: 10,
 		borderWidth: 1,
 		borderRadius: 12,
 		paddingHorizontal: 16,
 		paddingVertical: 12,
 	},
+	balanceTopRow: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'flex-start',
+		backgroundColor: 'transparent',
+	},
 	balanceContainerTransparent: {
 		backgroundColor: 'transparent',
+	},
+	previstoBox: {
+		alignItems: 'flex-end',
+		backgroundColor: 'transparent',
+	},
+	previstoValue: {
+		fontWeight: '600',
+	},
+	pendingCount: {
+		fontSize: 11,
+		color: colors['feedback-warning-dark'],
+	},
+	metaRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		flexWrap: 'wrap',
+		gap: 6,
+		marginTop: 3,
+		backgroundColor: 'transparent',
+	},
+	originChip: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+		maxWidth: 160,
+		borderWidth: 1,
+		borderRadius: 100,
+		paddingHorizontal: 8,
+		paddingVertical: 2,
+	},
+	originChipText: {
+		fontSize: 11,
+		fontWeight: '500',
+	},
+	stateBadge: {
+		fontSize: 10,
+		fontWeight: '700',
+		textTransform: 'uppercase',
+		borderRadius: 4,
+		paddingHorizontal: 5,
+		paddingVertical: 1,
+		overflow: 'hidden',
+	},
+	draftBadge: {
+		color: '#868686',
+		backgroundColor: 'rgba(255, 255, 255, 0.10)',
+	},
+	pendingBadge: {
+		color: colors['feedback-warning-dark'],
+		backgroundColor: colors['feedback-warning-light'],
 	},
 	balanceGroup: {
 		flexDirection: 'row',

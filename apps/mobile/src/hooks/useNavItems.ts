@@ -7,6 +7,8 @@ import { useNewTransactionDialog } from '../context/newTransactionDialog';
 export type TNavItem = {
 	id: string;
 	label: string;
+	/* Rótulo curto pra barra inferior (ex.: "Contas" em vez de "Contas & Cartões"). Cai no label se ausente. */
+	short?: string;
 	route: string;
 	icon: string;
 };
@@ -25,8 +27,14 @@ export type TNavAction = {
  * mobile ela já existe, implementada de verdade (via WalletFormModal a partir do Sidebar),
  * diferente do placeholder ("Em breve") que o web ainda tem.
  */
+/*
+ * Ordem espelha o web (home → contas → carteiras → convites): a BottomNav mostra os 3 PRIMEIROS
+ * (Início/Contas/Carteiras), e "Convites" (4º) fica só no NavMenu (hambúrguer) — mesma divisão do web,
+ * onde o badge de convites vive no menu, não na barra.
+ */
 const NAV_ITEMS: TNavItem[] = [
 	{ id: 'home', label: 'Início', route: 'Home', icon: 'home' },
+	{ id: 'finances', label: 'Contas & Cartões', short: 'Contas', route: 'Finances', icon: 'credit-card' },
 	{ id: 'my_wallets', label: 'Carteiras', route: 'MyWallets', icon: 'wallet' },
 	{ id: 'wallets_invites', label: 'Convites', route: 'WalletsInvites', icon: 'group-add' },
 ];

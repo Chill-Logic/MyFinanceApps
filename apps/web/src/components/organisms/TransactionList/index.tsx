@@ -37,6 +37,7 @@ import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
+import SegmentedControl from '@/components/molecules/SegmentedControl';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
 import {
 	AlertDialog,
@@ -453,22 +454,11 @@ const TransactionList = () => {
 				{renderMonthTotals()}
 
 				{/* 3. Abas por tipo de origem (Contas | Cartões) */}
-				<div className='flex gap-1 rounded-lg bg-muted p-1'>
-					{SOURCE_TABS.map(({ id, label, icon: Icon }) => (
-						<button
-							key={id}
-							type='button'
-							onClick={() => setSourceType(id)}
-							className={cn(
-								'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-								source_type === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-							)}
-						>
-							<Icon className='h-4 w-4' />
-							{label}
-						</button>
-					))}
-				</div>
+				<SegmentedControl
+					segments={SOURCE_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
+					value={source_type}
+					onChange={(next) => setSourceType(next as TTransactionSourceType)}
+				/>
 
 				{/* Subtotal do tipo selecionado — visível só no desktop */}
 				{renderTypeTotals()}

@@ -64,7 +64,11 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 		});
 	}, [ centerAction, fab_scale, center_width ]);
 
-	const [ home_item, wallets_item, invites_item ] = navItems;
+	/*
+	 * Os 3 primeiros itens (Início/Contas/Carteiras) vão na barra, na mesma ordem do web; "Convites"
+	 * (4º) fica só no NavMenu. Ver a ordem de `NAV_ITEMS` em `useNavItems`.
+	 */
+	const [ home_item, finances_item, wallets_item ] = navItems;
 
 	const renderNavItem = (item: TNavItem) => {
 		const is_active = item.route === currentRouteName;
@@ -74,7 +78,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 			<TouchableOpacity key={item.id} style={styles.navItem} onPress={() => navigate(item.route)}>
 				<Icon name={item.icon as any} size={22} color={item_color} />
 				<ThemedText numberOfLines={1} style={[ styles.navLabel, { color: item_color } ]}>
-					{item.label}
+					{item.short ?? item.label}
 				</ThemedText>
 			</TouchableOpacity>
 		);
@@ -84,7 +88,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 		<>
 			<ThemedView style={[ styles.nav, { borderTopColor: theme.colors.border } ]}>
 				{renderNavItem(home_item)}
-				{renderNavItem(wallets_item)}
+				{renderNavItem(finances_item)}
 
 				<Animated.View style={[ styles.centerSlot, { width: center_width } ]}>
 					<Animated.View
@@ -101,7 +105,7 @@ const BottomNav = ({ navigate, onNewWallet, onLogout }: IBottomNavProps) => {
 					</Animated.View>
 				</Animated.View>
 
-				{renderNavItem(invites_item)}
+				{renderNavItem(wallets_item)}
 
 				<TouchableOpacity style={styles.navItem} onPress={() => setIsMenuOpen(true)}>
 					<Icon name='menu' size={22} color={theme.colors.placeholder} />

@@ -2,17 +2,16 @@ import { useState } from 'react';
 
 import { CreditCard, Wallet } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
-
 import Typography from '@/components/atoms/Typography';
+import SegmentedControl from '@/components/molecules/SegmentedControl';
 import AccountList from '@/components/organisms/AccountList';
 import CreditBalanceList from '@/components/organisms/CreditBalanceList';
 
 type TTab = 'accounts' | 'cards';
 
-const TABS: { id: TTab; label: string; icon: typeof Wallet }[] = [
-	{ id: 'accounts', label: 'Contas', icon: Wallet },
-	{ id: 'cards', label: 'Cartões', icon: CreditCard },
+const TABS = [
+	{ value: 'accounts', label: 'Contas', icon: Wallet },
+	{ value: 'cards', label: 'Cartões', icon: CreditCard },
 ];
 
 const FinancesPage = () => {
@@ -24,22 +23,7 @@ const FinancesPage = () => {
 				Contas &amp; Cartões
 			</Typography>
 
-			<div className='flex gap-1 rounded-lg bg-muted p-1'>
-				{TABS.map(({ id, label, icon: Icon }) => (
-					<button
-						key={id}
-						type='button'
-						onClick={() => setTab(id)}
-						className={cn(
-							'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors',
-							tab === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-						)}
-					>
-						<Icon className='h-4 w-4' />
-						{label}
-					</button>
-				))}
-			</div>
+			<SegmentedControl segments={TABS} value={tab} onChange={(next) => setTab(next as TTab)} />
 
 			{tab === 'accounts' ? <AccountList /> : <CreditBalanceList />}
 		</div>

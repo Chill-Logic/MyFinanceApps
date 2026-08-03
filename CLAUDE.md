@@ -554,6 +554,69 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
   `jest-expo`, mais alinhado ao app pós-CNG) — decisão de infraestrutura de teste maior, deixada pra uma
   tarefa própria em vez de resolvida de passagem aqui.
 
+**Port do domínio contas/cartões/crédito pro mobile (Etapa 3, 2026-08-02):** o backend passou a fazer
+toda transação nascer de uma **origem** (`source_type` = `Account`/`CreditBalance` + `source_id`; a
+`wallet_id` é derivada pelo backend), com `settled_at` (efetivada vs pendente), `draft` e
+`credit_card_id`. Isso nasceu no `apps/web` e foi portado pro mobile espelhando os padrões já existentes.
+Toda a camada de rede (fetchers, tipos, `QUERY_KEYS`) já morava em `@myfinance/shared` — o port foi só
+hooks mobile + UI nativa. Decisões de UX nativa que **divergem do web** de propósito (prováveis de
+reaparecer se alguém comparar os dois apps):
+- **16 hooks novos** em `hooks/api/{accounts,credit-balances,credit-cards}` + `useSettleTransaction`/
+  `useUnsettleTransaction`, seguindo o padrão dos hooks de `wallets`/`transactions` (export nomeado,
+  `getAxiosInstance`, `queryClient` de `services/query-client`, invalidação por `QUERY_KEYS`). Tipos de
+  params dos fetchers (`TIndexAccountsParams` etc.) vêm de `@myfinance/shared` (moram no fetcher, não em
+  `api.ts`), os de body/model do re-export `types/api`/`types/models`.
+- **Tela `screens/finances`** (abas Contas/Cartões, estado local). A ordem de `NAV_ITEMS` (`useNavItems`)
+  espelha o web: `home → finances → my_wallets → wallets_invites`. A `BottomNav` desestrutura os **3
+  primeiros** posicionalmente (`[home_item, finances_item, wallets_item]`) → barra = Início/Contas/Carteiras,
+  igual o web; **Convites (4º) fica só no `NavMenu`** (que faz `navItems.map` e mostra todos), onde também
+  vive o badge de convites. Se reordenar `NAV_ITEMS`, lembre que a barra sempre reflete os 3 primeiros.
+  `TNavItem.short` dá um rótulo curto pra barra ("Contas" em vez de "Contas & Cartões"); o `NavMenu` usa o
+  `label` completo. Ajuste feito na conciliação de paridade de 2026-08-02 (o print lado-a-lado mostrou a
+  barra do mobile divergindo do web — antes era Início/Carteiras/Convites).
+- **Sem telas separadas de gestão**: contas/créditos/cartões são CRUD via **modais** (mesmo esqueleto de
+  `WalletFormModal`) e action-sheets (`Modal` + `Alert.alert`, padrão de `my-wallets`), não `Dialog`/
+  `DropdownMenu`/`AlertDialog` como o web. `AccountFormModal`, `CreditBalanceFormModal`,
+  `CreditCardFormModal`, `PayInvoiceModal`, e `CreditBalanceList` (com o card de crédito: barra de uso +
+  bloco de fatura com navegação de ciclo por `cycle_offset`/`useGetInvoice` + lista de cartões).
+- **`TransactionFormModal` reformulado**: seletor de **origem** num `SelectInput` (Picker) único e
+  achatado com `value` codificado `"Account:<id>"`/`"CreditBalance:<id>"` e label **prefixado**
+  ("Conta · " / "Crédito · ") — o Picker nativo não agrupa como o `Select` do shadcn no web. Cartão em
+  segundo `SelectInput` condicional (só crédito), auto-seleciona se houver 1 só. **Pendente/Rascunho**
+  são linhas de toggle com ícone `check-box`/`check-box-outline-blank` (MaterialIcons), não `Checkbox`.
+  Empty-state (sem conta nem crédito) navega pra `Finances` via `useNavigation()`. Campos ficam num
+  `ScrollView` dentro do modal (`maxHeight: '88%'`) porque agora são muitos. Submit cria→efetiva
+  (encadeia `useSettleTransaction` no `onSuccess`) quando não é pendente/rascunho — o backend cria sempre
+  pendente. **Gotcha de lint**: `useNavigation<{ navigate: (route: string) => void }>()` fazia o
+  `func-call-spacing` disparar no espaço antes do `(` da anotação de tipo — usar sintaxe de método no
+  tipo (`{ navigate(route: string): void }`) contorna.
+- **`TransactionList`**: params de listagem usam `reference` (`YYYY-MM`), não mais `start_date`/`end_date`.
+- **Conciliação de paridade da Home (2026-08-02, logo após o port):** trazido pro mesmo nível do web —
+  **efetivar/desfazer por linha** (settle/unsettle no action-sheet, só quando não é rascunho),
+  **totais efetivado vs previsto + contagem de pendentes** (helper `buildSummary` espelhando o web:
+  efetivado = não-rascunho E settled; previsto = todos não-rascunho; rascunho fora dos dois), **abas por
+  tipo de origem** (Contas/Cartões, filtro no cliente — o total do mês continua sendo de TODAS as origens,
+  igual o web no mobile; as abas são um **`SegmentedControl` reutilizável** — `atoms/SegmentedControl` no
+  mobile, `molecules/SegmentedControl` no web — com "thumb" que **desliza** entre os segmentos: no mobile é
+  um `Animated.View` absoluto animado por `translateX` (driver nativo, largura medida via `onLayout`), no
+  web um `<div>` absoluto com `transition-transform`; usado também na tela `Finances`/`/accounts`. Substituiu
+  os dois botões bordados altos que existiam antes, a pedido), e **chip de origem por linha** (nome da conta/crédito via um `source_names` Map,
+  colorido por tipo) + selos Pendente/Rascunho, e **sinal `+`/`-` no valor** por linha (igual o web — o
+  `MoneyUtils.formatMoney` sempre devolve o valor positivo/sem sinal, então o `+`/`-` é prefixado à mão a
+  partir do `kind`; a cor sozinha não bastava pra bater com o web). Empty-state em dois casos (sem origem do
+  tipo → navega pra `Finances`; com origem mas sem transação → adicionar). O `user_name` na linha saiu (o web não mostra;
+  o chip de origem tomou o lugar). Mantido o **arrastar-pra-trocar-mês** (vantagem mobile, sem equivalente
+  no web). Ignorados de propósito os recursos **exclusivos de desktop** do web (tabela ordenável por
+  coluna, subtotal por aba inline) — não fazem sentido no app.
+- **`my-wallets`: definir carteira principal** (também 2026-08-02) — ação "Definir como principal"
+  (`PATCH /users/me` com `main_wallet_id` via `useUpdateCurrentUser`, invalida `wallet.get_main` pro badge
+  atualizar) + badge "Principal" (estrela) na carteira cujo id bate com `useGetMainWallet`. O "⋮" agora
+  aparece pra qualquer carteira que não seja a principal (não só pro dono), já que definir principal vale
+  pra qualquer carteira acessível; editar/convidar/excluir seguem owner-only dentro do sheet. Espelha o
+  `WalletList` do web.
+- Validado só com `mobile:typecheck` + `mobile:lint` (ambos limpos) — não rodado em runtime (o dono
+  testa na mão, e `mobile:test` tem o problema de ESM/`transformIgnorePatterns` descrito acima).
+
 ### apps/web (Vite + React)
 
 - A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do
