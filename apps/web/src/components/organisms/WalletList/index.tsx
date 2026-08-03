@@ -1,9 +1,11 @@
 import { useState } from 'react';
 
-import { getApiErrorMessage, MoneyUtils, type TWallet } from '@myfinance/shared';
-import { Check, MoreVertical, Pencil, Trash2, UserPlus, WalletCards } from 'lucide-react';
+import { getApiErrorMessage, MoneyUtils, QUERY_KEYS, type TWallet } from '@myfinance/shared';
+import { Check, MoreVertical, Pencil, Star, Trash2, UserPlus, WalletCards } from 'lucide-react';
 
+import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
 import { useDeleteWallet } from '@/hooks/api/wallets/useDeleteWallet';
+import { useGetMainWallet } from '@/hooks/api/wallets/useGetMainWallet';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 import useNavItems from '@/hooks/useNavItems';
 import useToast from '@/hooks/useToast';
@@ -11,6 +13,7 @@ import useToast from '@/hooks/useToast';
 import { useCurrentUserContext } from '@/context/current_user';
 import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
+import { queryClient } from '@/services/query-client';
 
 import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
@@ -26,7 +29,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const WalletList = () => {
@@ -37,16 +40,22 @@ const WalletList = () => {
 	const { user_wallet, setUserWallet } = useWallet();
 	const { mutate: deleteWalletMutation, isPending: is_delete_pending } = useDeleteWallet();
 
+	const { data: main_wallet } = useGetMainWallet({
+		enabled: Boolean(current_user.data?.id),
+		params: { user_id: current_user.data?.id || '' },
+	});
+	const { mutate: updateCurrentUserMutation } = useUpdateCurrentUser();
+
 	const [ editing_wallet, setEditingWallet ] = useState<TWallet | null>(null);
 	const [ inviting_wallet, setInvitingWallet ] = useState<TWallet | null>(null);
 	const [ deleting_wallet, setDeletingWallet ] = useState<TWallet | null>(null);
+	const [ setting_main_id, setSettingMainId ] = useState<string | null>(null);
 
 	const wallets = data_wallets?.data || [];
 
 	/*
-	 * Editar/Convidar/Excluir são owner-only (o backend retorna 403 caso contrário) — o menu ⋮ só
-	 * aparece pro dono. Ao excluir a carteira ativa, zeramos o contexto pra o WalletUserProvider
-	 * rebuscar a principal.
+	 * Editar/Convidar/Excluir são owner-only (o backend retorna 403 caso contrário) — só aparecem pro
+	 * dono. Ao excluir a carteira ativa, zeramos o contexto pra o WalletUserProvider rebuscar a principal.
 	 */
 	const handleConfirmDelete = () => {
 		if (!deleting_wallet) return;
@@ -63,6 +72,27 @@ const WalletList = () => {
 			onError: (error) => {
 				toast.error(getApiErrorMessage(error, 'Erro ao remover carteira'));
 				setDeletingWallet(null);
+			},
+		});
+	};
+
+	/*
+	 * Definir carteira principal (PATCH /users/me com main_wallet_id) — vale pra qualquer carteira
+	 * acessível/aceita, não só as próprias. Invalida a query da carteira principal pra o badge atualizar
+	 * (o hook de update do usuário só invalida o /users/me por conta própria).
+	 */
+	const handleSetMain = (wallet: TWallet) => {
+		setSettingMainId(wallet.id);
+		updateCurrentUserMutation({
+			body: { main_wallet_id: wallet.id },
+			onSuccess: () => {
+				toast.success(`"${ wallet.name }" agora é sua carteira principal`);
+				queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });
+				setSettingMainId(null);
+			},
+			onError: (error) => {
+				toast.error(getApiErrorMessage(error, 'Erro ao definir carteira principal'));
+				setSettingMainId(null);
 			},
 		});
 	};
@@ -104,6 +134,7 @@ const WalletList = () => {
 					{wallets.map((wallet) => {
 						const is_active = user_wallet.data?.id === wallet.id;
 						const is_owner = current_user.data?.id === wallet.owner_id;
+						const is_main = main_wallet?.id === wallet.id;
 
 						return (
 							<li
@@ -114,7 +145,15 @@ const WalletList = () => {
 								)}
 							>
 								<div className='min-w-0 flex-1'>
-									<p className='truncate font-medium text-foreground'>{wallet.name}</p>
+									<div className='flex items-center gap-2'>
+										<p className='truncate font-medium text-foreground'>{wallet.name}</p>
+										{is_main && (
+											<span className='flex shrink-0 items-center gap-1 rounded-full bg-brand-secondary/15 px-2 py-0.5 text-xs font-semibold text-brand-secondary'>
+												<Star className='h-3 w-3 fill-current' />
+												Principal
+											</span>
+										)}
+									</div>
 									{Boolean(wallet.total) && (
 										<p className={cn('text-sm', wallet.total >= 0 ? 'text-feedback-success-default' : 'text-feedback-danger-default')}>
 											Total: {MoneyUtils.formatMoney(wallet.total)}
@@ -123,12 +162,12 @@ const WalletList = () => {
 								</div>
 
 								{is_active && (
-									<span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground' title='Carteira atual'>
+									<span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground' title='Carteira que você está visualizando'>
 										<Check className='h-3 w-3' />
 									</span>
 								)}
 
-								{is_owner && (
+								{(is_owner || !is_main) && (
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
 											<Button
@@ -142,21 +181,34 @@ const WalletList = () => {
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align='end'>
-											<DropdownMenuItem onClick={() => setEditingWallet(wallet)}>
-												<Pencil className='mr-2 h-4 w-4' />
-												Editar
-											</DropdownMenuItem>
-											<DropdownMenuItem onClick={() => setInvitingWallet(wallet)}>
-												<UserPlus className='mr-2 h-4 w-4' />
-												Convidar
-											</DropdownMenuItem>
-											<DropdownMenuItem
-												onClick={() => setDeletingWallet(wallet)}
-												className='text-destructive focus:text-destructive'
-											>
-												<Trash2 className='mr-2 h-4 w-4' />
-												Excluir
-											</DropdownMenuItem>
+											{!is_main && (
+												<DropdownMenuItem onClick={() => handleSetMain(wallet)} disabled={setting_main_id === wallet.id}>
+													<Star className='mr-2 h-4 w-4' />
+													Definir como principal
+												</DropdownMenuItem>
+											)}
+
+											{!is_main && is_owner && <DropdownMenuSeparator />}
+
+											{is_owner && (
+												<>
+													<DropdownMenuItem onClick={() => setEditingWallet(wallet)}>
+														<Pencil className='mr-2 h-4 w-4' />
+														Editar
+													</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => setInvitingWallet(wallet)}>
+														<UserPlus className='mr-2 h-4 w-4' />
+														Convidar
+													</DropdownMenuItem>
+													<DropdownMenuItem
+														onClick={() => setDeletingWallet(wallet)}
+														className='text-destructive focus:text-destructive'
+													>
+														<Trash2 className='mr-2 h-4 w-4' />
+														Excluir
+													</DropdownMenuItem>
+												</>
+											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
 								)}

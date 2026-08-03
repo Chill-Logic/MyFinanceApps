@@ -3,4 +3,7 @@ export * from './users';
 export * from './wallets';
 export * from './transactions';
 export * from './userWallets';
+export * from './accounts';
+export * from './creditBalances';
+export * from './creditCards';
 export * from './core';

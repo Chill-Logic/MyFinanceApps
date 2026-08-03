@@ -27,12 +27,13 @@ export const CurrentUserProvider = ({ children }: { children: ReactNode }) => {
 
 	/*
 	 * Precisa terminar a limpeza do AsyncStorage ANTES de quem chamou navegar pra SignIn —
-	 * essa tela lê USER_DATA no mount pra decidir se auto-loga de novo (sempre restauramos a
-	 * sessão, não existe mais um flag "manter logado" opcional). Se `logout` fosse
-	 * fire-and-forget (só disparar a Promise sem aguardar, como antes), existia uma corrida
-	 * real: navegar antes da limpeza terminar podia deixar o efeito de restauração da
-	 * SignInScreen ler o USER_DATA antigo ainda não removido e logar o usuário de volta, como
-	 * se o "Sair" não tivesse feito nada.
+	 * essa tela lê o TOKEN no mount pra decidir se auto-loga de novo (sempre restauramos a
+	 * sessão, não existe mais um flag "manter logado" opcional; a validade do token é conferida
+	 * depois, pelo `/users/me` do AuthenticatedLayout). Se `logout` fosse fire-and-forget (só
+	 * disparar a Promise sem aguardar, como antes), existia uma corrida real: navegar antes da
+	 * limpeza terminar podia deixar o efeito de restauração da SignInScreen ler o token antigo
+	 * ainda não removido e mandar o usuário de volta pra Home, como se o "Sair" não tivesse
+	 * feito nada.
 	 *
 	 * `useCallback` (deps vazias) de propósito — `setCurrentUser` é o dispatch do `useState`,
 	 * garantidamente estável entre renders. Sem isso, `logout` seria uma função nova a cada

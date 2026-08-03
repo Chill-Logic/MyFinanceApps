@@ -51,7 +51,7 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 
 			<div className='flex flex-1 flex-col overflow-hidden'>
 				<main className='flex-1 overflow-auto'>
-					<div className='container mx-auto h-full px-4 pt-6'>
+					<div className='container mx-auto h-full px-4 md:px-8 pt-6'>
 						{children}
 					</div>
 				</main>

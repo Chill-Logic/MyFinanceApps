@@ -11,6 +11,12 @@ const MONTHS = [
 	'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
 ];
 
+/* Título curto pra faixa compacta: "Julho 2026" (igual o web), não "JULHO" empilhado com o ano. */
+const MONTHS_TITLE = [
+	'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+	'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
 type TMonthYearSelectorProps = {
 	onChange: (month: number, year: number)=> void;
 	value: {
@@ -42,41 +48,35 @@ const 	MonthYearSelector = (props: TMonthYearSelectorProps) => {
 
 	return (
 		<>
-			<TouchableOpacity
-				style={styles.monthYearSelectorContainer}
-				onPress={() => setIsModalVisible(true)}
-			>
-				<ThemedView style={styles.monthSelectorContainer}>
-					<TouchableOpacity
-						style={styles.monthChevron}
-						onPress={() => {
-							if(value.month === 0) {
-								onChange(11, value.year - 1);
-							} else {
-								onChange(value.month - 1, value.year);
-							}
-						}}
-					>
-						<Icon name='chevron-left' size={24} color='#666' />
-					</TouchableOpacity>
-					<ThemedText>{MONTHS[value.month]}</ThemedText>
-					<TouchableOpacity
-						style={styles.monthChevron}
-						onPress={() => {
-							if(value.month === 11) {
-								onChange(0, value.year + 1);
-							} else {
-								onChange(value.month + 1, value.year);
-							}
-						}}
-					>
-						<Icon name='chevron-right' size={24} color='#666' />
-					</TouchableOpacity>
-				</ThemedView>
-				<ThemedText style={styles.yearSelector}>
-					{value.year}
-				</ThemedText>
-			</TouchableOpacity>
+			<ThemedView style={styles.monthYearSelectorContainer}>
+				<TouchableOpacity
+					style={styles.monthChevron}
+					onPress={() => {
+						if(value.month === 0) {
+							onChange(11, value.year - 1);
+						} else {
+							onChange(value.month - 1, value.year);
+						}
+					}}
+				>
+					<Icon name='chevron-left' size={20} color='#666' />
+				</TouchableOpacity>
+				<TouchableOpacity style={styles.monthLabelButton} onPress={() => setIsModalVisible(true)}>
+					<ThemedText style={styles.monthLabel}>{MONTHS_TITLE[value.month]} {value.year}</ThemedText>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={styles.monthChevron}
+					onPress={() => {
+						if(value.month === 11) {
+							onChange(0, value.year + 1);
+						} else {
+							onChange(value.month + 1, value.year);
+						}
+					}}
+				>
+					<Icon name='chevron-right' size={20} color='#666' />
+				</TouchableOpacity>
+			</ThemedView>
 
 			<Modal
 				visible={isModalVisible}
@@ -188,28 +188,28 @@ const 	MonthYearSelector = (props: TMonthYearSelectorProps) => {
 
 const styles = StyleSheet.create({
 	monthYearSelectorContainer: {
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		width: '100%',
-	},
-	monthSelectorContainer: {
 		flexDirection: 'row',
-		justifyContent: 'space-between',
+		justifyContent: 'center',
 		alignItems: 'center',
+		gap: 12,
 		width: '100%',
 	},
 	monthChevron: {
-		padding: 10,
+		padding: 7,
 		borderWidth: 1,
 		borderColor: '#666',
 		borderRadius: 50,
 	},
+	monthLabelButton: {
+		minWidth: 130,
+		alignItems: 'center',
+	},
+	monthLabel: {
+		fontSize: 15,
+		fontWeight: '600',
+	},
 	monthYearSelectorInput: {
 		flex: 1,
-	},
-	yearSelector: {
-		fontSize: 16,
-		fontWeight: 'bold',
 	},
 	picker: {
 		textAlign: 'center',

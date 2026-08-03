@@ -22,7 +22,15 @@ e pra lógica que não depende de plataforma:
   tipo certo (uma por operação: `signIn`, `indexWallets`, `createTransaction`, etc.). Os hooks de cada
   app só chamam essas funções, passando a instância de axios da própria plataforma — a lógica de "qual
   endpoint, qual payload, qual tipo de retorno" mora só aqui.
-- `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`: formatação pura, sem dependência de plataforma.
+- `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`, `TransactionUtils`, `InvoiceUtils`: formatação/lógica
+  pura, sem dependência de plataforma. `TransactionUtils.effectiveDate(t)` = `settled_at ||
+  transaction_date` (espelha o `COALESCE` do backend) — usado pra agrupar transações por dia nos dois
+  apps, pra a efetivada cair no dia em que foi paga, não no vencimento nominal. `InvoiceUtils.label(inv)`
+  = nome da fatura pelo `due_date` ("Agosto 2026" = a que VENCE em agosto, não a do ciclo de compras);
+  `InvoiceUtils.isCurrent(inv, today?)` = hoje ∈ `[cycle_start, cycle_end]` fechado (fatura atual de
+  verdade, não "offset 0 de navegação"). Nomes de mês em pt-BR hardcoded no helper porque
+  `DateUtils.formateTo` não aceita locale (sairia em inglês); comparação de datas por string `YYYY-MM-DD`
+  pra não deslocar por fuso.
 - `tokens.ts` — design tokens da marca: `colors` (paleta flat, chaves hifenizadas de propósito — são
   consumidas literalmente como classes Tailwind no web, ex. `colors['background-light']` vira
   `bg-background-light`; não normalize pra camelCase), `spacing`, `borderRadius`, `fontSize`,
@@ -465,12 +473,33 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
   - Integrado no `AuthenticatedLayout` como irmão do `ThemedView` de conteúdo (fora da área que rola),
     reservando o próprio espaço no `flex` — mesma garantia estrutural do docked do web, "impossível
     esconder conteúdo atrás dela".
-- **`TransactionList`**: layout dividido em bloco fixo (seletor de mês + resumo Saldo/Entrada/Saída,
-  saldo movido pra cima do resumo, igual o web) e `SectionList` com `flex: 1` logo abaixo — troca do
-  hack antigo (`FlatList` com `maxHeight: '95%'`) por um flex de verdade, mesmo princípio do fix de
-  scroll do web (só a lista rola, o resto fica fixo). O botão "Novo Registro" de largura total que
-  existia no rodapé foi **removido** — o FAB da `BottomNav` já cobre essa ação (mesmo raciocínio do
-  botão "Nova Transação" do web, escondido no mobile web por causa da bottom nav).
+- **`TransactionList`**: layout dividido em bloco fixo (seletor de mês + card "Total do mês") e
+  `SectionList` com `flex: 1` logo abaixo — troca do hack antigo (`FlatList` com `maxHeight: '95%'`) por
+  um flex de verdade, mesmo princípio do fix de scroll do web (só a lista rola, o resto fica fixo). O
+  botão "Novo Registro" de largura total que existia no rodapé foi **removido** — o FAB da `BottomNav`
+  já cobre essa ação (mesmo raciocínio do botão "Nova Transação" do web, escondido no mobile web por
+  causa da bottom nav).
+  - **Cabeçalho compacto pra caber mais itens na lista (2026-08-02):** o resumo era um card alto com 4
+    informações empilhadas (Saldo efetivado / Previsto / Entrada / Saída) e o `MonthYearSelector` tinha
+    o mês centralizado + o ano numa segunda linha + setas circulares grandes (`padding: 10`, `size 24`).
+    Junto, isso comia a altura da área rolável e o mobile mostrava bem menos transações que o web na
+    mesma tela. Espelhamos a densidade do web: o card virou **uma linha** ("Total do mês" + saldo
+    efetivado + "previsto X · N pendentes" inline) com um botão **"i"** (`info-outline`) que abre o
+    detalhe completo (efetivado/previsto/entradas/saídas) num `Modal` bottom-sheet — mesma decisão do web
+    mobile, que esconde entrada/saída atrás de um `Popover` "i" pra sobrar tela pra lista. O
+    `MonthYearSelector` virou uma **faixa de linha única** ("Julho 2026" via `MONTHS_TITLE` title-case,
+    igual o web, em vez de "JULHO" empilhado com o ano) e setas menores (`padding: 7`, `size 20`). O
+    modal de seleção de período (tocar no rótulo) continua igual. Combinado, corta ~90px do cabeçalho
+    (≈1,5 item a mais visível).
+  - **Pegadinha do `lineHeight` herdado do `ThemedText` (afeta a densidade da lista):** o `ThemedText`
+    default aplica `fontSize: 16, lineHeight: 24`; um `style` que sobrescreve **só** `fontSize` (ex:
+    descrição 14, chip de origem 11, selo Pendente/Rascunho 10) **não** sobrescreve o `lineHeight`, então
+    o texto pequeno segue ocupando 24px de altura de linha — inflando a altura de cada card sem motivo
+    aparente (o web, com `text-sm`/`text-[11px]`, não arrasta isso). Sintoma comparando lado-a-lado com o
+    web: mesma transação mostra menos caracteres antes do `…` e o chip "Nubank Jhonathan" fica visivelmente
+    maior/mais alto no mobile. Fix: **sempre setar `lineHeight` junto do `fontSize`** em texto pequeno da
+    lista (descrição `18`, chip/selo `14`). Sem isso, apertar padding/gap não resolve — o arrasto está na
+    caixa de linha do texto, não no espaçamento.
   - **Agrupamento por dia** ("Hoje"/"Ontem"/data) via `SectionList` (trocou o `FlatList` plano). O
     rótulo do dia usa um array próprio de nomes de mês em português (`MONTHS_LOWER`), não `date-fns`
     direto nem `DateUtils.formateTo` — esse último não aceita locale, e sem isso o mês saía em inglês
@@ -553,6 +582,143 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
   `node_modules` inteiro. Precisa de um `transformIgnorePatterns` customizado (ou migrar pro preset
   `jest-expo`, mais alinhado ao app pós-CNG) — decisão de infraestrutura de teste maior, deixada pra uma
   tarefa própria em vez de resolvida de passagem aqui.
+
+**Port do domínio contas/cartões/crédito pro mobile (Etapa 3, 2026-08-02):** o backend passou a fazer
+toda transação nascer de uma **origem** (`source_type` = `Account`/`CreditBalance` + `source_id`; a
+`wallet_id` é derivada pelo backend), com `settled_at` (efetivada vs pendente), `draft` e
+`credit_card_id`. Isso nasceu no `apps/web` e foi portado pro mobile espelhando os padrões já existentes.
+Toda a camada de rede (fetchers, tipos, `QUERY_KEYS`) já morava em `@myfinance/shared` — o port foi só
+hooks mobile + UI nativa. Decisões de UX nativa que **divergem do web** de propósito (prováveis de
+reaparecer se alguém comparar os dois apps):
+- **16 hooks novos** em `hooks/api/{accounts,credit-balances,credit-cards}` + `useSettleTransaction`/
+  `useUnsettleTransaction`, seguindo o padrão dos hooks de `wallets`/`transactions` (export nomeado,
+  `getAxiosInstance`, `queryClient` de `services/query-client`, invalidação por `QUERY_KEYS`). Tipos de
+  params dos fetchers (`TIndexAccountsParams` etc.) vêm de `@myfinance/shared` (moram no fetcher, não em
+  `api.ts`), os de body/model do re-export `types/api`/`types/models`.
+- **Tela `screens/finances`** (abas Contas/Cartões, estado local). A ordem de `NAV_ITEMS` (`useNavItems`)
+  espelha o web: `home → finances → my_wallets → wallets_invites`. A `BottomNav` desestrutura os **3
+  primeiros** posicionalmente (`[home_item, finances_item, wallets_item]`) → barra = Início/Contas/Carteiras,
+  igual o web; **Convites (4º) fica só no `NavMenu`** (que faz `navItems.map` e mostra todos), onde também
+  vive o badge de convites. Se reordenar `NAV_ITEMS`, lembre que a barra sempre reflete os 3 primeiros.
+  `TNavItem.short` dá um rótulo curto pra barra ("Contas" em vez de "Contas & Cartões"); o `NavMenu` usa o
+  `label` completo. Ajuste feito na conciliação de paridade de 2026-08-02 (o print lado-a-lado mostrou a
+  barra do mobile divergindo do web — antes era Início/Carteiras/Convites).
+- **Sem telas separadas de gestão**: contas/créditos/cartões são CRUD via **modais** (mesmo esqueleto de
+  `WalletFormModal`) e action-sheets (`Modal` + `Alert.alert`, padrão de `my-wallets`), não `Dialog`/
+  `DropdownMenu`/`AlertDialog` como o web. `AccountFormModal`, `CreditBalanceFormModal`,
+  `CreditCardFormModal`, `PayInvoiceModal`, e `CreditBalanceList` (com o card de crédito: barra de uso +
+  bloco de fatura com navegação de ciclo por `cycle_offset`/`useGetInvoice` + lista de cartões).
+- **Criação unificada "Novo cartão"** (`NewCardModal` no mobile / `NewCardDialog` no web, 2026-08-02) —
+  a pedido do dono, pra tirar do usuário a distinção "linha de crédito" vs "cartão". Um único modal
+  (o antigo "Novo crédito" virou "Novo cartão"; o botão "Adicionar cartão" por linha foi **removido**):
+  campos Nome\*, Últimos dígitos, um checkbox **"Compartilhar limite"** (+ um "i" com tooltip; no web é
+  `Popover`, no mobile um texto inline que aparece ao tocar o `info-outline`) e, condicionalmente,
+  Limite\*/Fechamento\*/Vencimento\* (sem compartilhar) OU um select das linhas existentes (compartilhando).
+  Salvar **sem compartilhar**: cria a `CreditBalance` (nome = o do usuário) e, no `onSuccess`, um
+  `CreditCard` chamado **`"PRINCIPAL"`** dentro dela. **Compartilhando**: cria só o `CreditCard` (nome do
+  usuário) na linha selecionada. `CreditBalanceFormModal`/`CreditCardFormModal` (mobile) e os `*FormDialog`
+  (web) seguem existindo, mas **só pra edição** agora.
+- **`TransactionFormModal` reformulado**: seletor de **origem** num `SelectInput` (Picker) único e
+  achatado com `value` codificado `"Account:<id>"`/`"CreditBalance:<id>"` e label **prefixado**
+  ("Conta · " / "Crédito · ") — o Picker nativo não agrupa como o `Select` do shadcn no web. Cartão em
+  segundo `SelectInput` condicional (só crédito), auto-seleciona se houver 1 só. **Pendente/Rascunho**
+  são linhas de toggle com ícone `check-box`/`check-box-outline-blank` (MaterialIcons), não `Checkbox`.
+  Empty-state (sem conta nem crédito) navega pra `Finances` via `useNavigation()`. Campos ficam num
+  `ScrollView` dentro do modal (`maxHeight: '88%'`) porque agora são muitos. Submit cria→efetiva
+  (encadeia `useSettleTransaction` no `onSuccess`) quando não é pendente/rascunho — o backend cria sempre
+  pendente. **Gotcha de lint**: `useNavigation<{ navigate: (route: string) => void }>()` fazia o
+  `func-call-spacing` disparar no espaço antes do `(` da anotação de tipo — usar sintaxe de método no
+  tipo (`{ navigate(route: string): void }`) contorna.
+- **`TransactionList`**: params de listagem usam `reference` (`YYYY-MM`), não mais `start_date`/`end_date`.
+- **Conciliação de paridade da Home (2026-08-02, logo após o port):** trazido pro mesmo nível do web —
+  **efetivar/desfazer por linha** (settle/unsettle no action-sheet, só quando não é rascunho),
+  **totais efetivado vs previsto + contagem de pendentes** (helper `buildSummary` espelhando o web:
+  efetivado = não-rascunho E settled; previsto = todos não-rascunho; rascunho fora dos dois), **abas por
+  tipo de origem** (Contas/Cartões, filtro no cliente — o total do mês continua sendo de TODAS as origens,
+  igual o web no mobile; as abas são um **`SegmentedControl` reutilizável** — `atoms/SegmentedControl` no
+  mobile, `molecules/SegmentedControl` no web — com "thumb" que **desliza** entre os segmentos: no mobile é
+  um `Animated.View` absoluto animado por `translateX` (driver nativo, largura medida via `onLayout`), no
+  web um `<div>` absoluto com `transition-transform`; usado também na tela `Finances`/`/accounts`. Substituiu
+  os dois botões bordados altos que existiam antes, a pedido), e **chip de origem por linha** (nome da conta/crédito via um `source_names` Map,
+  colorido por tipo) + selos Pendente/Rascunho, e **sinal `+`/`-` no valor** por linha (igual o web — o
+  `MoneyUtils.formatMoney` sempre devolve o valor positivo/sem sinal, então o `+`/`-` é prefixado à mão a
+  partir do `kind`; a cor sozinha não bastava pra bater com o web). Empty-state em dois casos (sem origem do
+  tipo → navega pra `Finances`; com origem mas sem transação → adicionar). O `user_name` na linha saiu (o web não mostra;
+  o chip de origem tomou o lugar). Mantido o **arrastar-pra-trocar-mês** (vantagem mobile, sem equivalente
+  no web). Ignorados de propósito os recursos **exclusivos de desktop** do web (tabela ordenável por
+  coluna, subtotal por aba inline) — não fazem sentido no app.
+- **`my-wallets`: definir carteira principal** (também 2026-08-02) — ação "Definir como principal"
+  (`PATCH /users/me` com `main_wallet_id` via `useUpdateCurrentUser`, invalida `wallet.get_main` pro badge
+  atualizar) + badge "Principal" (estrela) na carteira cujo id bate com `useGetMainWallet`. O "⋮" agora
+  aparece pra qualquer carteira que não seja a principal (não só pro dono), já que definir principal vale
+  pra qualquer carteira acessível; editar/convidar/excluir seguem owner-only dentro do sheet. Espelha o
+  `WalletList` do web.
+- Validado só com `mobile:typecheck` + `mobile:lint` (ambos limpos) — não rodado em runtime (o dono
+  testa na mão, e `mobile:test` tem o problema de ESM/`transformIgnorePatterns` descrito acima).
+
+**Adaptação ao backend novo — index de transações separado + fatura parcial (2026-08-02):** o backend
+(`my-finance-api`, repo separado read-only) mudou o contrato em dois pontos, adaptados nos dois apps +
+`packages/shared`:
+- **`GET /transactions` passou a vir SEPARADO** em `{ accounts, credits }` (cada um um `TTransactionGroup`
+  = `{ data, total_count, total_settled, total_projected }`), em vez do `{ data, total_count, ... }` plano
+  de antes. Motivo do backend: evitar dupla contagem do cartão (pagamento da fatura conta só em `accounts`,
+  compras só em `credits`) e fazer a aba Cartões respeitar o **ciclo de fatura** de cada crédito. As duas
+  visões usam **janelas diferentes**: `accounts` = mês-calendário seguindo `settled_at` (ou
+  `transaction_date` enquanto pendente); `credits` = ciclo de fechamento de cada `CreditBalance` por
+  `transaction_date`. Impacto no front: os dois `TransactionList` (web e mobile) **paravam de listar**
+  (liam `.data` de um objeto que não tem mais esse campo → lista vazia). Correção: `TListTransactionsResponse`
+  virou `{ accounts, credits }` + `TTransactionGroup`; a aba (`SegmentedControl`) agora **escolhe o grupo**
+  (`source_type === 'Account' ? accounts.data : credits.data`) em vez de filtrar `source_type` no cliente
+  (o filtro do cliente não respeitava o ciclo do cartão). O "Total do mês · todas as origens" é
+  `buildSummary([...accounts.data, ...credits.data])` — as duas listas são disjuntas (source_type
+  diferente), então concatenar não dupla-conta. Os params `source_type`/`source_id` de
+  `TListTransactionsParams` continuam existindo (o backend ainda os aceita), mas os apps **não passam mais**.
+  - **Agrupamento por dia usa a DATA EFETIVA, não `transaction_date`:** como o backend agora bucketiza
+    `accounts` por `COALESCE(settled_at, transaction_date)`, agrupar a lista no cliente por
+    `transaction_date` cru colocaria uma transação efetivada num dia diferente do vencimento no grupo
+    errado (podendo até cair fora do mês devolvido). O `groupTransactionsByDay` dos dois apps agora
+    agrupa por `TransactionUtils.effectiveDate(t)` (`settled_at || transaction_date`, helper em
+    `packages/shared/src/utils/transaction.ts`). A tabela desktop do web (view tabular, coluna "Data"
+    ordenável) **segue exibindo/ordenando por `transaction_date` nominal de propósito** — não é
+    agrupamento por dia.
+- **Fatura com pagamento parcial**: `TCurrentInvoice` ganhou `paid_amount` e `remaining` (`paid` agora só
+  é `true` com a fatura 100% quitada); `TPayInvoiceBody` ganhou `value` (parcial; ausente = paga o
+  `remaining`) e `reference` (`YYYY-MM`, seleciona o ciclo); `TGetInvoiceParams` ganhou `reference`. UI
+  (web `PayInvoiceDialog` / mobile `PayInvoiceModal`): campo de valor pré-preenchido com o `remaining`,
+  editável (permite parcial), + bloco "Já pago / Restante" quando `paid_amount > 0`. Nas listas de crédito
+  (`CreditBalanceList` dos dois): `can_pay` agora é `remaining > 0` (não mais `!paid && amount > 0`), status
+  mostra "restante R$ X" quando parcial, e o botão vira "Pagar restante". Navegação de ciclo mantida por
+  `date` (o backend resolve o ciclo pela data); a mesma fatura pode ser paga várias vezes (soma em
+  `paid_amount`, inclusive acima do total).
+  - **"Fatura atual" e o nome da fatura vêm da PRÓPRIA fatura, não do offset de navegação:** o rótulo
+    ("Agosto 2026") é `InvoiceUtils.label(invoice)` (mês/ano do `due_date` — a fatura "de agosto" é a que
+    VENCE em agosto), e a tag "Fatura atual" é `InvoiceUtils.isCurrent(invoice)` (hoje ∈
+    `[cycle_start, cycle_end]` fechado), não mais `cycle_offset === 0`. O offset 0 segue decidindo só a
+    FONTE do dado (usa a `current_invoice` embutida no index, sem request) — mas o texto/tag lê a fatura
+    de verdade. Enquanto uma fatura navegada carrega, o rótulo cai num fallback pela data de vencimento
+    derivada do offset (`InvoiceUtils.label({ due_date: dueForOffset(...) })`) até o `due_date` real chegar
+    (os dois coincidem, sem flicker).
+  - **Navegação de fatura é por `date` (`cycle_range`), NÃO por `reference` (`cycle_for_month`):** dois
+    bugs em sequência aqui, o segundo revelado pelos dados reais da API. (1º) Navegar por `date = hoje +
+    offset meses` pulava faturas, porque a `current_invoice` embutida fica um ciclo atrás de
+    `cycle_range(hoje)` quando hoje já passou do fechamento. (2º) Troquei pra `reference` (YYYY-MM)
+    ancorado no `due_date`, assumindo `reference` M → vence M+1 (comportamento do checkout LOCAL do
+    backend). Mas o backend **deployado** mapeia `reference` M → vence **M** (o commit local está à frente
+    do deploy) — então mandava um mês a menos (offset +1 pedia a fatura de Agosto de novo; offset −1
+    pulava Julho). **A convenção de `reference`/`cycle_for_month` divergiu entre deploy e local**, então
+    paramos de depender dela: navegamos por `date` (dia 1 do mês do `cycle_end` da fatura atual + offset),
+    que cai em `cycle_range` no backend — o MESMO cálculo da `current_invoice` embutida, estável entre
+    versões. Helper `dateForOffset(cycle_end, offset)` → `YYYY-MM-01`; dia 1 é sempre válido (sem rollover)
+    e sempre dentro do ciclo que fecha naquele mês. O `date` é calculado SEMPRE (inclusive offset 0) e
+    passado pro `PayInvoiceDialog`/`PayInvoiceModal` — sem ele o backend pagaria o ciclo de HOJE, que pode
+    não ser a fatura exibida (bug latente de pagamento no ciclo errado, também corrigido). `useGetInvoice`
+    ganhou `placeholderData: keepPreviousData` (mantém a fatura anterior na tela durante a troca, sem
+    piscar loader) e a query key inclui `reference` e `date`. Se algum dia o `reference` do backend
+    estabilizar (deploy alcançar o local), dá pra reavaliar voltar pra ele, mas `date`/`cycle_range` é o
+    caminho robusto porque é o mesmo primitivo da fatura embutida.
+- **Token não expira mais** (`jwt_encode` com `exp = nil`): não muda nada no front — o auto-login do mobile
+  já valida via `/users/me` ([[feedback_never_trust_persisted_token]]); só sumiu a causa da cascata de 401
+  por expiração de 7 dias.
 
 ### apps/web (Vite + React)
 
@@ -796,6 +962,10 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
 
 ## Convenções deste repositório
 
+- **NUNCA subir o servidor de desenvolvimento** (`npm run webapp:dev`, `npm run mobile:start`, `expo
+  start`, `vite dev`/`vite preview`, ou qualquer processo que sirva/rode o app). O dono do repo testa
+  **sempre na mão** — deixe a execução do app pra ele. Pode rodar typecheck, lint, testes e build
+  (validação estática), só não iniciar servidor nem abrir o app.
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
 - Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os

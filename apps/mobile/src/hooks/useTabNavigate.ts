@@ -5,11 +5,13 @@ import { IScreenProps } from '../types/screen';
 /**
  * Ordem ESPACIAL das telas "de aba" (posição visual na BottomNav/menu, da esquerda pra
  * direita), não a ordem em que elas são registradas no Stack.Navigator nem a ordem em que
- * o usuário efetivamente navegou entre elas. `WalletsSettings` não aparece na BottomNav, só
- * no menu do hambúrguer (o ícone mais à direita), então entra como a posição mais à direita
- * de todas.
+ * o usuário efetivamente navegou entre elas. Bate com a ordem de `NAV_ITEMS` (`useNavItems`):
+ * a BottomNav mostra `Home → Finances → MyWallets`, e `WalletsInvites`/`WalletsSettings` só
+ * existem no menu do hambúrguer (posições mais à direita de todas). Precisa incluir TODAS as
+ * telas de aba — uma rota fora daqui cai no default 'push' e anima na direção errada (foi o que
+ * aconteceu com `Finances` quando entrou na barra e não estava listada aqui).
  */
-const TAB_ORDER = [ 'Home', 'MyWallets', 'WalletsInvites', 'WalletsSettings' ];
+const TAB_ORDER = [ 'Home', 'Finances', 'MyWallets', 'WalletsInvites', 'WalletsSettings' ];
 
 let pending_animation_type_for_replace: 'push' | 'pop' = 'push';
 

@@ -6,6 +6,7 @@ import { getPendingAnimationTypeForReplace } from '../hooks/useTabNavigate';
 
 import { TStackParam } from '../types/screen';
 
+import FinancesScreen from '../screens/finances';
 import HomeScreen from '../screens/home';
 import MyWalletsScreen from '../screens/my-wallets';
 import WalletsInvitesScreen from '../screens/wallets-invites';
@@ -14,6 +15,7 @@ import AUTH_SCREENS from './auth';
 
 const SCREENS: TStackParam[] = [
 	{ name: 'Home', component: HomeScreen },
+	{ name: 'Finances', component: FinancesScreen },
 	{ name: 'WalletsInvites', component: WalletsInvitesScreen },
 	{ name: 'WalletsSettings', component: WalletsSettingsScreen },
 	{ name: 'MyWallets', component: MyWalletsScreen },
