@@ -10,7 +10,6 @@ import { colors, getApiErrorMessage } from '@myfinance/shared';
 
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
 
-import { useCurrentUserContext } from '../../context/current_user';
 import { useWallet } from '../../context/wallet';
 import { LocalStorage } from '../../services/storage';
 
@@ -25,7 +24,6 @@ import { ThemedView } from '../../components/atoms/ThemedView';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 
 const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
-	const { setCurrentUser } = useCurrentUserContext();
 	const { setCanSearchForWallets } = useWallet();
 
 	const [ form, setForm ] = useState({ email: '', password: '' });
@@ -55,16 +53,25 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 		});
 	};
 
+	/*
+	 * Restauração de sessão: só decide "existe sessão pra restaurar?" pela presença do TOKEN,
+	 * e NÃO pré-popula o `current_user` a partir do USER_DATA persistido. Motivo: o token pode
+	 * estar expirado (não há refresh token no backend), e restaurar o usuário aqui fazia o
+	 * `AuthenticatedLayout` achar que já estava autenticado e montar a Home inteira de imediato,
+	 * disparando todas as queries autenticadas em paralelo com o token velho — cascata de 401
+	 * "token expirou" seguida de 401 "Autorização não encontrada" (depois do logout limpar o
+	 * token no meio do voo). Agora quem valida a sessão é só o `/users/me` do próprio layout:
+	 * navega pra Home, e é lá que o token é testado antes de qualquer outra requisição.
+	 */
 	useEffect(() => {
 		(async() => {
-			const user_data = await LocalStorage.getItem(StorageKeys.USER_DATA);
+			const token = await LocalStorage.getItem(StorageKeys.TOKEN);
 
-			if (user_data) {
-				setCurrentUser({ data: JSON.parse(user_data) });
+			if (token) {
 				navigation.replace('Home');
 			}
 		})();
-	}, [ navigation, setCurrentUser ]);
+	}, [ navigation ]);
 
 	return (
 		<ScreenLayout>
