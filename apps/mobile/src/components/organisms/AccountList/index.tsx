@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
@@ -8,6 +8,7 @@ import { colors, getApiErrorMessage, MoneyUtils } from '@myfinance/shared';
 import { useDeleteAccount } from '../../../hooks/api/accounts/useDeleteAccount';
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 
+import { useRefresh } from '../../../context/refresh';
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 
@@ -36,6 +37,7 @@ export const AccountList = () => {
 		params: { wallet_id: wallet_id || '' },
 	});
 	const { mutate: deleteAccountMutation } = useDeleteAccount();
+	const { refreshControlProps } = useRefresh({ all: true });
 
 	const [ actions_account, setActionsAccount ] = useState<TAccount | null>(null);
 	const [ editing_account, setEditingAccount ] = useState<TAccount | null>(null);
@@ -119,6 +121,7 @@ export const AccountList = () => {
 					renderItem={renderAccountItem}
 					keyExtractor={(item) => item.id}
 					showsVerticalScrollIndicator={false}
+					refreshControl={<RefreshControl {...refreshControlProps} />}
 				/>
 			)}
 
@@ -163,13 +166,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	newButton: {
+		alignSelf: 'flex-end',
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 8,
+		gap: 6,
 		backgroundColor: colors['brand-secondary'],
 		borderRadius: 8,
-		paddingVertical: 12,
+		paddingVertical: 10,
+		paddingHorizontal: 16,
 		marginBottom: 16,
 	},
 	newButtonText: {

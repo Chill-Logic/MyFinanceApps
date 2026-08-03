@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
@@ -11,6 +11,7 @@ import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIn
 import { useDeleteCreditCard } from '../../../hooks/api/credit-cards/useDeleteCreditCard';
 import { useIndexCreditCards } from '../../../hooks/api/credit-cards/useIndexCreditCards';
 
+import { useRefresh } from '../../../context/refresh';
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 
@@ -131,7 +132,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				</View>
 				<View style={styles.info}>
 					<ThemedText style={styles.name}>{credit_balance.name}</ThemedText>
-					<ThemedText style={styles.subtle}>{cards.length} cartã{cards.length === 1 ? 'o' : 'os'}</ThemedText>
+					<ThemedText style={styles.subtle}>{cards.length} {cards.length === 1 ? 'cartão' : 'cartões'}</ThemedText>
 				</View>
 				<View style={styles.limitBox}>
 					<ThemedText style={styles.limitLabel}>Limite</ThemedText>
@@ -274,6 +275,7 @@ export const CreditBalanceList = () => {
 		enabled: Boolean(wallet_id),
 		params: { wallet_id: wallet_id || '' },
 	});
+	const { refreshControlProps } = useRefresh({ all: true });
 
 	const [ is_creating, setIsCreating ] = useState(false);
 
@@ -305,6 +307,7 @@ export const CreditBalanceList = () => {
 					renderItem={renderCreditBalanceItem}
 					keyExtractor={(item) => item.id}
 					showsVerticalScrollIndicator={false}
+					refreshControl={<RefreshControl {...refreshControlProps} />}
 				/>
 			)}
 
@@ -318,13 +321,14 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	newButton: {
+		alignSelf: 'flex-end',
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 8,
+		gap: 6,
 		backgroundColor: colors['brand-secondary'],
 		borderRadius: 8,
-		paddingVertical: 12,
+		paddingVertical: 10,
+		paddingHorizontal: 16,
 		marginBottom: 16,
 	},
 	newButtonText: {

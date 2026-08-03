@@ -123,7 +123,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 					<div>
 						<p className='font-semibold text-foreground'>{creditBalance.name}</p>
 						<p className='text-xs text-muted-foreground'>
-							{cards.length} cartã{cards.length === 1 ? 'o' : 'os'}
+							{cards.length} {cards.length === 1 ? 'cartão' : 'cartões'}
 						</p>
 					</div>
 				</div>
@@ -319,8 +319,7 @@ const CreditBalanceList = () => {
 
 	return (
 		<div className='flex flex-col gap-4 pb-3'>
-			<div className='flex items-center justify-between gap-3'>
-				<span className='text-sm text-muted-foreground'>Limite, fatura e cartões de cada crédito</span>
+			<div className='flex items-center justify-end gap-3'>
 				<Button type='button' onClick={() => setIsCreateOpen(true)} disabled={!wallet_id} className='gap-2'>
 					<Plus className='h-4 w-4' />
 					Novo cartão

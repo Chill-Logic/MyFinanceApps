@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, LayoutChangeEvent, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors } from '@myfinance/shared';
 
 import { useTheme } from '../../../context/theme';
 
@@ -29,7 +28,8 @@ const TRACK_PADDING = 4;
  * entre eles, então `translateX = índice * largura_do_segmento` cai exato no lugar).
  */
 const SegmentedControl = ({ segments, value, onChange }: TSegmentedControlProps) => {
-	const { theme } = useTheme();
+	const { theme, mode } = useTheme();
+	const active_surface = mode === 'dark' ? '#1e1e22' : '#ffffff';
 	const [ track_width, setTrackWidth ] = useState(0);
 	const translate = useRef(new Animated.Value(0)).current;
 
@@ -50,13 +50,13 @@ const SegmentedControl = ({ segments, value, onChange }: TSegmentedControlProps)
 		<View style={styles.track} onLayout={onLayout}>
 			{segment_width > 0 && (
 				<Animated.View
-					style={[ styles.thumb, { width: segment_width, transform: [ { translateX: translate } ] } ]}
+					style={[ styles.thumb, { width: segment_width, backgroundColor: active_surface, transform: [ { translateX: translate } ] } ]}
 				/>
 			)}
 
 			{segments.map((segment) => {
 				const active = segment.value === value;
-				const item_color = active ? '#fff' : theme.colors.placeholder;
+				const item_color = active ? theme.colors.text : theme.colors.placeholder;
 
 				return (
 					<TouchableOpacity
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		padding: TRACK_PADDING,
 		borderRadius: 10,
-		backgroundColor: 'rgba(255, 255, 255, 0.06)',
+		backgroundColor: 'rgba(255, 255, 255, 0.08)',
 		position: 'relative',
 	},
 	thumb: {
@@ -88,7 +88,11 @@ const styles = StyleSheet.create({
 		bottom: TRACK_PADDING,
 		left: TRACK_PADDING,
 		borderRadius: 7,
-		backgroundColor: colors['brand-secondary'],
+		elevation: 2,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 1 },
+		shadowOpacity: 0.2,
+		shadowRadius: 2,
 	},
 	segment: {
 		flex: 1,
