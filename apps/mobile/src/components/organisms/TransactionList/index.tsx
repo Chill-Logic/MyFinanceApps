@@ -14,7 +14,7 @@ import {
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
@@ -99,7 +99,7 @@ const groupTransactionsByDay = (transactions: TTransaction[]): TTransactionGroup
 	const groups = new Map<string, TTransactionGroup>();
 
 	transactions.forEach((transaction_item) => {
-		const date = new Date(transaction_item.transaction_date);
+		const date = new Date(TransactionUtils.effectiveDate(transaction_item));
 		const key = `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
 
 		if (!groups.has(key)) {
@@ -272,8 +272,21 @@ const TransactionsList = () => {
 		}),
 	).current;
 
-	const all_transactions = useMemo(() => data_transactions?.data || [], [ data_transactions ]);
-	const transactions = useMemo(() => all_transactions.filter((item) => item.source_type === source_type), [ all_transactions, source_type ]);
+	/*
+	 * O backend já separa em `accounts` (bucket mês-calendário) e `credits` (bucket ciclo da fatura),
+	 * cada um com sua lista e totais — não filtramos mais `source_type` no cliente (o filtro do cliente
+	 * não respeitaria o ciclo do cartão). A aba escolhe o grupo; o "Total do mês" soma os dois.
+	 */
+	const accounts_group = data_transactions?.accounts;
+	const credits_group = data_transactions?.credits;
+	const all_transactions = useMemo(
+		() => [ ...(accounts_group?.data || []), ...(credits_group?.data || []) ],
+		[ accounts_group, credits_group ],
+	);
+	const transactions = useMemo(
+		() => (source_type === 'Account' ? accounts_group?.data : credits_group?.data) || [],
+		[ source_type, accounts_group, credits_group ],
+	);
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const sources_of_type = source_type === 'Account' ? accounts : credit_balances;
 

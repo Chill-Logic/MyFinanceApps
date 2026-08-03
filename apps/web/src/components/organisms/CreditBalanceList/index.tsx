@@ -1,8 +1,6 @@
 import { useState } from 'react';
 
-import { getApiErrorMessage, MoneyUtils, type TCreditBalance, type TCreditCard } from '@myfinance/shared';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { getApiErrorMessage, InvoiceUtils, MoneyUtils, type TCreditBalance, type TCreditCard } from '@myfinance/shared';
 import { AlertTriangle, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { useDeleteCreditBalance } from '@/hooks/api/credit-balances/useDeleteCreditBalance';
@@ -39,11 +37,27 @@ const formatDayMonth = (iso: string): string => {
 	return day && month ? `${ day }/${ month }` : iso;
 };
 
-/* Referência do ciclo a partir de um offset de meses em relação a hoje (YYYY-MM-DD). */
-const referenceFromOffset = (offset: number): string => {
-	const now = new Date();
-	const date = new Date(now.getFullYear(), now.getMonth() + offset, now.getDate());
-	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-${ String(date.getDate()).padStart(2, '0') }`;
+/*
+ * Navegação de fatura por `date` (não por `reference`), ancorada no MÊS de fechamento (`cycle_end`) da
+ * fatura atual + offset, mandando SEMPRE o dia 1 do mês. Motivo: `date` cai em `cycle_range` no backend
+ * (o mesmo cálculo da `current_invoice` embutida — estável entre versões), enquanto a convenção de
+ * `reference`/`cycle_for_month` divergiu entre o deploy e o checkout local (deploy: `reference` M → vence
+ * M; local: → vence M+1). O dia 1 é sempre válido (sem rollover) e cai sempre dentro do ciclo que FECHA
+ * naquele mês (`cycle_range`: `date ≤ closing(mês)` ⇒ ciclo que fecha nesse mês), então cada seta anda
+ * exatamente um ciclo.
+ */
+const dateForOffset = (cycleEnd: string, offset: number): string => {
+	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
+	const date = new Date(year, (month - 1) + offset, 1);
+	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
+};
+
+/* Rótulo de fallback enquanto a fatura navegada carrega: vencimento ≈ mês do fechamento + 1 (config
+ * comum, vencimento < fechamento). Some assim que a fatura real chega (label vem do `due_date`). */
+const dueLabelForOffset = (cycleEnd: string, offset: number): string => {
+	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
+	const date = new Date(year, month + offset, 1);
+	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
 };
 
 interface ICreditBalanceCardProps {
@@ -68,20 +82,40 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 	const [ cycle_offset, setCycleOffset ] = useState(0);
 
 	const is_current_cycle = cycle_offset === 0;
-	const reference_date = referenceFromOffset(cycle_offset);
+	const cycle_end = creditBalance.current_invoice.cycle_end;
+	/* Data (dia 1 do mês de fechamento + offset) que mira o ciclo. Sempre calculada (inclusive offset 0)
+	 * pra o pagamento mirar exatamente a fatura exibida — sem ela o backend pagaria o ciclo de HOJE. */
+	const invoice_date = dateForOffset(cycle_end, cycle_offset);
 	const { data: navigated_invoice, isFetching: is_invoice_fetching } = useGetInvoice({
 		id: creditBalance.id,
 		enabled: !is_current_cycle,
-		params: { date: reference_date },
+		params: { date: invoice_date },
 	});
 
 	const cards = cards_data?.data || [];
 	const invoice = is_current_cycle ? creditBalance.current_invoice : navigated_invoice;
 	const is_invoice_loading = !is_current_cycle && is_invoice_fetching && !invoice;
-	const reference_label = format(new Date(`${ reference_date }T00:00:00`), 'MMMM yyyy', { locale: ptBR });
+	/* Fatura atual = hoje ∈ [cycle_start, cycle_end] (não o offset 0); nome pelo vencimento (due_date). */
+	const is_current = Boolean(invoice) && InvoiceUtils.isCurrent(invoice!);
+	const cycle_label = invoice ? InvoiceUtils.label(invoice) : InvoiceUtils.label({ due_date: dueLabelForOffset(cycle_end, cycle_offset) });
 	const limit = creditBalance.credit_limit || 0;
 	const used_pct = limit > 0 ? Math.min(100, Math.max(0, (creditBalance.used / limit) * 100)) : 0;
-	const can_pay = Boolean(invoice) && !invoice!.paid && invoice!.amount > 0;
+	const remaining = invoice?.remaining ?? 0;
+	const is_partial = Boolean(invoice) && (invoice!.paid_amount ?? 0) > 0 && !invoice!.paid;
+	const can_pay = remaining > 0;
+
+	const invoiceStatusLabel = () => {
+		if (!invoice) return '';
+		if (invoice.paid) return 'paga';
+		if (is_partial) return `restante ${ MoneyUtils.formatMoney(remaining) }`;
+		return `vence ${ formatDayMonth(invoice.due_date) }`;
+	};
+
+	const payButtonLabel = () => {
+		if (invoice?.paid) return 'Fatura paga';
+		if (is_partial) return 'Pagar restante';
+		return 'Pagar fatura';
+	};
 
 	const handleDeleteBalance = () => {
 		deleteBalanceMutation({
@@ -177,9 +211,9 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 					</Button>
 					<div className='flex flex-col items-center'>
 						<span className='text-[11px] uppercase tracking-wide text-muted-foreground'>
-							{is_current_cycle ? 'Fatura atual' : 'Fatura'}
+							{is_current ? 'Fatura atual' : 'Fatura'}
 						</span>
-						<span className='text-sm font-medium capitalize'>{reference_label}</span>
+						<span className='text-sm font-medium capitalize'>{cycle_label}</span>
 					</div>
 					<Button
 						type='button'
@@ -205,13 +239,13 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 								{formatDayMonth(invoice.cycle_start)} – {formatDayMonth(invoice.cycle_end)}
 								{' · '}
 								<span className={cn('font-medium', invoice.paid ? 'text-feedback-success-default' : 'text-feedback-warning-dark')}>
-									{invoice.paid ? 'paga' : `vence ${ formatDayMonth(invoice.due_date) }`}
+									{invoiceStatusLabel()}
 								</span>
 							</p>
 						)}
 					</div>
 					<Button type='button' onClick={() => setIsPayOpen(true)} disabled={!can_pay}>
-						{invoice?.paid ? 'Fatura paga' : 'Pagar fatura'}
+						{payButtonLabel()}
 					</Button>
 				</div>
 			</div>
@@ -262,7 +296,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 				onOpenChange={setIsPayOpen}
 				creditBalance={creditBalance}
 				invoice={invoice}
-				referenceDate={is_current_cycle ? undefined : reference_date}
+				date={invoice_date}
 			/>
 			<CreditCardFormDialog
 				open={Boolean(editing_card)}

@@ -22,7 +22,15 @@ e pra lógica que não depende de plataforma:
   tipo certo (uma por operação: `signIn`, `indexWallets`, `createTransaction`, etc.). Os hooks de cada
   app só chamam essas funções, passando a instância de axios da própria plataforma — a lógica de "qual
   endpoint, qual payload, qual tipo de retorno" mora só aqui.
-- `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`: formatação pura, sem dependência de plataforma.
+- `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`, `TransactionUtils`, `InvoiceUtils`: formatação/lógica
+  pura, sem dependência de plataforma. `TransactionUtils.effectiveDate(t)` = `settled_at ||
+  transaction_date` (espelha o `COALESCE` do backend) — usado pra agrupar transações por dia nos dois
+  apps, pra a efetivada cair no dia em que foi paga, não no vencimento nominal. `InvoiceUtils.label(inv)`
+  = nome da fatura pelo `due_date` ("Agosto 2026" = a que VENCE em agosto, não a do ciclo de compras);
+  `InvoiceUtils.isCurrent(inv, today?)` = hoje ∈ `[cycle_start, cycle_end]` fechado (fatura atual de
+  verdade, não "offset 0 de navegação"). Nomes de mês em pt-BR hardcoded no helper porque
+  `DateUtils.formateTo` não aceita locale (sairia em inglês); comparação de datas por string `YYYY-MM-DD`
+  pra não deslocar por fuso.
 - `tokens.ts` — design tokens da marca: `colors` (paleta flat, chaves hifenizadas de propósito — são
   consumidas literalmente como classes Tailwind no web, ex. `colors['background-light']` vira
   `bg-background-light`; não normalize pra camelCase), `spacing`, `borderRadius`, `fontSize`,
@@ -647,6 +655,70 @@ reaparecer se alguém comparar os dois apps):
   `WalletList` do web.
 - Validado só com `mobile:typecheck` + `mobile:lint` (ambos limpos) — não rodado em runtime (o dono
   testa na mão, e `mobile:test` tem o problema de ESM/`transformIgnorePatterns` descrito acima).
+
+**Adaptação ao backend novo — index de transações separado + fatura parcial (2026-08-02):** o backend
+(`my-finance-api`, repo separado read-only) mudou o contrato em dois pontos, adaptados nos dois apps +
+`packages/shared`:
+- **`GET /transactions` passou a vir SEPARADO** em `{ accounts, credits }` (cada um um `TTransactionGroup`
+  = `{ data, total_count, total_settled, total_projected }`), em vez do `{ data, total_count, ... }` plano
+  de antes. Motivo do backend: evitar dupla contagem do cartão (pagamento da fatura conta só em `accounts`,
+  compras só em `credits`) e fazer a aba Cartões respeitar o **ciclo de fatura** de cada crédito. As duas
+  visões usam **janelas diferentes**: `accounts` = mês-calendário seguindo `settled_at` (ou
+  `transaction_date` enquanto pendente); `credits` = ciclo de fechamento de cada `CreditBalance` por
+  `transaction_date`. Impacto no front: os dois `TransactionList` (web e mobile) **paravam de listar**
+  (liam `.data` de um objeto que não tem mais esse campo → lista vazia). Correção: `TListTransactionsResponse`
+  virou `{ accounts, credits }` + `TTransactionGroup`; a aba (`SegmentedControl`) agora **escolhe o grupo**
+  (`source_type === 'Account' ? accounts.data : credits.data`) em vez de filtrar `source_type` no cliente
+  (o filtro do cliente não respeitava o ciclo do cartão). O "Total do mês · todas as origens" é
+  `buildSummary([...accounts.data, ...credits.data])` — as duas listas são disjuntas (source_type
+  diferente), então concatenar não dupla-conta. Os params `source_type`/`source_id` de
+  `TListTransactionsParams` continuam existindo (o backend ainda os aceita), mas os apps **não passam mais**.
+  - **Agrupamento por dia usa a DATA EFETIVA, não `transaction_date`:** como o backend agora bucketiza
+    `accounts` por `COALESCE(settled_at, transaction_date)`, agrupar a lista no cliente por
+    `transaction_date` cru colocaria uma transação efetivada num dia diferente do vencimento no grupo
+    errado (podendo até cair fora do mês devolvido). O `groupTransactionsByDay` dos dois apps agora
+    agrupa por `TransactionUtils.effectiveDate(t)` (`settled_at || transaction_date`, helper em
+    `packages/shared/src/utils/transaction.ts`). A tabela desktop do web (view tabular, coluna "Data"
+    ordenável) **segue exibindo/ordenando por `transaction_date` nominal de propósito** — não é
+    agrupamento por dia.
+- **Fatura com pagamento parcial**: `TCurrentInvoice` ganhou `paid_amount` e `remaining` (`paid` agora só
+  é `true` com a fatura 100% quitada); `TPayInvoiceBody` ganhou `value` (parcial; ausente = paga o
+  `remaining`) e `reference` (`YYYY-MM`, seleciona o ciclo); `TGetInvoiceParams` ganhou `reference`. UI
+  (web `PayInvoiceDialog` / mobile `PayInvoiceModal`): campo de valor pré-preenchido com o `remaining`,
+  editável (permite parcial), + bloco "Já pago / Restante" quando `paid_amount > 0`. Nas listas de crédito
+  (`CreditBalanceList` dos dois): `can_pay` agora é `remaining > 0` (não mais `!paid && amount > 0`), status
+  mostra "restante R$ X" quando parcial, e o botão vira "Pagar restante". Navegação de ciclo mantida por
+  `date` (o backend resolve o ciclo pela data); a mesma fatura pode ser paga várias vezes (soma em
+  `paid_amount`, inclusive acima do total).
+  - **"Fatura atual" e o nome da fatura vêm da PRÓPRIA fatura, não do offset de navegação:** o rótulo
+    ("Agosto 2026") é `InvoiceUtils.label(invoice)` (mês/ano do `due_date` — a fatura "de agosto" é a que
+    VENCE em agosto), e a tag "Fatura atual" é `InvoiceUtils.isCurrent(invoice)` (hoje ∈
+    `[cycle_start, cycle_end]` fechado), não mais `cycle_offset === 0`. O offset 0 segue decidindo só a
+    FONTE do dado (usa a `current_invoice` embutida no index, sem request) — mas o texto/tag lê a fatura
+    de verdade. Enquanto uma fatura navegada carrega, o rótulo cai num fallback pela data de vencimento
+    derivada do offset (`InvoiceUtils.label({ due_date: dueForOffset(...) })`) até o `due_date` real chegar
+    (os dois coincidem, sem flicker).
+  - **Navegação de fatura é por `date` (`cycle_range`), NÃO por `reference` (`cycle_for_month`):** dois
+    bugs em sequência aqui, o segundo revelado pelos dados reais da API. (1º) Navegar por `date = hoje +
+    offset meses` pulava faturas, porque a `current_invoice` embutida fica um ciclo atrás de
+    `cycle_range(hoje)` quando hoje já passou do fechamento. (2º) Troquei pra `reference` (YYYY-MM)
+    ancorado no `due_date`, assumindo `reference` M → vence M+1 (comportamento do checkout LOCAL do
+    backend). Mas o backend **deployado** mapeia `reference` M → vence **M** (o commit local está à frente
+    do deploy) — então mandava um mês a menos (offset +1 pedia a fatura de Agosto de novo; offset −1
+    pulava Julho). **A convenção de `reference`/`cycle_for_month` divergiu entre deploy e local**, então
+    paramos de depender dela: navegamos por `date` (dia 1 do mês do `cycle_end` da fatura atual + offset),
+    que cai em `cycle_range` no backend — o MESMO cálculo da `current_invoice` embutida, estável entre
+    versões. Helper `dateForOffset(cycle_end, offset)` → `YYYY-MM-01`; dia 1 é sempre válido (sem rollover)
+    e sempre dentro do ciclo que fecha naquele mês. O `date` é calculado SEMPRE (inclusive offset 0) e
+    passado pro `PayInvoiceDialog`/`PayInvoiceModal` — sem ele o backend pagaria o ciclo de HOJE, que pode
+    não ser a fatura exibida (bug latente de pagamento no ciclo errado, também corrigido). `useGetInvoice`
+    ganhou `placeholderData: keepPreviousData` (mantém a fatura anterior na tela durante a troca, sem
+    piscar loader) e a query key inclui `reference` e `date`. Se algum dia o `reference` do backend
+    estabilizar (deploy alcançar o local), dá pra reavaliar voltar pra ele, mas `date`/`cycle_range` é o
+    caminho robusto porque é o mesmo primitivo da fatura embutida.
+- **Token não expira mais** (`jwt_encode` com `exp = nil`): não muda nada no front — o auto-login do mobile
+  já valida via `/users/me` ([[feedback_never_trust_persisted_token]]); só sumiu a causa da cascata de 401
+  por expiração de 7 dias.
 
 ### apps/web (Vite + React)
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, type TTransaction, type TTransactionSourceType } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionSourceType } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -76,7 +76,7 @@ const groupTransactionsByDay = (transactions: TTransaction[]) => {
 	const groups = new Map<string, { label: string; items: TTransaction[] }>();
 
 	transactions.forEach((transaction_item) => {
-		const date = new Date(transaction_item.transaction_date);
+		const date = new Date(TransactionUtils.effectiveDate(transaction_item));
 		const key = format(date, 'yyyy-MM-dd');
 
 		if (!groups.has(key)) {
@@ -172,8 +172,21 @@ const TransactionList = () => {
 	const { mutate: settleTransactionMutation } = useSettleTransaction();
 	const { mutate: unsettleTransactionMutation } = useUnsettleTransaction();
 
-	const all_transactions = data_all?.data || [];
-	const transactions = all_transactions.filter((item) => item.source_type === source_type);
+	/*
+	 * O backend já separa em `accounts` (bucket mês-calendário) e `credits` (bucket ciclo da fatura),
+	 * cada um com sua lista e totais — não filtramos mais `source_type` no cliente (o filtro do cliente
+	 * não respeitaria o ciclo do cartão). A aba escolhe o grupo; o "Total do mês" soma os dois.
+	 */
+	const accounts_group = data_all?.accounts;
+	const credits_group = data_all?.credits;
+	const all_transactions = useMemo(
+		() => [ ...(accounts_group?.data || []), ...(credits_group?.data || []) ],
+		[ accounts_group, credits_group ],
+	);
+	const transactions = useMemo(
+		() => (source_type === 'Account' ? accounts_group?.data : credits_group?.data) || [],
+		[ source_type, accounts_group, credits_group ],
+	);
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const sorted_transactions = useMemo(() => sortTransactions(transactions, sort), [ transactions, sort ]);
 

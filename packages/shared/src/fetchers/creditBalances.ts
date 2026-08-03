@@ -12,7 +12,9 @@ export type TIndexCreditBalancesParams = {
 };
 
 export type TGetInvoiceParams = {
-	/* Data de referência do ciclo (YYYY-MM-DD); ausente = hoje. */
+	/* Mês do ciclo no formato `YYYY-MM` (mesmo ciclo do index); tem prioridade sobre `date`. */
+	reference?: string;
+	/* Data de referência do ciclo (YYYY-MM-DD); usada quando `reference` não vem; ausente = hoje. */
 	date?: string;
 };
 

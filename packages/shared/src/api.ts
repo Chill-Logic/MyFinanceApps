@@ -52,16 +52,28 @@ export type TResetPasswordBody = {
 export type TGetMainWalletResponse = TWallet
 
 /*
- * O index de transações NÃO é paginado (o backend removeu a paginação em 2026-07-19 — retorna o mês
- * inteiro de uma vez). Por isso não herda `total_pages` de `TPaginatedResponse`.
+ * Uma visão (Conta OU Cartões) do index de transações: lista própria + totais próprios. Não é paginado
+ * (o backend removeu a paginação em 2026-07-19 — retorna o mês inteiro de uma vez).
  */
-export type TListTransactionsResponse = {
+export type TTransactionGroup = {
 	data: TTransaction[];
 	total_count: number;
-	/* Saldo do período só com transações efetivadas. */
+	/* Saldo do grupo só com transações efetivadas. */
 	total_settled: number;
-	/* Saldo do período incluindo pendentes (rascunhos sempre fora). */
+	/* Saldo do grupo incluindo pendentes (rascunhos sempre fora). */
 	total_projected: number;
+};
+
+/*
+ * O index de transações vem SEPARADO em duas visões (mudança de 2026-08-02): `accounts` (origem
+ * `Account`, bucket = mês-calendário por `settled_at`/`transaction_date`) e `credits` (origem
+ * `CreditBalance`, bucket = ciclo da fatura de cada cartão). Separar evita a dupla contagem do cartão
+ * (o pagamento da fatura conta só em `accounts`, as compras só em `credits`) e faz a aba Cartões
+ * respeitar o ciclo de fechamento de cada crédito — o cliente NÃO filtra mais `source_type` na mão.
+ */
+export type TListTransactionsResponse = {
+	accounts: TTransactionGroup;
+	credits: TTransactionGroup;
 };
 
 export type TIndexWalletsResponse = TPaginatedResponse<TWallet>;
@@ -119,7 +131,14 @@ export type TInvoiceResponse = TCurrentInvoice;
 export type TPayInvoiceBody = {
 	/* Conta que paga a fatura (gera um saque efetivado nela). */
 	account_id: string;
-	/* Data de referência do ciclo (YYYY-MM-DD); ausente = hoje. */
+	/*
+	 * Valor do pagamento em centavos; ausente = paga o `remaining` (saldo restante do ciclo). Pode
+	 * exceder o restante (paga a mais) e a mesma fatura pode ser paga mais de uma vez (parcial).
+	 */
+	value?: number;
+	/* Mês do ciclo a pagar no formato `YYYY-MM` (mesmo ciclo do index); tem prioridade sobre `date`. */
+	reference?: string;
+	/* Qualquer data dentro do ciclo a pagar (usado quando `reference` não vem); ausente = hoje. */
 	date?: string;
 	description?: string;
 	settled_at?: string;

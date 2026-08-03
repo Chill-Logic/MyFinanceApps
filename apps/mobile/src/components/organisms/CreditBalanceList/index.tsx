@@ -3,7 +3,7 @@ import { Alert, FlatList, Modal, RefreshControl, StyleSheet, TouchableOpacity, V
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage, MoneyUtils } from '@myfinance/shared';
+import { colors, getApiErrorMessage, InvoiceUtils, MoneyUtils } from '@myfinance/shared';
 
 import { useDeleteCreditBalance } from '../../../hooks/api/credit-balances/useDeleteCreditBalance';
 import { useGetInvoice } from '../../../hooks/api/credit-balances/useGetInvoice';
@@ -26,27 +26,33 @@ import { CreditCardFormModal } from '../CreditCardFormModal';
 import { NewCardModal } from '../NewCardModal';
 import { PayInvoiceModal } from '../PayInvoiceModal';
 
-const MONTHS = [
-	'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-	'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
-
 /* "2026-09-10" ou "2026-09-10T00:00:00-03:00" → "10/09" (só string, evita deslocamento de fuso). */
 const formatDayMonth = (iso: string): string => {
 	const [ , month, day ] = iso.split('T')[0].split('-');
 	return day && month ? `${ day }/${ month }` : iso;
 };
 
-/* Data de referência do ciclo a partir de um offset de meses em relação a hoje (YYYY-MM-DD). */
-const referenceFromOffset = (offset: number): string => {
-	const now = new Date();
-	const date = new Date(now.getFullYear(), now.getMonth() + offset, now.getDate());
-	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-${ String(date.getDate()).padStart(2, '0') }`;
+/*
+ * Navegação de fatura por `date` (não por `reference`), ancorada no MÊS de fechamento (`cycle_end`) da
+ * fatura atual + offset, mandando SEMPRE o dia 1 do mês. Motivo: `date` cai em `cycle_range` no backend
+ * (o mesmo cálculo da `current_invoice` embutida — estável entre versões), enquanto a convenção de
+ * `reference`/`cycle_for_month` divergiu entre o deploy e o checkout local (deploy: `reference` M → vence
+ * M; local: → vence M+1). O dia 1 é sempre válido (sem rollover) e cai sempre dentro do ciclo que FECHA
+ * naquele mês (`cycle_range`: `date ≤ closing(mês)` ⇒ ciclo que fecha nesse mês), então cada seta anda
+ * exatamente um ciclo.
+ */
+const dateForOffset = (cycleEnd: string, offset: number): string => {
+	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
+	const date = new Date(year, (month - 1) + offset, 1);
+	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
 };
 
-const referenceLabel = (reference_date: string): string => {
-	const [ year, month ] = reference_date.split('-');
-	return `${ MONTHS[Number(month) - 1] } ${ year }`;
+/* Rótulo de fallback enquanto a fatura navegada carrega: vencimento ≈ mês do fechamento + 1 (config
+ * comum, vencimento < fechamento). Some assim que a fatura real chega (label vem do `due_date`). */
+const dueLabelForOffset = (cycleEnd: string, offset: number): string => {
+	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
+	const date = new Date(year, month + offset, 1);
+	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
 };
 
 const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance }) => {
@@ -68,19 +74,40 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const [ cycle_offset, setCycleOffset ] = useState(0);
 
 	const is_current_cycle = cycle_offset === 0;
-	const reference_date = referenceFromOffset(cycle_offset);
+	const cycle_end = credit_balance.current_invoice.cycle_end;
+	/* Data (dia 1 do mês de fechamento + offset) que mira o ciclo. Sempre calculada (inclusive offset 0)
+	 * pra o pagamento mirar exatamente a fatura exibida — sem ela o backend pagaria o ciclo de HOJE. */
+	const invoice_date = dateForOffset(cycle_end, cycle_offset);
 	const { data: navigated_invoice, isFetching: is_invoice_fetching } = useGetInvoice({
 		id: credit_balance.id,
 		enabled: !is_current_cycle,
-		params: { date: reference_date },
+		params: { date: invoice_date },
 	});
 
 	const cards = cards_data?.data || [];
 	const invoice = is_current_cycle ? credit_balance.current_invoice : navigated_invoice;
 	const is_invoice_loading = !is_current_cycle && is_invoice_fetching && !invoice;
+	/* Fatura atual = hoje ∈ [cycle_start, cycle_end] (não o offset 0); nome pelo vencimento (due_date). */
+	const is_current = Boolean(invoice) && InvoiceUtils.isCurrent(invoice!);
+	const cycle_label = invoice ? InvoiceUtils.label(invoice) : InvoiceUtils.label({ due_date: dueLabelForOffset(cycle_end, cycle_offset) });
 	const limit = credit_balance.credit_limit || 0;
 	const used_pct = limit > 0 ? Math.min(100, Math.max(0, (credit_balance.used / limit) * 100)) : 0;
-	const can_pay = Boolean(invoice) && !invoice!.paid && invoice!.amount > 0;
+	const remaining = invoice?.remaining ?? 0;
+	const is_partial = Boolean(invoice) && (invoice!.paid_amount ?? 0) > 0 && !invoice!.paid;
+	const can_pay = remaining > 0;
+
+	const invoiceStatusLabel = () => {
+		if (!invoice) return '';
+		if (invoice.paid) return 'paga';
+		if (is_partial) return `restante ${ MoneyUtils.formatMoney(remaining) }`;
+		return `vence ${ formatDayMonth(invoice.due_date) }`;
+	};
+
+	const payButtonLabel = () => {
+		if (invoice?.paid) return 'Fatura paga';
+		if (is_partial) return 'Pagar restante';
+		return 'Pagar fatura';
+	};
 
 	const handleDeleteBalance = () => {
 		setTimeout(() => {
@@ -159,8 +186,8 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 						<Icon name='chevron-left' size={24} color={theme.colors.text} />
 					</TouchableOpacity>
 					<View style={styles.cycleCenter}>
-						<ThemedText style={styles.cycleTag}>{is_current_cycle ? 'Fatura atual' : 'Fatura'}</ThemedText>
-						<ThemedText style={styles.cycleLabel}>{referenceLabel(reference_date)}</ThemedText>
+						<ThemedText style={styles.cycleTag}>{is_current ? 'Fatura atual' : 'Fatura'}</ThemedText>
+						<ThemedText style={styles.cycleLabel}>{cycle_label}</ThemedText>
 					</View>
 					<TouchableOpacity onPress={() => setCycleOffset((offset) => offset + 1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
 						<Icon name='chevron-right' size={24} color={theme.colors.text} />
@@ -179,7 +206,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 								{formatDayMonth(invoice.cycle_start)} – {formatDayMonth(invoice.cycle_end)}
 								{' · '}
 								<ThemedText style={invoice.paid ? styles.paid : styles.due}>
-									{invoice.paid ? 'paga' : `vence ${ formatDayMonth(invoice.due_date) }`}
+									{invoiceStatusLabel()}
 								</ThemedText>
 							</ThemedText>
 						)}
@@ -189,7 +216,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 						disabled={!can_pay}
 						style={[ styles.payButton, !can_pay && styles.payButtonDisabled ]}
 					>
-						<ThemedText style={styles.payButtonText}>{invoice?.paid ? 'Fatura paga' : 'Pagar fatura'}</ThemedText>
+						<ThemedText style={styles.payButtonText}>{payButtonLabel()}</ThemedText>
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -258,7 +285,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				onClose={() => setIsPayOpen(false)}
 				creditBalance={credit_balance}
 				invoice={invoice}
-				referenceDate={is_current_cycle ? undefined : reference_date}
+				date={invoice_date}
 			/>
 			<CreditCardFormModal visible={Boolean(editing_card)} card={editing_card} onClose={() => setEditingCard(null)} />
 		</ThemedView>

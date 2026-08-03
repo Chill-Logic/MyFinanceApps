@@ -69,10 +69,16 @@ export type TAccount = WithModelFields<{
  * são datetime (limites do ciclo no fuso da app); `due_date` é a data de vencimento (YYYY-MM-DD).
  */
 export type TCurrentInvoice = {
+	/* Valor total do ciclo em centavos (compras - estornos). */
 	amount: number;
+	/* Soma dos pagamentos efetivados já lançados pra esta fatura, em centavos. */
+	paid_amount: number;
+	/* Saldo restante a pagar (`amount` - `paid_amount`, nunca negativo), em centavos. */
+	remaining: number;
 	cycle_start: string;
 	cycle_end: string;
 	due_date: string;
+	/* `true` só quando a fatura foi totalmente quitada (`remaining` = 0 com `amount` > 0). */
 	paid: boolean;
 };
 
