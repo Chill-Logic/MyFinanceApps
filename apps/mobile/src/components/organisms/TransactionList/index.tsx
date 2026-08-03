@@ -279,10 +279,6 @@ const TransactionsList = () => {
 	 */
 	const accounts_group = data_transactions?.accounts;
 	const credits_group = data_transactions?.credits;
-	const all_transactions = useMemo(
-		() => [ ...(accounts_group?.data || []), ...(credits_group?.data || []) ],
-		[ accounts_group, credits_group ],
-	);
 	const transactions = useMemo(
 		() => (source_type === 'Account' ? accounts_group?.data : credits_group?.data) || [],
 		[ source_type, accounts_group, credits_group ],
@@ -291,11 +287,10 @@ const TransactionsList = () => {
 	const sources_of_type = source_type === 'Account' ? accounts : credit_balances;
 
 	/*
-	 * Total do mês = TODAS as origens (a aba filtra só a lista, não o card de total — mesmo comportamento
-	 * do web no mobile). `grand.settled` = saldo efetivado; `grand.projected` = previsto (inclui pendentes);
-	 * rascunhos ficam fora dos dois.
+	 * Único card de total: SÓ da origem (aba) selecionada — muda ao alternar Contas/Cartões (igual o web).
+	 * `summary.settled` = efetivado; `summary.projected` = previsto (inclui pendentes); rascunhos fora dos dois.
 	 */
-	const grand = useMemo(() => buildSummary(all_transactions), [ all_transactions ]);
+	const summary = useMemo(() => buildSummary(transactions), [ transactions ]);
 
 	const isFormOpen = is_new_transaction_open || Boolean(transaction);
 
@@ -442,18 +437,27 @@ const TransactionsList = () => {
 					}}
 				/>
 
+				<SegmentedControl
+					segments={SOURCE_TABS.map((tab) => ({ value: tab.id, label: tab.label, icon: tab.icon }))}
+					value={source_type}
+					onChange={(next) => setSourceType(next as TTransactionSourceType)}
+				/>
+
 				<ThemedView style={[ styles.balanceContainer, { backgroundColor: card_surface, borderColor: card_surface } ]}>
 					<ThemedView style={[ styles.balanceContainerTransparent, styles.totalTextCol ]}>
-						<ThemedText style={styles.balanceLabel}>Total do mês</ThemedText>
+						<ThemedText style={styles.balanceLabel}>Saldo · {source_type === 'Account' ? 'Contas' : 'Cartões'}</ThemedText>
 						{is_data_transactions_loading ? <Skeleton height={20} width={160} /> : (
 							<ThemedText style={styles.totalLine}>
-								<ThemedText style={[ styles.balanceValue, grand.settled >= 0 ? styles.textGreen : styles.textRed ]}>
-									{MoneyUtils.formatMoney(grand.settled)}
+								<ThemedText style={[ styles.balanceValue, summary.settled >= 0 ? styles.textGreen : styles.textRed ]}>
+									{MoneyUtils.formatMoney(summary.settled)}
 								</ThemedText>
-								<ThemedText style={styles.previstoInline}>
-									{'  '}previsto <ThemedText style={[ styles.previstoInline, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(grand.projected)}</ThemedText>
-									{grand.pending > 0 ? ` · ${ grand.pending } pendente${ grand.pending > 1 ? 's' : '' }` : ''}
-								</ThemedText>
+								{/* Previsto/pendentes só faz sentido em Contas — no crédito não há fluxo pendente/efetivado */}
+								{source_type === 'Account' && (
+									<ThemedText style={styles.previstoInline}>
+										{'  '}previsto <ThemedText style={[ styles.previstoInline, summary.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(summary.projected)}</ThemedText>
+										{summary.pending > 0 ? ` · ${ summary.pending } pendente${ summary.pending > 1 ? 's' : '' }` : ''}
+									</ThemedText>
+								)}
 							</ThemedText>
 						)}
 					</ThemedView>
@@ -466,12 +470,6 @@ const TransactionsList = () => {
 						<Icon name='info-outline' size={18} color={theme.colors.placeholder} />
 					</TouchableOpacity>
 				</ThemedView>
-
-				<SegmentedControl
-					segments={SOURCE_TABS.map((tab) => ({ value: tab.id, label: tab.label, icon: tab.icon }))}
-					value={source_type}
-					onChange={(next) => setSourceType(next as TTransactionSourceType)}
-				/>
 			</ThemedView>
 
 			<ThemedView style={styles.listContainer} {...pan_responder.panHandlers}>
@@ -555,16 +553,18 @@ const TransactionsList = () => {
 			>
 				<TouchableOpacity style={styles.actionsSheetOverlay} activeOpacity={1} onPress={() => setIsTotalsDetailOpen(false)}>
 					<ThemedView style={[ styles.actionsSheet, styles.detailSheet ]}>
-						<ThemedText style={styles.detailTitle}>Total do mês · todas as origens</ThemedText>
+						<ThemedText style={styles.detailTitle}>Saldo · {source_type === 'Account' ? 'Contas' : 'Cartões'}</ThemedText>
 
 						<View style={styles.detailRow}>
 							<ThemedText style={styles.detailLabel}>Saldo efetivado</ThemedText>
-							<ThemedText style={[ styles.detailValue, grand.settled >= 0 ? styles.textGreen : styles.textRed ]}>{MoneyUtils.formatMoney(grand.settled)}</ThemedText>
+							<ThemedText style={[ styles.detailValue, summary.settled >= 0 ? styles.textGreen : styles.textRed ]}>{MoneyUtils.formatMoney(summary.settled)}</ThemedText>
 						</View>
-						<View style={styles.detailRow}>
-							<ThemedText style={styles.detailLabel}>Saldo previsto</ThemedText>
-							<ThemedText style={[ styles.detailValue, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(grand.projected)}</ThemedText>
-						</View>
+						{source_type === 'Account' && (
+							<View style={styles.detailRow}>
+								<ThemedText style={styles.detailLabel}>Saldo previsto</ThemedText>
+								<ThemedText style={[ styles.detailValue, summary.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(summary.projected)}</ThemedText>
+							</View>
+						)}
 
 						<View style={styles.detailDivider} />
 
@@ -573,14 +573,14 @@ const TransactionsList = () => {
 								<Icon name='north-east' size={16} color={colors['feedback-success-default']} />
 								<ThemedText style={styles.detailLabel}>Entradas</ThemedText>
 							</View>
-							<ThemedText style={[ styles.detailValue, styles.textGreen ]}>{MoneyUtils.formatMoney(grand.deposit)}</ThemedText>
+							<ThemedText style={[ styles.detailValue, styles.textGreen ]}>{MoneyUtils.formatMoney(summary.deposit)}</ThemedText>
 						</View>
 						<View style={styles.detailRow}>
 							<View style={styles.detailLabelRow}>
 								<Icon name='south-east' size={16} color={colors['feedback-danger-default']} />
 								<ThemedText style={styles.detailLabel}>Saídas</ThemedText>
 							</View>
-							<ThemedText style={[ styles.detailValue, styles.textRed ]}>{MoneyUtils.formatMoney(grand.withdraw)}</ThemedText>
+							<ThemedText style={[ styles.detailValue, styles.textRed ]}>{MoneyUtils.formatMoney(summary.withdraw)}</ThemedText>
 						</View>
 					</ThemedView>
 				</TouchableOpacity>

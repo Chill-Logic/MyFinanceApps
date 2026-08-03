@@ -15,7 +15,6 @@ import {
 	ChevronRight,
 	CircleDashed,
 	CreditCard,
-	Info,
 	Loader2,
 	MoreVertical,
 	Plus,
@@ -50,7 +49,6 @@ import {
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -175,14 +173,10 @@ const TransactionList = () => {
 	/*
 	 * O backend já separa em `accounts` (bucket mês-calendário) e `credits` (bucket ciclo da fatura),
 	 * cada um com sua lista e totais — não filtramos mais `source_type` no cliente (o filtro do cliente
-	 * não respeitaria o ciclo do cartão). A aba escolhe o grupo; o "Total do mês" soma os dois.
+	 * não respeitaria o ciclo do cartão). A aba escolhe o grupo; o card de total é SÓ da aba atual.
 	 */
 	const accounts_group = data_all?.accounts;
 	const credits_group = data_all?.credits;
-	const all_transactions = useMemo(
-		() => [ ...(accounts_group?.data || []), ...(credits_group?.data || []) ],
-		[ accounts_group, credits_group ],
-	);
 	const transactions = useMemo(
 		() => (source_type === 'Account' ? accounts_group?.data : credits_group?.data) || [],
 		[ source_type, accounts_group, credits_group ],
@@ -190,8 +184,7 @@ const TransactionList = () => {
 	const groups = useMemo(() => groupTransactionsByDay(transactions), [ transactions ]);
 	const sorted_transactions = useMemo(() => sortTransactions(transactions, sort), [ transactions, sort ]);
 
-	const summary = buildSummary(transactions); // tipo (aba) atual — só desktop
-	const grand = buildSummary(all_transactions); // todas as origens (total do mês)
+	const summary = buildSummary(transactions); // total da aba (origem) selecionada
 
 	const changeMonth = (offset: number) => {
 		const date = new Date(month_year.year, month_year.month + offset, 1);
@@ -305,82 +298,13 @@ const TransactionList = () => {
 	);
 
 	/*
-	 * Card do total do mês. No mobile fica minimalista (rótulo + saldo/previsto) com um botão "i" que
-	 * abre o detalhe arrumadinho (efetivado/previsto/entradas/saídas) num popover — assim sobra tela pra
-	 * lista. No desktop, entrada/saída já aparecem inline à direita (sem precisar do "i").
+	 * Único card de total: sempre da ORIGEM (aba) selecionada — muda ao alternar Contas/Cartões. Vale pra
+	 * desktop, responsivo e mobile (a versão nativa espelha isso). Entrada/saída podem quebrar pra baixo
+	 * em telas estreitas (flex-wrap), pra não estourar a largura.
 	 */
-	const renderMonthTotals = () => (
-		<div className='rounded-lg border border-card bg-card px-4 py-2.5 sm:py-3'>
-			<div className='flex items-center gap-3'>
-				<div className='flex flex-1 flex-col gap-0.5 sm:flex-none'>
-					<span className='text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>
-						Total do mês<span className='hidden sm:inline'> · todas as origens</span>
-					</span>
-					{is_loading ? (
-						<Skeleton className='h-5 w-28' />
-					) : (
-						<div className='flex flex-wrap items-baseline gap-x-2'>
-							<span className={cn('text-base font-semibold', grand.settled >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
-								{MoneyUtils.formatMoney(grand.settled)}
-							</span>
-							<span className='text-xs text-muted-foreground'>
-								previsto <span className={cn('font-medium', grand.gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatMoney(grand.projected)}</span>
-								{grand.pending_suffix}
-							</span>
-						</div>
-					)}
-				</div>
-
-				{/* Desktop: entrada/saída inline à direita */}
-				<div className='ml-auto hidden items-center gap-6 sm:flex'>
-					{renderEntry(ArrowUpRight, 'bg-feedback-success-light text-feedback-success-dark', 'text-feedback-success-default', grand.deposit)}
-					{renderEntry(ArrowDownRight, 'bg-feedback-danger-light text-feedback-danger-dark', 'text-destructive', grand.withdraw)}
-				</div>
-
-				{/* Mobile: botão "i" com o detalhe arrumadinho num popover */}
-				<Popover>
-					<PopoverTrigger asChild>
-						<button
-							type='button'
-							aria-label='Ver detalhes do total do mês'
-							className='flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground sm:hidden'
-						>
-							<Info className='h-4 w-4' />
-						</button>
-					</PopoverTrigger>
-					<PopoverContent align='end' className='w-64'>
-						<div className='flex flex-col gap-3'>
-							<span className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>Total do mês · todas as origens</span>
-							<div className='flex flex-col gap-2 text-sm'>
-								<div className='flex items-center justify-between'>
-									<span className='text-muted-foreground'>Saldo efetivado</span>
-									<span className={cn('font-semibold', grand.settled >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>{MoneyUtils.formatMoney(grand.settled)}</span>
-								</div>
-								<div className='flex items-center justify-between'>
-									<span className='text-muted-foreground'>Saldo previsto</span>
-									<span className={cn('font-medium', grand.gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatMoney(grand.projected)}</span>
-								</div>
-								<div className='my-1 border-t border-border' />
-								<div className='flex items-center justify-between'>
-									<span className='flex items-center gap-1.5 text-muted-foreground'><ArrowUpRight className='h-3.5 w-3.5 text-feedback-success-default' /> Entradas</span>
-									<span className='font-medium text-feedback-success-default'>{MoneyUtils.formatMoney(grand.deposit)}</span>
-								</div>
-								<div className='flex items-center justify-between'>
-									<span className='flex items-center gap-1.5 text-muted-foreground'><ArrowDownRight className='h-3.5 w-3.5 text-destructive' /> Saídas</span>
-									<span className='font-medium text-destructive'>{MoneyUtils.formatMoney(grand.withdraw)}</span>
-								</div>
-							</div>
-						</div>
-					</PopoverContent>
-				</Popover>
-			</div>
-		</div>
-	);
-
-	/* Subtotal do tipo (aba) atual — só no desktop, onde sobra espaço; no mobile o "i" do total cobre. */
 	const renderTypeTotals = () => (
-		<div className='hidden rounded-lg border border-card bg-card px-4 py-3 sm:block'>
-			<div className='flex items-center justify-between gap-6'>
+		<div className='rounded-lg border border-card bg-card px-4 py-3'>
+			<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2'>
 				<div className='flex flex-col'>
 					<span className='text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>
 						Saldo · {source_type === 'Account' ? 'Contas' : 'Cartões'}
@@ -392,10 +316,13 @@ const TransactionList = () => {
 							<span className={cn('text-base font-semibold', summary.settled >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
 								{MoneyUtils.formatMoney(summary.settled)}
 							</span>
-							<span className='text-xs text-muted-foreground'>
-								previsto <span className={cn('font-medium', summary.gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatMoney(summary.projected)}</span>
-								{summary.pending_suffix}
-							</span>
+							{/* Previsto/pendentes só faz sentido em Contas — no crédito não há fluxo pendente/efetivado */}
+							{source_type === 'Account' && (
+								<span className='text-xs text-muted-foreground'>
+									previsto <span className={cn('font-medium', summary.gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatMoney(summary.projected)}</span>
+									{summary.pending_suffix}
+								</span>
+							)}
 						</div>
 					)}
 				</div>
@@ -463,17 +390,14 @@ const TransactionList = () => {
 					</Button>
 				</div>
 
-				{/* 2. Card compacto com o total do mês (todas as origens) */}
-				{renderMonthTotals()}
-
-				{/* 3. Abas por tipo de origem (Contas | Cartões) */}
+				{/* 2. Abas por tipo de origem (Contas | Cartões) */}
 				<SegmentedControl
 					segments={SOURCE_TABS.map(({ id, label, icon }) => ({ value: id, label, icon }))}
 					value={source_type}
 					onChange={(next) => setSourceType(next as TTransactionSourceType)}
 				/>
 
-				{/* Subtotal do tipo selecionado — visível só no desktop */}
+				{/* 3. Único card de total — da origem (aba) selecionada, em todos os tamanhos */}
 				{renderTypeTotals()}
 			</div>
 
