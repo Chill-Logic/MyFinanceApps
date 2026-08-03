@@ -465,12 +465,33 @@ adaptadas, não copiadas 1:1, já que aqui não existe a dualidade desktop/mobil
   - Integrado no `AuthenticatedLayout` como irmão do `ThemedView` de conteúdo (fora da área que rola),
     reservando o próprio espaço no `flex` — mesma garantia estrutural do docked do web, "impossível
     esconder conteúdo atrás dela".
-- **`TransactionList`**: layout dividido em bloco fixo (seletor de mês + resumo Saldo/Entrada/Saída,
-  saldo movido pra cima do resumo, igual o web) e `SectionList` com `flex: 1` logo abaixo — troca do
-  hack antigo (`FlatList` com `maxHeight: '95%'`) por um flex de verdade, mesmo princípio do fix de
-  scroll do web (só a lista rola, o resto fica fixo). O botão "Novo Registro" de largura total que
-  existia no rodapé foi **removido** — o FAB da `BottomNav` já cobre essa ação (mesmo raciocínio do
-  botão "Nova Transação" do web, escondido no mobile web por causa da bottom nav).
+- **`TransactionList`**: layout dividido em bloco fixo (seletor de mês + card "Total do mês") e
+  `SectionList` com `flex: 1` logo abaixo — troca do hack antigo (`FlatList` com `maxHeight: '95%'`) por
+  um flex de verdade, mesmo princípio do fix de scroll do web (só a lista rola, o resto fica fixo). O
+  botão "Novo Registro" de largura total que existia no rodapé foi **removido** — o FAB da `BottomNav`
+  já cobre essa ação (mesmo raciocínio do botão "Nova Transação" do web, escondido no mobile web por
+  causa da bottom nav).
+  - **Cabeçalho compacto pra caber mais itens na lista (2026-08-02):** o resumo era um card alto com 4
+    informações empilhadas (Saldo efetivado / Previsto / Entrada / Saída) e o `MonthYearSelector` tinha
+    o mês centralizado + o ano numa segunda linha + setas circulares grandes (`padding: 10`, `size 24`).
+    Junto, isso comia a altura da área rolável e o mobile mostrava bem menos transações que o web na
+    mesma tela. Espelhamos a densidade do web: o card virou **uma linha** ("Total do mês" + saldo
+    efetivado + "previsto X · N pendentes" inline) com um botão **"i"** (`info-outline`) que abre o
+    detalhe completo (efetivado/previsto/entradas/saídas) num `Modal` bottom-sheet — mesma decisão do web
+    mobile, que esconde entrada/saída atrás de um `Popover` "i" pra sobrar tela pra lista. O
+    `MonthYearSelector` virou uma **faixa de linha única** ("Julho 2026" via `MONTHS_TITLE` title-case,
+    igual o web, em vez de "JULHO" empilhado com o ano) e setas menores (`padding: 7`, `size 20`). O
+    modal de seleção de período (tocar no rótulo) continua igual. Combinado, corta ~90px do cabeçalho
+    (≈1,5 item a mais visível).
+  - **Pegadinha do `lineHeight` herdado do `ThemedText` (afeta a densidade da lista):** o `ThemedText`
+    default aplica `fontSize: 16, lineHeight: 24`; um `style` que sobrescreve **só** `fontSize` (ex:
+    descrição 14, chip de origem 11, selo Pendente/Rascunho 10) **não** sobrescreve o `lineHeight`, então
+    o texto pequeno segue ocupando 24px de altura de linha — inflando a altura de cada card sem motivo
+    aparente (o web, com `text-sm`/`text-[11px]`, não arrasta isso). Sintoma comparando lado-a-lado com o
+    web: mesma transação mostra menos caracteres antes do `…` e o chip "Nubank Jhonathan" fica visivelmente
+    maior/mais alto no mobile. Fix: **sempre setar `lineHeight` junto do `fontSize`** em texto pequeno da
+    lista (descrição `18`, chip/selo `14`). Sem isso, apertar padding/gap não resolve — o arrasto está na
+    caixa de linha do texto, não no espaçamento.
   - **Agrupamento por dia** ("Hoje"/"Ontem"/data) via `SectionList` (trocou o `FlatList` plano). O
     rótulo do dia usa um array próprio de nomes de mês em português (`MONTHS_LOWER`), não `date-fns`
     direto nem `DateUtils.formateTo` — esse último não aceita locale, e sem isso o mês saía em inglês

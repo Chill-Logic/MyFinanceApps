@@ -165,6 +165,7 @@ const TransactionsList = () => {
 
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
+	const [ is_totals_detail_open, setIsTotalsDetailOpen ] = useState(false);
 	const [ source_type, setSourceType ] = useState<TTransactionSourceType>('Account');
 
 	const { mutate: settleTransaction } = useSettleTransaction();
@@ -429,44 +430,28 @@ const TransactionsList = () => {
 				/>
 
 				<ThemedView style={[ styles.balanceContainer, { backgroundColor: card_surface, borderColor: card_surface } ]}>
-					<ThemedView style={styles.balanceTopRow}>
-						<ThemedView style={styles.balanceContainerTransparent}>
-							<ThemedText style={styles.balanceLabel}>Saldo efetivado</ThemedText>
-							{is_data_transactions_loading ? <Skeleton height={20} width={90} /> : (
+					<ThemedView style={[ styles.balanceContainerTransparent, styles.totalTextCol ]}>
+						<ThemedText style={styles.balanceLabel}>Total do mês</ThemedText>
+						{is_data_transactions_loading ? <Skeleton height={20} width={160} /> : (
+							<ThemedText style={styles.totalLine}>
 								<ThemedText style={[ styles.balanceValue, grand.settled >= 0 ? styles.textGreen : styles.textRed ]}>
 									{MoneyUtils.formatMoney(grand.settled)}
 								</ThemedText>
-							)}
-						</ThemedView>
-
-						{!is_data_transactions_loading && (
-							<ThemedView style={styles.previstoBox}>
-								<ThemedText style={styles.balanceLabelSmall}>Previsto</ThemedText>
-								<ThemedText style={[ styles.previstoValue, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>
-									{MoneyUtils.formatMoney(grand.projected)}
+								<ThemedText style={styles.previstoInline}>
+									{'  '}previsto <ThemedText style={[ styles.previstoInline, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(grand.projected)}</ThemedText>
+									{grand.pending > 0 ? ` · ${ grand.pending } pendente${ grand.pending > 1 ? 's' : '' }` : ''}
 								</ThemedText>
-								{grand.pending > 0 && (
-									<ThemedText style={styles.pendingCount}>{grand.pending} pendente{grand.pending > 1 ? 's' : ''}</ThemedText>
-								)}
-							</ThemedView>
+							</ThemedText>
 						)}
 					</ThemedView>
 
-					<ThemedView style={styles.balanceGroup}>
-						<ThemedView style={styles.balanceContainerTransparent}>
-							<ThemedText style={styles.balanceLabelSmall}>Entrada</ThemedText>
-							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
-								<ThemedText style={styles.textGreen}>{MoneyUtils.formatMoney(grand.deposit)}</ThemedText>
-							)}
-						</ThemedView>
-
-						<ThemedView style={styles.balanceContainerTransparent}>
-							<ThemedText style={styles.balanceLabelSmall}>Saída</ThemedText>
-							{is_data_transactions_loading ? <Skeleton height={16} width={64} /> : (
-								<ThemedText style={styles.textRed}>{MoneyUtils.formatMoney(grand.withdraw)}</ThemedText>
-							)}
-						</ThemedView>
-					</ThemedView>
+					<TouchableOpacity
+						style={[ styles.infoButton, { borderColor: theme.colors.border } ]}
+						onPress={() => setIsTotalsDetailOpen(true)}
+						hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+					>
+						<Icon name='info-outline' size={18} color={theme.colors.placeholder} />
+					</TouchableOpacity>
 				</ThemedView>
 
 				<SegmentedControl
@@ -550,6 +535,45 @@ const TransactionsList = () => {
 			/>
 
 			<Modal
+				visible={is_totals_detail_open}
+				transparent
+				animationType='fade'
+				onRequestClose={() => setIsTotalsDetailOpen(false)}
+			>
+				<TouchableOpacity style={styles.actionsSheetOverlay} activeOpacity={1} onPress={() => setIsTotalsDetailOpen(false)}>
+					<ThemedView style={[ styles.actionsSheet, styles.detailSheet ]}>
+						<ThemedText style={styles.detailTitle}>Total do mês · todas as origens</ThemedText>
+
+						<View style={styles.detailRow}>
+							<ThemedText style={styles.detailLabel}>Saldo efetivado</ThemedText>
+							<ThemedText style={[ styles.detailValue, grand.settled >= 0 ? styles.textGreen : styles.textRed ]}>{MoneyUtils.formatMoney(grand.settled)}</ThemedText>
+						</View>
+						<View style={styles.detailRow}>
+							<ThemedText style={styles.detailLabel}>Saldo previsto</ThemedText>
+							<ThemedText style={[ styles.detailValue, grand.gap ? { color: colors['feedback-warning-dark'] } : { color: theme.colors.text } ]}>{MoneyUtils.formatMoney(grand.projected)}</ThemedText>
+						</View>
+
+						<View style={styles.detailDivider} />
+
+						<View style={styles.detailRow}>
+							<View style={styles.detailLabelRow}>
+								<Icon name='north-east' size={16} color={colors['feedback-success-default']} />
+								<ThemedText style={styles.detailLabel}>Entradas</ThemedText>
+							</View>
+							<ThemedText style={[ styles.detailValue, styles.textGreen ]}>{MoneyUtils.formatMoney(grand.deposit)}</ThemedText>
+						</View>
+						<View style={styles.detailRow}>
+							<View style={styles.detailLabelRow}>
+								<Icon name='south-east' size={16} color={colors['feedback-danger-default']} />
+								<ThemedText style={styles.detailLabel}>Saídas</ThemedText>
+							</View>
+							<ThemedText style={[ styles.detailValue, styles.textRed ]}>{MoneyUtils.formatMoney(grand.withdraw)}</ThemedText>
+						</View>
+					</ThemedView>
+				</TouchableOpacity>
+			</Modal>
+
+			<Modal
 				visible={Boolean(actions_transaction)}
 				transparent
 				animationType='fade'
@@ -614,11 +638,11 @@ const styles = StyleSheet.create({
 		flex: 1,
 	},
 	header: {
-		gap: 16,
+		gap: 12,
 	},
 	listContainer: {
 		flex: 1,
-		marginTop: 16,
+		marginTop: 10,
 		overflow: 'hidden',
 	},
 	listAnimatedContent: {
@@ -634,7 +658,7 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 10,
-		padding: 12,
+		padding: 10,
 		borderRadius: 10,
 	},
 	transactionLeft: {
@@ -642,9 +666,13 @@ const styles = StyleSheet.create({
 		backgroundColor: 'transparent',
 	},
 	transactionDescription: {
-		fontWeight: 'bold',
+		fontSize: 14,
+		lineHeight: 18,
+		fontWeight: '600',
 	},
 	transactionValue: {
+		fontSize: 14,
+		fontWeight: '600',
 		marginRight: 4,
 	},
 	actionsButton: {
@@ -698,7 +726,7 @@ const styles = StyleSheet.create({
 		height: 8,
 	},
 	sectionSeparator: {
-		height: 16,
+		height: 12,
 	},
 	sectionHeader: {
 		textTransform: 'uppercase',
@@ -706,34 +734,40 @@ const styles = StyleSheet.create({
 		lineHeight: 16,
 		fontWeight: '600',
 		color: '#868686',
-		marginBottom: 8,
+		marginBottom: 6,
 	},
 	balanceContainer: {
-		gap: 10,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 12,
 		borderWidth: 1,
 		borderRadius: 12,
 		paddingHorizontal: 16,
-		paddingVertical: 12,
-	},
-	balanceTopRow: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'flex-start',
-		backgroundColor: 'transparent',
+		paddingVertical: 10,
 	},
 	balanceContainerTransparent: {
 		backgroundColor: 'transparent',
 	},
-	previstoBox: {
-		alignItems: 'flex-end',
-		backgroundColor: 'transparent',
+	totalTextCol: {
+		flex: 1,
+		gap: 2,
 	},
-	previstoValue: {
-		fontWeight: '600',
+	totalLine: {
+		flexDirection: 'row',
+		alignItems: 'baseline',
+		flexWrap: 'wrap',
 	},
-	pendingCount: {
-		fontSize: 11,
-		color: colors['feedback-warning-dark'],
+	previstoInline: {
+		fontSize: 13,
+		color: '#868686',
+	},
+	infoButton: {
+		width: 32,
+		height: 32,
+		borderRadius: 16,
+		borderWidth: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
 	},
 	metaRow: {
 		flexDirection: 'row',
@@ -755,10 +789,12 @@ const styles = StyleSheet.create({
 	},
 	originChipText: {
 		fontSize: 11,
+		lineHeight: 14,
 		fontWeight: '500',
 	},
 	stateBadge: {
 		fontSize: 10,
+		lineHeight: 14,
 		fontWeight: '700',
 		textTransform: 'uppercase',
 		borderRadius: 4,
@@ -774,19 +810,7 @@ const styles = StyleSheet.create({
 		color: colors['feedback-warning-dark'],
 		backgroundColor: colors['feedback-warning-light'],
 	},
-	balanceGroup: {
-		flexDirection: 'row',
-		gap: 20,
-		backgroundColor: 'transparent',
-	},
 	balanceLabel: {
-		fontSize: 11,
-		lineHeight: 14,
-		fontWeight: '600',
-		textTransform: 'uppercase',
-		color: '#868686',
-	},
-	balanceLabelSmall: {
 		fontSize: 11,
 		lineHeight: 14,
 		fontWeight: '600',
@@ -796,6 +820,41 @@ const styles = StyleSheet.create({
 	balanceValue: {
 		fontSize: 16,
 		fontWeight: '700',
+	},
+	detailSheet: {
+		paddingHorizontal: 20,
+		paddingTop: 20,
+		gap: 12,
+	},
+	detailTitle: {
+		fontSize: 12,
+		fontWeight: '700',
+		textTransform: 'uppercase',
+		color: '#868686',
+	},
+	detailRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		backgroundColor: 'transparent',
+	},
+	detailLabelRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+		backgroundColor: 'transparent',
+	},
+	detailLabel: {
+		fontSize: 14,
+		color: '#868686',
+	},
+	detailValue: {
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	detailDivider: {
+		height: 1,
+		backgroundColor: 'rgba(255, 255, 255, 0.10)',
 	},
 	actionsSheetOverlay: {
 		flex: 1,
