@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import Button from '@/components/atoms/Button';
 import CreditBalanceFormDialog from '@/components/organisms/CreditBalanceFormDialog';
 import CreditCardFormDialog from '@/components/organisms/CreditCardFormDialog';
+import NewCardDialog from '@/components/organisms/NewCardDialog';
 import PayInvoiceDialog from '@/components/organisms/PayInvoiceDialog';
 import {
 	AlertDialog,
@@ -61,7 +62,6 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 	const [ is_edit_open, setIsEditOpen ] = useState(false);
 	const [ is_delete_open, setIsDeleteOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
-	const [ is_card_create_open, setIsCardCreateOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	const [ deleting_card, setDeletingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
@@ -254,10 +254,6 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 					))
 				)}
 
-				<Button type='button' variant='outline' onClick={() => setIsCardCreateOpen(true)} className='gap-2'>
-					<Plus className='h-4 w-4' />
-					Adicionar cartão
-				</Button>
 			</div>
 
 			<CreditBalanceFormDialog open={is_edit_open} onOpenChange={setIsEditOpen} creditBalance={creditBalance} />
@@ -268,7 +264,6 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 				invoice={invoice}
 				referenceDate={is_current_cycle ? undefined : reference_date}
 			/>
-			<CreditCardFormDialog open={is_card_create_open} onOpenChange={setIsCardCreateOpen} creditBalanceId={creditBalance.id} />
 			<CreditCardFormDialog
 				open={Boolean(editing_card)}
 				onOpenChange={(open) => !open && setEditingCard(null)}
@@ -323,12 +318,12 @@ const CreditBalanceList = () => {
 	const is_loading = is_wallet_loading || is_credit_loading;
 
 	return (
-		<div className='flex flex-col gap-4'>
+		<div className='flex flex-col gap-4 pb-3'>
 			<div className='flex items-center justify-between gap-3'>
 				<span className='text-sm text-muted-foreground'>Limite, fatura e cartões de cada crédito</span>
 				<Button type='button' onClick={() => setIsCreateOpen(true)} disabled={!wallet_id} className='gap-2'>
 					<Plus className='h-4 w-4' />
-					Novo crédito
+					Novo cartão
 				</Button>
 			</div>
 
@@ -344,12 +339,12 @@ const CreditBalanceList = () => {
 				<div className='flex flex-col items-center gap-3 rounded-lg border border-dashed border-border py-12 text-center'>
 					<CreditCardIcon className='h-10 w-10 text-muted-foreground' />
 					<div className='flex flex-col gap-1'>
-						<span className='font-medium'>Nenhum crédito ainda</span>
+						<span className='font-medium'>Nenhum cartão ainda</span>
 						<span className='text-sm text-muted-foreground'>Cadastre um cartão de crédito com limite e datas de fechamento/vencimento.</span>
 					</div>
 					<Button type='button' variant='secondary' onClick={() => setIsCreateOpen(true)} disabled={!wallet_id} className='gap-2'>
 						<Plus className='h-4 w-4' />
-						Criar crédito
+						Novo cartão
 					</Button>
 				</div>
 			)}
@@ -362,7 +357,7 @@ const CreditBalanceList = () => {
 				</div>
 			)}
 
-			<CreditBalanceFormDialog open={is_create_open} onOpenChange={setIsCreateOpen} />
+			<NewCardDialog open={is_create_open} onOpenChange={setIsCreateOpen} />
 		</div>
 	);
 };

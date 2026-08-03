@@ -22,6 +22,7 @@ import { ThemedView } from '../../atoms/ThemedView';
 
 import { CreditBalanceFormModal } from '../CreditBalanceFormModal';
 import { CreditCardFormModal } from '../CreditCardFormModal';
+import { NewCardModal } from '../NewCardModal';
 import { PayInvoiceModal } from '../PayInvoiceModal';
 
 const MONTHS = [
@@ -61,7 +62,6 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const [ actions_card, setActionsCard ] = useState<TCreditCard | null>(null);
 	const [ is_edit_open, setIsEditOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
-	const [ is_card_create_open, setIsCardCreateOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
 	const [ cycle_offset, setCycleOffset ] = useState(0);
@@ -213,10 +213,6 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 					</View>
 				))}
 
-				<TouchableOpacity style={styles.addCardButton} onPress={() => setIsCardCreateOpen(true)}>
-					<Icon name='add' size={18} color={theme.colors.text} />
-					<ThemedText style={styles.addCardText}>Adicionar cartão</ThemedText>
-				</TouchableOpacity>
 			</View>
 
 			<Modal visible={is_balance_actions_open} transparent animationType='fade' onRequestClose={() => setIsBalanceActionsOpen(false)}>
@@ -263,7 +259,6 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				invoice={invoice}
 				referenceDate={is_current_cycle ? undefined : reference_date}
 			/>
-			<CreditCardFormModal visible={is_card_create_open} creditBalanceId={credit_balance.id} onClose={() => setIsCardCreateOpen(false)} />
 			<CreditCardFormModal visible={Boolean(editing_card)} card={editing_card} onClose={() => setEditingCard(null)} />
 		</ThemedView>
 	);
@@ -288,7 +283,7 @@ export const CreditBalanceList = () => {
 		<ThemedView style={styles.container}>
 			<TouchableOpacity style={styles.newButton} onPress={() => setIsCreating(true)} disabled={!wallet_id}>
 				<Icon name='add' size={20} color='#fff' />
-				<ThemedText style={styles.newButtonText}>Novo crédito</ThemedText>
+				<ThemedText style={styles.newButtonText}>Novo cartão</ThemedText>
 			</TouchableOpacity>
 
 			{isLoading && (
@@ -299,7 +294,7 @@ export const CreditBalanceList = () => {
 
 			{!isLoading && credit_balances.length === 0 && (
 				<View style={styles.centered}>
-					<ThemedText style={styles.emptyTitle}>Nenhum crédito ainda</ThemedText>
+					<ThemedText style={styles.emptyTitle}>Nenhum cartão ainda</ThemedText>
 					<ThemedText style={styles.emptyMessage}>Cadastre um cartão de crédito com limite e datas de fechamento/vencimento.</ThemedText>
 				</View>
 			)}
@@ -313,7 +308,7 @@ export const CreditBalanceList = () => {
 				/>
 			)}
 
-			<CreditBalanceFormModal visible={is_creating} onClose={() => setIsCreating(false)} />
+			<NewCardModal visible={is_creating} onClose={() => setIsCreating(false)} />
 		</ThemedView>
 	);
 };
@@ -511,19 +506,6 @@ const styles = StyleSheet.create({
 	},
 	cardName: {
 		flex: 1,
-	},
-	addCardButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 8,
-		borderWidth: 1,
-		borderColor: 'rgba(255, 255, 255, 0.15)',
-		borderRadius: 8,
-		paddingVertical: 10,
-	},
-	addCardText: {
-		fontWeight: '500',
 	},
 	actionsSheetOverlay: {
 		flex: 1,

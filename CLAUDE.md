@@ -579,6 +579,16 @@ reaparecer se alguém comparar os dois apps):
   `DropdownMenu`/`AlertDialog` como o web. `AccountFormModal`, `CreditBalanceFormModal`,
   `CreditCardFormModal`, `PayInvoiceModal`, e `CreditBalanceList` (com o card de crédito: barra de uso +
   bloco de fatura com navegação de ciclo por `cycle_offset`/`useGetInvoice` + lista de cartões).
+- **Criação unificada "Novo cartão"** (`NewCardModal` no mobile / `NewCardDialog` no web, 2026-08-02) —
+  a pedido do dono, pra tirar do usuário a distinção "linha de crédito" vs "cartão". Um único modal
+  (o antigo "Novo crédito" virou "Novo cartão"; o botão "Adicionar cartão" por linha foi **removido**):
+  campos Nome\*, Últimos dígitos, um checkbox **"Compartilhar limite"** (+ um "i" com tooltip; no web é
+  `Popover`, no mobile um texto inline que aparece ao tocar o `info-outline`) e, condicionalmente,
+  Limite\*/Fechamento\*/Vencimento\* (sem compartilhar) OU um select das linhas existentes (compartilhando).
+  Salvar **sem compartilhar**: cria a `CreditBalance` (nome = o do usuário) e, no `onSuccess`, um
+  `CreditCard` chamado **`"PRINCIPAL"`** dentro dela. **Compartilhando**: cria só o `CreditCard` (nome do
+  usuário) na linha selecionada. `CreditBalanceFormModal`/`CreditCardFormModal` (mobile) e os `*FormDialog`
+  (web) seguem existindo, mas **só pra edição** agora.
 - **`TransactionFormModal` reformulado**: seletor de **origem** num `SelectInput` (Picker) único e
   achatado com `value` codificado `"Account:<id>"`/`"CreditBalance:<id>"` e label **prefixado**
   ("Conta · " / "Crédito · ") — o Picker nativo não agrupa como o `Select` do shadcn no web. Cartão em
