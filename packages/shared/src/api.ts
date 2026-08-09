@@ -82,7 +82,13 @@ export type TCreateTransactionBody = {
 	description: string;
 	value: number;
 	kind: TTransactionKind;
+	/* "Data prevista" — vencimento nominal. Aceita horário (ISO com hora). */
 	transaction_date: string;
+	/*
+	 * "Pago em" (ISO, aceita horário). Ausente/nulo = nasce pendente. Só vale pra origem `Account` —
+	 * crédito é efetivado automaticamente pelo backend (`settled_date = transaction_date`).
+	 */
+	settled_date?: string | null;
 	/* Origem da transação — uma conta ou um saldo de crédito. */
 	source_type: TTransactionSourceType;
 	source_id: string;
@@ -91,22 +97,21 @@ export type TCreateTransactionBody = {
 	draft?: boolean;
 }
 
-/*
- * O backend não aceita mudar a origem no update (`source_type`/`source_id` fora do permit),
- * nem `settled_at` (isso é feito via settle/unsettle).
- */
+/* O backend não aceita mudar a origem no update (`source_type`/`source_id` fora do permit). */
 export type TUpdateTransactionBody = Partial<{
 	description: string;
 	value: number;
 	kind: TTransactionKind;
 	transaction_date: string;
+	/* "Pago em": `null` volta pra pendente; data efetiva. */
+	settled_date: string | null;
 	credit_card_id: string;
 	draft: boolean;
 }>
 
-/* `settled_at` opcional (ISO); ausente = efetiva no momento atual (backend usa `Time.current`). */
+/* `settled_date` opcional (ISO); ausente = efetiva no momento atual (backend usa `Time.current`). */
 export type TSettleTransactionBody = {
-	settled_at?: string;
+	settled_date?: string;
 }
 
 export type TIndexAccountsResponse = TPaginatedResponse<TAccount>;
@@ -141,7 +146,7 @@ export type TPayInvoiceBody = {
 	/* Qualquer data dentro do ciclo a pagar (usado quando `reference` não vem); ausente = hoje. */
 	date?: string;
 	description?: string;
-	settled_at?: string;
+	settled_date?: string;
 }
 
 export type TIndexCreditCardsResponse = TPaginatedResponse<TCreditCard>;

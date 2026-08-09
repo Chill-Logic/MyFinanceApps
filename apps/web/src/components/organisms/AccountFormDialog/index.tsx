@@ -42,7 +42,6 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 		if (account) {
 			setName(account.name);
 			setKind(account.kind);
-			setInitialBalance(MoneyUtils.formatMoney(account.initial_balance));
 		} else {
 			setName('');
 			setKind('checking');
@@ -55,16 +54,11 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
 
-		const body = {
-			name,
-			kind,
-			initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)),
-		};
-
+		/* Update só mexe em nome/tipo. O saldo inicial existe só na criação (vira uma transação no backend). */
 		if (account) {
 			updateAccountMutation({
 				id: account.id,
-				body,
+				body: { name, kind },
 				onSuccess: () => {
 					toast.success('Conta atualizada!');
 					onOpenChange(false);
@@ -81,7 +75,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 
 		createAccountMutation({
 			wallet_id: user_wallet.data.id,
-			body,
+			body: { name, kind, initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)) },
 			onSuccess: () => {
 				toast.success('Conta criada!');
 				onOpenChange(false);
@@ -122,15 +116,18 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 						</Select>
 					</div>
 
-					<TextInput
-						type='text'
-						label='Saldo inicial'
-						name='initial_balance'
-						placeholder='R$ 0,00'
-						value={initial_balance}
-						onChange={(e) => setInitialBalance(MoneyUtils.formatMoney(e.target.value))}
-						disabled={is_pending}
-					/>
+					{/* Saldo inicial só na criação — no backend vira uma transação "Saldo inicial" efetivada */}
+					{!account && (
+						<TextInput
+							type='text'
+							label='Saldo inicial'
+							name='initial_balance'
+							placeholder='R$ 0,00'
+							value={initial_balance}
+							onChange={(e) => setInitialBalance(MoneyUtils.formatMoney(e.target.value))}
+							disabled={is_pending}
+						/>
+					)}
 
 					<DialogFooter>
 						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>

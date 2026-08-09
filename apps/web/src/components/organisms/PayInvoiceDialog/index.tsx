@@ -10,6 +10,7 @@ import { useWallet } from '@/context/wallet';
 
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
+import DateTimeField from '@/components/molecules/DateTimeField';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -38,6 +39,8 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: 
 	const [ account_id, setAccountId ] = useState('');
 	/* Valor do pagamento (string formatada); default = saldo restante da fatura. Permite pagamento parcial. */
 	const [ value, setValue ] = useState('');
+	/* Quando o pagamento foi efetivado (data+hora); default = agora. Vai como `settled_date` no body. */
+	const [ settled_date, setSettledDate ] = useState<Date>(new Date());
 
 	const active_invoice = invoice ?? creditBalance?.current_invoice ?? null;
 	const invoice_amount = active_invoice?.amount ?? 0;
@@ -49,6 +52,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: 
 		if (open) {
 			setAccountId('');
 			setValue(MoneyUtils.formatMoney(remaining));
+			setSettledDate(new Date());
 		}
 	}, [ open, remaining ]);
 
@@ -60,7 +64,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: 
 
 		payInvoiceMutation({
 			id: creditBalance.id,
-			body: { account_id, value: value_cents, ...(date ? { date } : {}) },
+			body: { account_id, value: value_cents, settled_date: settled_date.toISOString(), ...(date ? { date } : {}) },
 			onSuccess: () => {
 				toast.success('Pagamento registrado!');
 				onOpenChange(false);
@@ -133,6 +137,11 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: 
 						supportText='Pode ser parcial — o restante fica em aberto pra pagar depois.'
 						disabled={isPending}
 					/>
+
+					<div className='flex flex-col gap-1.5'>
+						<label className='text-sm font-medium'>Pago em</label>
+						<DateTimeField value={settled_date} disabled={isPending} onChange={setSettledDate} />
+					</div>
 
 					<DialogFooter>
 						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={isPending}>

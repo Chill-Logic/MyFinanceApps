@@ -38,8 +38,8 @@ export type TTransaction = WithModelFields<{
 	credit_card_id: string | null;
 	/* Preenchido só na transação criada pelo pagamento de uma fatura (`pay_invoice`). */
 	paid_credit_balance_id: string | null;
-	/* `null` = pendente (só entra no total previsto); data = efetivada (entra no efetivado). */
-	settled_at: string | null;
+	/* "Pago em" — `null` = pendente (só entra no total previsto); data = efetivada (entra no efetivado). */
+	settled_date: string | null;
 	settled: boolean;
 	/* Rascunho/planejamento: aparece na lista, mas fica fora dos dois totais. */
 	draft: boolean;
@@ -50,17 +50,17 @@ export type TWallet = WithModelFields<{
 	owner_id: string;
 	/* Saldo efetivado (soma do saldo das contas, só transações efetivadas). */
 	total: number;
-	/* Saldo previsto (inclui transações pendentes, ignora rascunhos). */
-	total_projected: number;
 }>;
 
 export type TAccount = WithModelFields<{
 	name: string;
 	kind: TAccountKind;
 	translated_kind: string;
-	initial_balance: number;
 	wallet_id: string;
-	/* Saldo efetivado da conta = `initial_balance` + transações efetivadas. */
+	/*
+	 * Saldo efetivado da conta = só transações efetivadas. O saldo de abertura não é mais uma coluna:
+	 * virou uma transação "Saldo inicial" efetivada no create (ver `initial_balance` em `TAccountBody`).
+	 */
 	balance: number;
 }>;
 

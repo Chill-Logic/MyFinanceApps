@@ -51,11 +51,10 @@ export const AccountFormModal = (props: AccountFormModalProps) => {
 	};
 
 	const handleSave = () => {
-		const initial_balance = Number(MoneyUtils.unformatMoney(values.initial_balance));
-
+		/* Update só mexe em nome/tipo. O saldo inicial existe só na criação (vira uma transação no backend). */
 		if (account) {
 			updateAccountMutation({
-				body: { name: values.name, kind: values.kind, initial_balance },
+				body: { name: values.name, kind: values.kind },
 				id: account.id,
 				onSuccess: () => {
 					Toast.show({ type: 'success', text1: 'Conta atualizada!' });
@@ -75,7 +74,7 @@ export const AccountFormModal = (props: AccountFormModalProps) => {
 		}
 
 		createAccountMutation({
-			body: { name: values.name, kind: values.kind, initial_balance },
+			body: { name: values.name, kind: values.kind, initial_balance: Number(MoneyUtils.unformatMoney(values.initial_balance)) },
 			wallet_id: user_wallet.data.id,
 			onSuccess: () => {
 				Toast.show({ type: 'success', text1: 'Conta criada!' });
@@ -92,11 +91,7 @@ export const AccountFormModal = (props: AccountFormModalProps) => {
 
 	useEffect(() => {
 		if (account) {
-			setValues({
-				name: account.name,
-				kind: account.kind,
-				initial_balance: MoneyUtils.formatMoney(account.initial_balance),
-			});
+			setValues({ name: account.name, kind: account.kind, initial_balance: '' });
 		}
 	}, [ account ]);
 
@@ -125,15 +120,18 @@ export const AccountFormModal = (props: AccountFormModalProps) => {
 							/>
 						</ThemedView>
 
-						<ThemedView style={styles.formGroup}>
-							<ThemedTextInput
-								label='Saldo inicial'
-								value={values.initial_balance}
-								onChangeText={(text) => setValues({ ...values, initial_balance: MoneyUtils.formatMoney(text) })}
-								placeholder='R$ 0,00'
-								keyboardType='numeric'
-							/>
-						</ThemedView>
+						{/* Saldo inicial só na criação — no backend vira uma transação "Saldo inicial" efetivada */}
+						{!account && (
+							<ThemedView style={styles.formGroup}>
+								<ThemedTextInput
+									label='Saldo inicial'
+									value={values.initial_balance}
+									onChangeText={(text) => setValues({ ...values, initial_balance: MoneyUtils.formatMoney(text) })}
+									placeholder='R$ 0,00'
+									keyboardType='numeric'
+								/>
+							</ThemedView>
+						)}
 
 						<ThemedView style={styles.buttonContainer}>
 							<TouchableOpacity disabled={is_create_pending || is_update_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>

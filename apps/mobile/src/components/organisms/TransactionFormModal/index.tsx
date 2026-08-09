@@ -11,12 +11,12 @@ import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '../../../hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
-import { useSettleTransaction } from '../../../hooks/api/transactions/useSettleTransaction';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
 
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { DateUtils } from '../../../utils/date';
+import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
 import { MoneyUtils } from '../../../utils/money';
 
 import { parseOrigin, TNewTransactionForm } from '../../../types/forms';
@@ -40,9 +40,11 @@ const DEFAULT_VALUES: TNewTransactionForm = {
 	description: '',
 	value: '',
 	transaction_date: '',
+	transaction_time: '00:00',
+	settled_date: '',
+	settled_time: '',
 	origin: '',
 	credit_card_id: '',
-	pending: false,
 	draft: false,
 };
 
@@ -51,21 +53,8 @@ const KIND_OPTIONS = [
 	{ label: 'Saída', value: 'withdraw' },
 ];
 
-/**
- * Conversão puramente textual (sem passar por Date/toISOString) de propósito — evitar
- * qualquer risco de o fuso horário deslocar o dia, já que aqui só interessa o valor
- * exibido/selecionado no calendário, não um instante no tempo.
- */
-const toISODate = (display_date: string) => {
-	const [ day, month, year ] = display_date.split('/');
-	if (!day || !month || !year) return '';
-	return `${ year }-${ month }-${ day }`;
-};
-
-const toDisplayDate = (iso_date: string) => {
-	const [ year, month, day ] = iso_date.split('-');
-	return `${ day }/${ month }/${ year }`;
-};
+/* Qual campo de data o calendário (que troca de conteúdo dentro do MESMO modal) está editando. */
+type TCalendarTarget = 'transaction' | 'settled' | null;
 
 export const TransactionFormModal = (props: TransactionModalProps) => {
 	const { visible, onClose, transaction, suggested_date } = props;
@@ -78,13 +67,18 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
-	const { mutate: settleTransactionMutation, isPending: is_settle_pending } = useSettleTransaction();
 
 	const [ values, setValues ] = useState<TNewTransactionForm>(DEFAULT_VALUES);
-	const [ is_calendar_visible, setIsCalendarVisible ] = useState(false);
+	const [ calendar_target, setCalendarTarget ] = useState<TCalendarTarget>(null);
+	/*
+	 * Etapa 1 da CRIAÇÃO: tipo de origem escolhido (Conta/Cartão). `null` = ainda na tela de escolha —
+	 * evita criar uma transação de cartão sem querer. Na edição vem do próprio transaction (pula a etapa 1).
+	 */
+	const [ origin_type, setOriginType ] = useState<TTransactionSourceType | null>(null);
 
 	const { source_type, source_id } = parseOrigin(values.origin);
-	const is_credit = source_type === 'CreditBalance';
+	/* Deriva do TIPO escolhido (não do source_id): vale já na etapa 2, antes de escolher a origem específica. */
+	const is_credit = origin_type === 'CreditBalance';
 
 	const { data: accounts_data, isLoading: is_accounts_loading } = useIndexAccounts({
 		enabled: visible && Boolean(wallet_id),
@@ -106,10 +100,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const is_origins_loading = is_accounts_loading || is_credit_loading;
 	const single_card_id = cards.length === 1 ? cards[0].id : null;
 
+	/* Etapa 2 lista SÓ o tipo escolhido (conta OU crédito), sem o prefixo "Conta ·/Crédito ·". */
+	const origin_list = is_credit ? credit_balances : accounts;
 	const origin_options = [
-		...(is_editing ? [] : [ { label: 'Escolha a conta ou cartão', value: '' } ]),
-		...accounts.map((account) => ({ label: `Conta · ${ account.name }`, value: `Account:${ account.id }` })),
-		...credit_balances.map((credit_balance) => ({ label: `Crédito · ${ credit_balance.name }`, value: `CreditBalance:${ credit_balance.id }` })),
+		...(is_editing ? [] : [ { label: is_credit ? 'Escolha o crédito' : 'Escolha a conta', value: '' } ]),
+		...origin_list.map((item) => ({ label: item.name, value: `${ is_credit ? 'CreditBalance' : 'Account' }:${ item.id }` })),
 	];
 
 	const card_options = [
@@ -119,16 +114,32 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 	const handleClose = () => {
 		setValues(DEFAULT_VALUES);
-		setIsCalendarVisible(false);
+		setCalendarTarget(null);
+		setOriginType(null);
 		onClose();
 	};
 
-	const is_pending = is_create_pending || is_update_pending || is_settle_pending;
+	/* Etapa 1 → 2: escolhe o tipo e, se só houver uma origem daquele tipo, já a pré-seleciona. */
+	const chooseOriginType = (type: TTransactionSourceType) => {
+		const list = type === 'Account' ? accounts : credit_balances;
+		setOriginType(type);
+		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
+	};
+
+	/* Volta pra etapa 1 (só na criação), limpando o tipo e a origem escolhida. */
+	const backToTypeStep = () => {
+		setOriginType(null);
+		setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
+	};
+
+	const is_pending = is_create_pending || is_update_pending;
 	const is_submit_disabled = (
 		is_pending ||
 		!values.value ||
 		!values.description ||
 		!values.transaction_date ||
+		!isValidTime(values.transaction_time) ||
+		(Boolean(values.settled_date) && !isValidTime(values.settled_time)) ||
 		(!is_editing && !values.origin) ||
 		(is_credit && !values.credit_card_id)
 	);
@@ -136,7 +147,15 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const handleSave = () => {
 		const value = Number(MoneyUtils.unformatMoney(values.value));
 		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
-		const transaction_date = DateUtils.formatDateToISO(values.transaction_date);
+		const transaction_date = combineToISO(values.transaction_date, values.transaction_time);
+		/*
+		 * "Pago em" só é controlável em conta — o crédito é auto-efetivado pelo backend (settled_date =
+		 * transaction_date), então nem enviamos o campo (seria sobrescrito). Em conta, vazio = null
+		 * (nasce/volta a pendente); com data, manda o instante escolhido — sem a antiga cadeia
+		 * create→settle (o backend já aceita `settled_date` direto no body).
+		 */
+		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
+		const settled_date = is_credit ? undefined : account_settled_date;
 
 		if (transaction) {
 			updateTransactionMutation({
@@ -145,6 +164,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					description: values.description,
 					value,
 					transaction_date,
+					settled_date,
 					credit_card_id: is_credit ? values.credit_card_id : undefined,
 					draft: values.draft,
 				},
@@ -166,30 +186,13 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				value,
 				kind: effective_kind,
 				transaction_date,
+				settled_date: settled_date || undefined,
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
 				draft: values.draft,
 			},
-			onSuccess: (created) => {
-				/*
-				 * O backend cria toda transação como pendente (não aceita efetivar no create). Se o
-				 * usuário não marcou "pendente" nem "rascunho", efetivamos logo em seguida.
-				 */
-				if (!values.draft && !values.pending) {
-					settleTransactionMutation({
-						id: created.id,
-						onSuccess: () => {
-							Toast.show({ type: 'success', text1: 'Transação criada e efetivada!' });
-							handleClose();
-						},
-						onError: () => {
-							Toast.show({ type: 'success', text1: 'Transação criada como pendente' });
-							handleClose();
-						},
-					});
-					return;
-				}
+			onSuccess: () => {
 				Toast.show({ type: 'success', text1: 'Transação criada!' });
 				handleClose();
 			},
@@ -206,16 +209,25 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 	useEffect(() => {
 		if (transaction) {
+			/* Edição pula a etapa 1: o tipo já vem travado do próprio transaction. */
+			setOriginType(transaction.source_type);
+			const planned = isoToParts(transaction.transaction_date);
+			const paid = transaction.settled_date ? isoToParts(transaction.settled_date) : null;
 			setValues({
 				kind: transaction.kind,
 				description: transaction.description,
 				value: MoneyUtils.formatMoney(transaction.value),
-				transaction_date: DateUtils.formatDate(transaction.transaction_date),
+				transaction_date: planned.date,
+				transaction_time: planned.time,
+				settled_date: paid ? paid.date : '',
+				settled_time: paid ? paid.time : '',
 				origin: `${ transaction.source_type }:${ transaction.source_id }`,
 				credit_card_id: transaction.credit_card_id || '',
-				pending: !transaction.settled,
 				draft: transaction.draft,
 			});
+		} else {
+			/* Passou de edição pra criação: volta pra etapa 1 (escolha do tipo). */
+			setOriginType(null);
 		}
 	}, [ transaction ]);
 
@@ -254,14 +266,68 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		</>
 	);
 
+	/* Gatilho de data (abre o calendário no mesmo modal) + input mascarado de horário, lado a lado. */
+	const renderDateTrigger = (date_value: string, target: Exclude<TCalendarTarget, null>) => (
+		<TouchableOpacity
+			style={[ styles.dateTrigger, { borderColor: theme.colors.border } ]}
+			onPress={() => setCalendarTarget(target)}
+			activeOpacity={0.7}
+		>
+			<ThemedText numberOfLines={1} style={[ styles.dateTriggerText, !date_value && { color: theme.colors.placeholder } ]}>
+				{date_value || 'Selecionar'}
+			</ThemedText>
+			<Icon name='calendar-today' size={16} color={theme.colors.placeholder} />
+		</TouchableOpacity>
+	);
+
+	/* Etapa 1 (só criação, com origens): escolher o tipo de origem antes de ver as opções. */
+	const renderOriginTypeStep = () => (
+		<>
+			<ThemedText style={styles.title}>Nova Transação</ThemedText>
+			<ThemedText style={styles.originQuestion}>De onde sai essa transação?</ThemedText>
+			<ThemedView style={styles.originTypeGrid}>
+				<TouchableOpacity
+					style={[ styles.originTypeButton, { borderColor: theme.colors.border }, !accounts.length && styles.originTypeButtonDisabled ]}
+					disabled={!accounts.length}
+					onPress={() => chooseOriginType('Account')}
+					activeOpacity={0.7}
+				>
+					<Icon name='account-balance-wallet' size={28} color={colors['brand-secondary']} />
+					<ThemedText style={styles.originTypeLabel}>Conta</ThemedText>
+					{!accounts.length && <ThemedText style={styles.originTypeHint}>nenhuma conta</ThemedText>}
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[ styles.originTypeButton, { borderColor: theme.colors.border }, !credit_balances.length && styles.originTypeButtonDisabled ]}
+					disabled={!credit_balances.length}
+					onPress={() => chooseOriginType('CreditBalance')}
+					activeOpacity={0.7}
+				>
+					<Icon name='credit-card' size={28} color={colors['feedback-info-default']} />
+					<ThemedText style={styles.originTypeLabel}>Cartão</ThemedText>
+					{!credit_balances.length && <ThemedText style={styles.originTypeHint}>nenhum cartão</ThemedText>}
+				</TouchableOpacity>
+			</ThemedView>
+			<TouchableOpacity style={styles.linkButton} onPress={handleClose}>
+				<ThemedText style={styles.linkText}>Cancelar</ThemedText>
+			</TouchableOpacity>
+		</>
+	);
+
 	const renderForm = () => (
 		<>
 			<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
 
 			<ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
 				<ThemedView style={styles.formGroup}>
+					<ThemedView style={styles.originLabelRow}>
+						<ThemedText>{is_credit ? 'Crédito *' : 'Conta *'}</ThemedText>
+						{!is_editing && (
+							<TouchableOpacity onPress={backToTypeStep} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+								<ThemedText style={styles.switchTypeText}>← Trocar tipo</ThemedText>
+							</TouchableOpacity>
+						)}
+					</ThemedView>
 					<SelectInput
-						label='Origem *'
 						options={origin_options}
 						value={values.origin}
 						disabled={is_editing}
@@ -269,7 +335,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					/>
 				</ThemedView>
 
-				{is_credit && (
+				{/* Bloco do cartão só depois de um crédito específico selecionado (source_id) — senão o aviso apareceria à toa */}
+				{is_credit && source_id && (
 					<ThemedView style={styles.formGroup}>
 						<SelectInput
 							label='Cartão *'
@@ -306,47 +373,76 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					/>
 				</ThemedView>
 
-				<ThemedView style={styles.formGroupDate}>
-					<ThemedView style={styles.fieldContainer}>
-						<ThemedTextInput
-							label='Valor *'
-							value={values.value}
-							onChangeText={(text) => setValues({ ...values, value: MoneyUtils.formatMoney(text) })}
-							placeholder='R$ 0,00'
-							keyboardType='numeric'
-						/>
-					</ThemedView>
+				<ThemedView style={styles.formGroup}>
+					<ThemedTextInput
+						label='Valor *'
+						value={values.value}
+						onChangeText={(text) => setValues({ ...values, value: MoneyUtils.formatMoney(text) })}
+						placeholder='R$ 0,00'
+						keyboardType='numeric'
+					/>
+				</ThemedView>
 
-					<ThemedView style={styles.fieldContainer}>
-						<ThemedText style={styles.dateTriggerLabel}>Data *</ThemedText>
-						<TouchableOpacity
-							style={[ styles.dateTrigger, { borderColor: theme.colors.border } ]}
-							onPress={() => setIsCalendarVisible(true)}
-							activeOpacity={0.7}
-						>
-							<ThemedText numberOfLines={1} style={[ styles.dateTriggerText, !values.transaction_date && { color: theme.colors.placeholder } ]}>
-								{values.transaction_date || 'Selecionar'}
-							</ThemedText>
-							<Icon name='calendar-today' size={16} color={theme.colors.placeholder} />
-						</TouchableOpacity>
+				<ThemedView style={[ styles.formGroup, styles.dateTimeRow ]}>
+					<ThemedView style={styles.dateCol}>
+						<ThemedText>{is_credit ? 'Data da transação *' : 'Data prevista *'}</ThemedText>
+						{renderDateTrigger(values.transaction_date, 'transaction')}
+					</ThemedView>
+					<ThemedView style={styles.timeCol}>
+						<ThemedTextInput
+							label='Hora *'
+							value={values.transaction_time}
+							onChangeText={(text) => setValues((prev) => ({ ...prev, transaction_time: formatTimeInput(text) }))}
+							placeholder='HH:MM'
+							keyboardType='numeric'
+							maxLength={5}
+						/>
 					</ThemedView>
 				</ThemedView>
 
-				<TouchableOpacity
-					style={styles.toggleRow}
-					onPress={() => setValues((v) => ({ ...v, pending: !v.pending }))}
-					disabled={values.draft}
-					activeOpacity={0.7}
-				>
-					<Icon
-						name={values.pending ? 'check-box' : 'check-box-outline-blank'}
-						size={22}
-						color={values.draft ? theme.colors.placeholder : colors['brand-secondary']}
-					/>
-					<ThemedText style={values.draft ? styles.toggleDisabled : undefined}>
-						Pendente <ThemedText style={styles.toggleHint}>— ainda não efetivada</ThemedText>
-					</ThemedText>
-				</TouchableOpacity>
+				{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
+				{!is_credit && (
+					<ThemedView style={styles.formGroup}>
+						<ThemedText style={styles.pagoLabel}>
+							Pago em <ThemedText style={styles.toggleHint}>— vazio = pendente</ThemedText>
+						</ThemedText>
+						{values.settled_date ? (
+							<ThemedView style={styles.dateTimeRow}>
+								<ThemedView style={styles.dateCol}>
+									{renderDateTrigger(values.settled_date, 'settled')}
+								</ThemedView>
+								<ThemedView style={styles.timeCol}>
+									<ThemedTextInput
+										value={values.settled_time}
+										onChangeText={(text) => setValues((prev) => ({ ...prev, settled_time: formatTimeInput(text) }))}
+										placeholder='HH:MM'
+										keyboardType='numeric'
+										maxLength={5}
+									/>
+								</ThemedView>
+								<TouchableOpacity
+									style={styles.clearButton}
+									onPress={() => setValues((prev) => ({ ...prev, settled_date: '', settled_time: '' }))}
+									hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+								>
+									<Icon name='close' size={20} color={theme.colors.placeholder} />
+								</TouchableOpacity>
+							</ThemedView>
+						) : (
+							<TouchableOpacity
+								style={[ styles.markPaidButton, { borderColor: theme.colors.border } ]}
+								onPress={() => {
+									const now = nowParts();
+									setValues((prev) => ({ ...prev, settled_date: now.date, settled_time: now.time }));
+								}}
+								activeOpacity={0.7}
+							>
+								<Icon name='event-available' size={18} color={theme.colors.placeholder} />
+								<ThemedText style={styles.markPaidText}>Marcar como pago</ThemedText>
+							</TouchableOpacity>
+						)}
+					</ThemedView>
+				)}
 
 				<TouchableOpacity
 					style={styles.toggleRow}
@@ -373,42 +469,52 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		</>
 	);
 
-	const renderCalendar = () => (
-		<>
-			<ThemedView style={styles.calendarHeader}>
-				<TouchableOpacity onPress={() => setIsCalendarVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-					<Icon name='arrow-back' size={22} color={theme.colors.text} />
-				</TouchableOpacity>
-				<ThemedText style={styles.calendarHeaderTitle}>Selecionar data</ThemedText>
-				<ThemedView style={styles.calendarHeaderSpacer} />
-			</ThemedView>
+	const renderCalendar = () => {
+		const active_date = calendar_target === 'settled' ? values.settled_date : values.transaction_date;
 
-			<Calendar
-				current={toISODate(values.transaction_date) || undefined}
-				onDayPress={(day: DateData) => {
-					setValues((prev) => ({ ...prev, transaction_date: toDisplayDate(day.dateString) }));
-					setIsCalendarVisible(false);
-				}}
-				markedDates={values.transaction_date ? {
-					[toISODate(values.transaction_date)]: { selected: true, selectedColor: colors['brand-secondary'] },
-				} : undefined}
-				theme={{
-					calendarBackground: theme.colors.background,
-					dayTextColor: theme.colors.text,
-					monthTextColor: theme.colors.text,
-					textDisabledColor: theme.colors.placeholder,
-					arrowColor: theme.colors.text,
-					todayTextColor: colors['brand-secondary'],
-					selectedDayBackgroundColor: colors['brand-secondary'],
-					selectedDayTextColor: '#fff',
-				}}
-			/>
-		</>
-	);
+		return (
+			<>
+				<ThemedView style={styles.calendarHeader}>
+					<TouchableOpacity onPress={() => setCalendarTarget(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+						<Icon name='arrow-back' size={22} color={theme.colors.text} />
+					</TouchableOpacity>
+					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data prevista'}</ThemedText>
+					<ThemedView style={styles.calendarHeaderSpacer} />
+				</ThemedView>
+
+				<Calendar
+					current={toISODate(active_date) || undefined}
+					onDayPress={(day: DateData) => {
+						const display = toDisplayDate(day.dateString);
+						setValues((prev) => (
+							calendar_target === 'settled'
+								? { ...prev, settled_date: display }
+								: { ...prev, transaction_date: display }
+						));
+						setCalendarTarget(null);
+					}}
+					markedDates={active_date ? {
+						[toISODate(active_date)]: { selected: true, selectedColor: colors['brand-secondary'] },
+					} : undefined}
+					theme={{
+						calendarBackground: theme.colors.background,
+						dayTextColor: theme.colors.text,
+						monthTextColor: theme.colors.text,
+						textDisabledColor: theme.colors.placeholder,
+						arrowColor: theme.colors.text,
+						todayTextColor: colors['brand-secondary'],
+						selectedDayBackgroundColor: colors['brand-secondary'],
+						selectedDayTextColor: '#fff',
+					}}
+				/>
+			</>
+		);
+	};
 
 	const renderContent = () => {
-		if (is_calendar_visible) return renderCalendar();
+		if (calendar_target) return renderCalendar();
 		if (!is_editing && !has_origins && !is_origins_loading) return renderEmptyState();
+		if (!is_editing && origin_type === null) return renderOriginTypeStep();
 		return renderForm();
 	};
 
@@ -417,7 +523,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			visible={visible}
 			transparent
 			animationType='slide'
-			onRequestClose={is_calendar_visible ? () => setIsCalendarVisible(false) : handleClose}
+			onRequestClose={calendar_target ? () => setCalendarTarget(null) : handleClose}
 		>
 			<KeyboardAvoidingView style={styles.keyboardAvoider} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
 				<ThemedView style={styles.modalOverlay}>
@@ -463,9 +569,6 @@ const styles = StyleSheet.create({
 	calendarHeaderSpacer: {
 		width: 22,
 	},
-	dateTriggerLabel: {
-		marginBottom: 5,
-	},
 	dateTrigger: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -488,14 +591,80 @@ const styles = StyleSheet.create({
 	formGroup: {
 		marginBottom: 15,
 	},
-	formGroupDate: {
-		marginBottom: 15,
+	originLabelRow: {
 		flexDirection: 'row',
+		alignItems: 'center',
 		justifyContent: 'space-between',
+		backgroundColor: 'transparent',
+		marginBottom: 5,
+	},
+	switchTypeText: {
+		color: '#888',
+		fontSize: 13,
+	},
+	originQuestion: {
+		textAlign: 'center',
+		color: '#888',
+		marginBottom: 16,
+	},
+	originTypeGrid: {
+		flexDirection: 'row',
+		gap: 12,
+		backgroundColor: 'transparent',
+	},
+	originTypeButton: {
+		flex: 1,
+		alignItems: 'center',
+		gap: 8,
+		borderWidth: 1,
+		borderRadius: 10,
+		paddingVertical: 24,
+		paddingHorizontal: 8,
+	},
+	originTypeButtonDisabled: {
+		opacity: 0.5,
+	},
+	originTypeLabel: {
+		fontSize: 16,
+		fontWeight: '600',
+	},
+	originTypeHint: {
+		fontSize: 11,
+		color: '#888',
+	},
+	dateTimeRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-end',
 		gap: 10,
 	},
-	fieldContainer: {
+	dateCol: {
+		flex: 1.6,
+	},
+	timeCol: {
 		flex: 1,
+	},
+	clearButton: {
+		height: 50,
+		marginTop: 5,
+		justifyContent: 'center',
+		alignItems: 'center',
+		paddingHorizontal: 4,
+	},
+	pagoLabel: {
+		marginBottom: 5,
+	},
+	markPaidButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		height: 50,
+		borderWidth: 1,
+		borderRadius: 5,
+		paddingHorizontal: 10,
+		marginTop: 5,
+	},
+	markPaidText: {
+		color: '#888',
 	},
 	cardWarning: {
 		marginTop: 6,
@@ -511,9 +680,6 @@ const styles = StyleSheet.create({
 	toggleHint: {
 		color: '#888',
 		fontSize: 13,
-	},
-	toggleDisabled: {
-		color: '#888',
 	},
 	emptyState: {
 		alignItems: 'center',

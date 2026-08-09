@@ -2,28 +2,24 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
-import { format } from 'date-fns';
-import { AlertTriangle, CalendarIcon, CreditCard, Landmark, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, CreditCard, Landmark, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
-import { useSettleTransaction } from '@/hooks/api/transactions/useSettleTransaction';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
 import useToast from '@/hooks/useToast';
 
 import { useWallet } from '@/context/wallet';
-import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
-import { Calendar } from '@/components/ui/calendar';
+import DateTimeField from '@/components/molecules/DateTimeField';
 import Checkbox from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
 	open: boolean;
@@ -42,8 +38,10 @@ type TFormValues = {
 	kind: TTransactionKind;
 	description: string;
 	value: string;
+	/* "Data prevista" (transaction_date) — carrega data + horário. */
 	transaction_date: Date;
-	pending: boolean;
+	/* "Pago em" (settled_date) — `null` = pendente. Carrega data + horário. */
+	settled_date: Date | null;
 	draft: boolean;
 };
 
@@ -54,7 +52,7 @@ const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => (
 	description: '',
 	value: '',
 	transaction_date: suggestedDate ?? new Date(),
-	pending: false,
+	settled_date: null,
 	draft: false,
 });
 
@@ -79,13 +77,18 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
-	const { mutate: settleTransactionMutation, isPending: is_settle_pending } = useSettleTransaction();
 	const { data: kind_options } = useEnumOptions({ entity: 'transaction', type: 'kind' });
 
 	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate, default_origin));
+	/*
+	 * Etapa 1 da CRIAÇÃO: tipo de origem escolhido (Conta/Cartão). `null` = ainda na tela de escolha —
+	 * evita criar uma transação de cartão sem querer. Na edição vem do próprio transaction (pula a etapa 1).
+	 */
+	const [ origin_type, setOriginType ] = useState<TTransactionSourceType | null>(null);
 
 	const { source_type, source_id } = parseOrigin(values.origin);
-	const is_credit = source_type === 'CreditBalance';
+	/* Deriva do TIPO escolhido (não do source_id): vale já na etapa 2, antes de escolher a origem específica. */
+	const is_credit = origin_type === 'CreditBalance';
 
 	const { data: accounts_data } = useIndexAccounts({
 		enabled: open && Boolean(wallet_id),
@@ -116,6 +119,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		if (!open) return;
 
 		if (transaction) {
+			setOriginType(transaction.source_type);
 			setValues({
 				origin: `${ transaction.source_type }:${ transaction.source_id }`,
 				credit_card_id: transaction.credit_card_id || '',
@@ -123,13 +127,14 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				description: transaction.description,
 				value: MoneyUtils.formatMoney(transaction.value),
 				transaction_date: new Date(transaction.transaction_date),
-				pending: !transaction.settled,
+				settled_date: transaction.settled_date ? new Date(transaction.settled_date) : null,
 				draft: transaction.draft,
 			});
 		} else {
+			setOriginType(defaultSourceType ?? null);
 			setValues(buildDefaultValues(suggestedDate, default_origin));
 		}
-	}, [ open, transaction, suggestedDate, default_origin ]);
+	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType ]);
 
 	/*
 	 * Auto-seleciona o único cartão do crédito escolhido, sem sobrescrever uma escolha que já
@@ -142,12 +147,25 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		}
 	}, [ is_credit, single_card_id ]);
 
-	const is_pending = is_create_pending || is_update_pending || is_settle_pending;
+	const is_pending = is_create_pending || is_update_pending;
 	const is_submit_disabled = is_pending
 		|| !values.value
 		|| !values.description
 		|| (!is_editing && !values.origin)
 		|| (is_credit && !values.credit_card_id);
+
+	/* Etapa 1 → 2: escolhe o tipo e, se só houver uma origem daquele tipo, já a pré-seleciona. */
+	const chooseOriginType = (type: TTransactionSourceType) => {
+		const list = type === 'Account' ? accounts : credit_balances;
+		setOriginType(type);
+		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
+	};
+
+	/* Volta pra etapa 1 (só na criação), limpando a origem escolhida. */
+	const backToTypeStep = () => {
+		setOriginType(null);
+		setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
+	};
 
 	const finalize = (message: string) => {
 		toast.success(message);
@@ -160,6 +178,12 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		const value = Number(MoneyUtils.unformatMoney(values.value));
 		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
 		const transaction_date = values.transaction_date.toISOString();
+		/*
+		 * "Pago em" só é controlável em conta — o crédito é auto-efetivado pelo backend (settled_date =
+		 * transaction_date), então nem enviamos o campo (seria sobrescrito). Em conta, `null` = pendente.
+		 */
+		const account_settled_date = values.settled_date ? values.settled_date.toISOString() : null;
+		const settled_date = is_credit ? undefined : account_settled_date;
 
 		if (transaction) {
 			updateTransactionMutation({
@@ -168,6 +192,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					description: values.description,
 					value,
 					transaction_date,
+					settled_date,
 					credit_card_id: is_credit ? values.credit_card_id : undefined,
 					draft: values.draft,
 				},
@@ -184,26 +209,13 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				value,
 				kind: effective_kind,
 				transaction_date,
+				settled_date: settled_date || undefined,
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
 				draft: values.draft,
 			},
-			onSuccess: (created) => {
-				/*
-				 * O backend cria toda transação como pendente (não aceita `settled_at` no create).
-				 * Se o usuário não marcou "pendente" nem "rascunho", efetivamos logo em seguida.
-				 */
-				if (!values.draft && !values.pending) {
-					settleTransactionMutation({
-						id: created.id,
-						onSuccess: () => finalize('Transação criada e efetivada!'),
-						onError: () => finalize('Transação criada como pendente (não foi possível efetivar agora)'),
-					});
-					return;
-				}
-				finalize('Transação criada!');
-			},
+			onSuccess: () => finalize('Transação criada!'),
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
 		});
 	};
@@ -219,7 +231,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					<DialogTitle>{dialog_title}</DialogTitle>
 				</DialogHeader>
 
-				{!is_editing && !has_origins ? (
+				{!is_editing && !has_origins && (
 					<div className='flex flex-col items-center gap-4 py-6 text-center'>
 						<div className='flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground'>
 							<Landmark className='h-6 w-6' />
@@ -240,50 +252,72 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							Criar minha primeira conta
 						</Button>
 					</div>
-				) : (
+				)}
+
+				{/* Etapa 1 (só criação): escolher o tipo de origem antes de ver as opções */}
+				{!is_editing && has_origins && origin_type === null && (
+					<div className='flex flex-col gap-3 py-2'>
+						<span className='text-sm text-muted-foreground'>De onde sai essa transação?</span>
+						<div className='grid grid-cols-2 gap-3'>
+							<button
+								type='button'
+								disabled={!accounts.length}
+								onClick={() => chooseOriginType('Account')}
+								className='flex flex-col items-center gap-2 rounded-lg border border-input p-5 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
+							>
+								<Wallet className='h-6 w-6 text-brand-secondary' />
+								Conta
+								{!accounts.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhuma conta</span>}
+							</button>
+							<button
+								type='button'
+								disabled={!credit_balances.length}
+								onClick={() => chooseOriginType('CreditBalance')}
+								className='flex flex-col items-center gap-2 rounded-lg border border-input p-5 text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
+							>
+								<CreditCard className='h-6 w-6 text-feedback-info-default' />
+								Cartão
+								{!credit_balances.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhum cartão</span>}
+							</button>
+						</div>
+					</div>
+				)}
+
+				{/* Etapa 2: o formulário (na edição entra direto aqui) */}
+				{(is_editing || origin_type !== null) && (
 					<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
 						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>Origem</label>
+							<div className='flex items-center justify-between'>
+								<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
+								{!is_editing && (
+									<button type='button' onClick={backToTypeStep} className='text-xs font-medium text-muted-foreground hover:text-foreground'>
+										← Trocar tipo
+									</button>
+								)}
+							</div>
 							<Select
 								value={values.origin}
 								disabled={is_editing}
 								onValueChange={(origin) => setValues((prev) => ({ ...prev, origin, credit_card_id: '' }))}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder='Escolha a conta ou cartão' />
+									<SelectValue placeholder={is_credit ? 'Escolha o crédito' : 'Escolha a conta'} />
 								</SelectTrigger>
 								<SelectContent>
-									{accounts.length > 0 && (
-										<SelectGroup>
-											<SelectLabel>Contas</SelectLabel>
-											{accounts.map((account) => (
-												<SelectItem key={account.id} value={`Account:${ account.id }`}>
-													<span className='flex items-center gap-2'>
-														<Wallet className='h-3.5 w-3.5' />
-														{account.name}
-													</span>
-												</SelectItem>
-											))}
-										</SelectGroup>
-									)}
-									{credit_balances.length > 0 && (
-										<SelectGroup>
-											<SelectLabel>Crédito</SelectLabel>
-											{credit_balances.map((credit_balance) => (
-												<SelectItem key={credit_balance.id} value={`CreditBalance:${ credit_balance.id }`}>
-													<span className='flex items-center gap-2'>
-														<CreditCard className='h-3.5 w-3.5' />
-														{credit_balance.name}
-													</span>
-												</SelectItem>
-											))}
-										</SelectGroup>
-									)}
+									{(is_credit ? credit_balances : accounts).map((origin_item) => (
+										<SelectItem key={origin_item.id} value={`${ is_credit ? 'CreditBalance' : 'Account' }:${ origin_item.id }`}>
+											<span className='flex items-center gap-2'>
+												{is_credit ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
+												{origin_item.name}
+											</span>
+										</SelectItem>
+									))}
 								</SelectContent>
 							</Select>
 						</div>
 
-						{is_credit && (
+						{/* Só depois de escolher um crédito específico (source_id) — senão o aviso apareceria à toa */}
+						{is_credit && source_id && (
 							<div className='flex flex-col gap-1.5'>
 								<label className='text-sm font-medium'>Cartão</label>
 								<Select
@@ -348,47 +382,67 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							disabled={is_pending}
 						/>
 
-						<div className='flex flex-col gap-4 sm:flex-row'>
-							<TextInput
-								type='text'
-								label='Valor'
-								name='value'
-								placeholder='R$ 0,00'
-								value={values.value}
-								onChange={(e) => setValues((prev) => ({ ...prev, value: MoneyUtils.formatMoney(e.target.value) }))}
-								disabled={is_pending}
-								className='flex-1'
-							/>
+						<TextInput
+							type='text'
+							label='Valor'
+							name='value'
+							placeholder='R$ 0,00'
+							value={values.value}
+							onChange={(e) => setValues((prev) => ({ ...prev, value: MoneyUtils.formatMoney(e.target.value) }))}
+							disabled={is_pending}
+						/>
 
-							<div className='flex flex-1 flex-col gap-1.5'>
-								<label className='text-sm font-medium'>Data</label>
-								<Popover>
-									<PopoverTrigger asChild>
-										<Button type='button' variant='outline' disabled={is_pending} className='justify-start gap-2 font-normal'>
-											<CalendarIcon className='h-4 w-4' />
-											{format(values.transaction_date, 'dd/MM/yyyy')}
-										</Button>
-									</PopoverTrigger>
-									<PopoverContent className='w-auto p-0' align='start'>
-										<Calendar
-											mode='single'
-											selected={values.transaction_date}
-											onSelect={(date) => date && setValues((prev) => ({ ...prev, transaction_date: date }))}
-										/>
-									</PopoverContent>
-								</Popover>
-							</div>
+						<div className='flex flex-col gap-1.5'>
+							<label className='text-sm font-medium'>{is_credit ? 'Data da transação' : 'Data prevista'}</label>
+							<DateTimeField
+								value={values.transaction_date}
+								disabled={is_pending}
+								onChange={(next) => setValues((prev) => ({ ...prev, transaction_date: next }))}
+							/>
 						</div>
 
+						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
+						{!is_credit && (
+							<div className='flex flex-col gap-1.5'>
+								<label className='text-sm font-medium'>
+									Pago em <span className='font-normal text-muted-foreground'>— vazio = pendente</span>
+								</label>
+								{values.settled_date ? (
+									<div className='flex items-center gap-2'>
+										<div className='flex-1'>
+											<DateTimeField
+												value={values.settled_date}
+												disabled={is_pending}
+												onChange={(next) => setValues((prev) => ({ ...prev, settled_date: next }))}
+											/>
+										</div>
+										<Button
+											type='button'
+											variant='ghost'
+											size='icon'
+											disabled={is_pending}
+											aria-label='Marcar como pendente'
+											onClick={() => setValues((prev) => ({ ...prev, settled_date: null }))}
+										>
+											<X className='h-4 w-4' />
+										</Button>
+									</div>
+								) : (
+									<Button
+										type='button'
+										variant='outline'
+										disabled={is_pending}
+										className='justify-start gap-2 font-normal text-muted-foreground'
+										onClick={() => setValues((prev) => ({ ...prev, settled_date: new Date() }))}
+									>
+										<CalendarIcon className='h-4 w-4' />
+										Marcar como pago
+									</Button>
+								)}
+							</div>
+						)}
+
 						<div className='flex flex-col gap-2'>
-							<label className={cn('flex items-center gap-2 text-sm', values.draft && 'opacity-50')}>
-								<Checkbox
-									checked={values.pending}
-									disabled={values.draft}
-									onCheckedChange={(checked) => setValues((prev) => ({ ...prev, pending: checked === true }))}
-								/>
-								<span>Pendente <span className='text-muted-foreground'>— ainda não efetivada (só no previsto)</span></span>
-							</label>
 							<label className='flex items-center gap-2 text-sm'>
 								<Checkbox
 									checked={values.draft}
