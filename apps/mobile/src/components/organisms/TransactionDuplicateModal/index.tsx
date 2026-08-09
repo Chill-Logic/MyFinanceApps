@@ -9,6 +9,7 @@ import { colors, getApiErrorMessage } from '@myfinance/shared';
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 
 import { useTheme } from '../../../context/theme';
+import { DateUtils } from '../../../utils/date';
 import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
 import { MoneyUtils } from '../../../utils/money';
 
@@ -57,8 +58,10 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 		if (!visible || !transaction) return;
 
 		const planned = isoToParts(transaction.transaction_date);
+		/* Default +1 mês, mesmo dia e horário da original — pensado pra cobrança recorrente do mês seguinte. */
+		const next_month = DateUtils.addMonths(transaction.transaction_date, 1);
 		setDescription(transaction.description);
-		setTransactionDate(planned.date);
+		setTransactionDate(next_month ? DateUtils.formateTo(next_month, 'dd/MM/yyyy') : planned.date);
 		setTransactionTime(planned.time);
 		setSettledDate(''); // cópia nasce pendente; o usuário marca como pago se quiser
 		setSettledTime('');

@@ -1,4 +1,4 @@
-import { endOfMonth, format, isValid, parse, parseISO } from 'date-fns';
+import { addMonths as addMonthsFns, endOfMonth, format, isValid, parse, parseISO } from 'date-fns';
 
 const EXPECTED_FORMATS = [ 'yyyy-MM-dd', 'yyyy/MM/dd', 'dd-MM-yyyy', 'dd/MM/yyyy' ];
 
@@ -72,6 +72,19 @@ export const DateUtils = {
 		}
 
 		return format(parsed_date, date_format);
+	},
+	/*
+	 * Soma `months` meses preservando o horário. Dia mantido quando existe no mês-alvo; se não existir
+	 * (ex.: 31/01 + 1 mês), o date-fns faz o clamp pro último dia do mês (28/02). Retorna `undefined` se
+	 * a data de entrada for inválida.
+	 */
+	addMonths: (date: string | Date, months: number): Date | undefined => {
+		const parsed_date = parseDate(date);
+		if (!parsed_date) {
+			return undefined;
+		}
+
+		return addMonthsFns(parsed_date, months);
 	},
 	getMonthRange: (year: number, month: number) => {
 		const start = new Date(year, month, 1);
