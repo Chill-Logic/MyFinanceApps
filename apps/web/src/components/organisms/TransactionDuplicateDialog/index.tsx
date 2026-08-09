@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 
-import { getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, MoneyUtils, type TTransaction } from '@myfinance/shared';
 import { ArrowDownRight, ArrowUpRight, CalendarIcon, CreditCard, Wallet, X } from 'lucide-react';
 
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
@@ -43,7 +43,8 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		if (!open || !transaction) return;
 
 		setDescription(transaction.description);
-		setTransactionDate(new Date(transaction.transaction_date));
+		/* Default +1 mês, mesmo dia e horário da original — pensado pra cobrança recorrente do mês seguinte. */
+		setTransactionDate(DateUtils.addMonths(transaction.transaction_date, 1) ?? new Date(transaction.transaction_date));
 		setSettledDate(null); // cópia nasce pendente; o usuário marca como pago se quiser
 	}, [ open, transaction ]);
 
