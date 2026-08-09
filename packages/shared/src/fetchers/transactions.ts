@@ -16,19 +16,36 @@ export type TListTransactionsParams = {
 	terms?: string;
 };
 
+/*
+ * O backend não devolve mais o booleano `settled` (só a data, nulo = pendente). Derivamos aqui, no
+ * fetcher, pra manter `TTransaction.settled` populado em todos os consumidores (web + mobile) sem
+ * espalhar `Boolean(...)` por toda UI. Leitura tolerante ao rename `settled_at → settled_date`: aceita
+ * os dois nomes enquanto o backend não termina de virar (o legado `settled_at` some depois).
+ */
+const withSettled = (transaction: TTransaction): TTransaction => {
+	const raw = transaction as TTransaction & { settled_at?: string | null };
+	const settled_date = raw.settled_date ?? raw.settled_at ?? null;
+	return { ...transaction, settled_date, settled: Boolean(settled_date) };
+};
+
+const normalizeGroup = (group: TListTransactionsResponse['accounts']) => ({ ...group, data: group.data.map(withSettled) });
+
 export const listTransactions = async(axios: AxiosInstance, params?: TListTransactionsParams) => {
 	const response = await axios.get<TListTransactionsResponse>(API_ROUTES.transactions.index, { params });
-	return response.data;
+	return {
+		accounts: normalizeGroup(response.data.accounts),
+		credits: normalizeGroup(response.data.credits),
+	};
 };
 
 export const createTransaction = async(axios: AxiosInstance, body?: TCreateTransactionBody) => {
 	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.create, { transaction: body });
-	return response.data.data;
+	return withSettled(response.data.data);
 };
 
 export const updateTransaction = async(axios: AxiosInstance, id: string | number, body?: TUpdateTransactionBody) => {
 	const response = await axios.patch<{ data: TTransaction }>(API_ROUTES.transactions.update(id), { transaction: body });
-	return response.data.data;
+	return withSettled(response.data.data);
 };
 
 export const deleteTransaction = async(axios: AxiosInstance, id: string | number) => {
@@ -38,10 +55,10 @@ export const deleteTransaction = async(axios: AxiosInstance, id: string | number
 
 export const settleTransaction = async(axios: AxiosInstance, id: string | number, body?: TSettleTransactionBody) => {
 	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.settle(id), body);
-	return response.data.data;
+	return withSettled(response.data.data);
 };
 
 export const unsettleTransaction = async(axios: AxiosInstance, id: string | number) => {
 	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.unsettle(id));
-	return response.data.data;
+	return withSettled(response.data.data);
 };

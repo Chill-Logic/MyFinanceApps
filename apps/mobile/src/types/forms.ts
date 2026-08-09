@@ -4,12 +4,16 @@ export type TNewTransactionForm = {
 	kind: TTransaction['kind'];
 	description: string;
 	value: string;
+	/* "Data prevista" (transaction_date) — dd/MM/yyyy; o horário fica separado em `transaction_time`. */
 	transaction_date: string;
+	transaction_time: string;
+	/* "Pago em" (settled_date) — vazio = pendente; horário separado em `settled_time`. */
+	settled_date: string;
+	settled_time: string;
 	/* Origem codificada como `${source_type}:${source_id}` (ex.: "Account:uuid"). */
 	origin: string;
 	credit_card_id: string;
-	/* `pending`: não efetivar ao criar (só no previsto). `draft`: planejamento, fora dos totais. */
-	pending: boolean;
+	/* `draft`: planejamento, fora dos totais. */
 	draft: boolean;
 };
 
