@@ -15,6 +15,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	CircleDashed,
+	Copy,
 	CreditCard,
 	Loader2,
 	MoreVertical,
@@ -38,6 +39,7 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import DateTimeField from '@/components/molecules/DateTimeField';
+import TransactionDuplicateDialog from '@/components/organisms/TransactionDuplicateDialog';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
 import {
 	AlertDialog,
@@ -138,6 +140,7 @@ const TransactionList = () => {
 
 	const { month_year, setMonthYear } = useMonthSelection();
 	const [ editing_transaction, setEditingTransaction ] = useState<TTransaction | null>(null);
+	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ deleting_transaction, setDeletingTransaction ] = useState<TTransaction | null>(null);
 	/* Transação sendo efetivada no modal de "Efetivar pagamento" + a data/hora escolhida. */
 	const [ settling_transaction, setSettlingTransaction ] = useState<TTransaction | null>(null);
@@ -424,6 +427,9 @@ const TransactionList = () => {
 				<DropdownMenuItem onClick={() => setEditingTransaction(transaction_item)}>
 					Editar
 				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => setDuplicatingTransaction(transaction_item)}>
+					<Copy className='mr-2 h-4 w-4' /> Duplicar
+				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem className='text-destructive' onClick={() => setDeletingTransaction(transaction_item)}>
 					Excluir
@@ -686,6 +692,13 @@ const TransactionList = () => {
 				onOpenChange={handleFormOpenChange}
 				transaction={editing_transaction}
 				suggestedDate={new Date(month_year.year, month_year.month, new Date().getDate())}
+			/>
+
+			<TransactionDuplicateDialog
+				open={Boolean(duplicating_transaction)}
+				onOpenChange={(open) => !open && setDuplicatingTransaction(null)}
+				transaction={duplicating_transaction}
+				sourceName={duplicating_transaction ? source_names.get(duplicating_transaction.source_id) : undefined}
 			/>
 
 			<AlertDialog open={Boolean(deleting_transaction)} onOpenChange={(open) => !open && setDeletingTransaction(null)}>

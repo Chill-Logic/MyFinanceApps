@@ -45,6 +45,7 @@ import { ThemedTextInput } from '../../atoms/ThemedTextInput';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { QUERY_KEYS } from '../../../constants/QueryKeys';
+import { TransactionDuplicateModal } from '../TransactionDuplicateModal';
 import { TransactionFormModal } from '../TransactionFormModal';
 
 /* LayoutAnimation precisa ser habilitado explicitamente no Android pra animar o abrir/fechar dos accordions. */
@@ -221,6 +222,7 @@ const TransactionsList = () => {
 	}, [ accounts, credit_balances ]);
 
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
+	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
 	const [ is_totals_detail_open, setIsTotalsDetailOpen ] = useState(false);
 	/* IDs de cartão expandidos (fora do Set = fechado — accordions nascem fechados). */
@@ -726,6 +728,13 @@ const TransactionsList = () => {
 				onClose={handleCloseForm}
 			/>
 
+			<TransactionDuplicateModal
+				visible={Boolean(duplicating_transaction)}
+				transaction={duplicating_transaction}
+				source_name={duplicating_transaction ? source_names.get(duplicating_transaction.source_id) : undefined}
+				onClose={() => setDuplicatingTransaction(null)}
+			/>
+
 			<Modal
 				visible={is_totals_detail_open}
 				transparent
@@ -807,6 +816,18 @@ const TransactionsList = () => {
 						>
 							<Icon name='edit' size={20} color={theme.colors.text} />
 							<ThemedText style={styles.actionsSheetItemText}>Editar</ThemedText>
+						</TouchableOpacity>
+
+						<TouchableOpacity
+							style={styles.actionsSheetItem}
+							onPress={() => {
+								const target = actions_transaction;
+								setActionsTransaction(null);
+								if (target) setDuplicatingTransaction(target);
+							}}
+						>
+							<Icon name='content-copy' size={20} color={theme.colors.text} />
+							<ThemedText style={styles.actionsSheetItemText}>Duplicar</ThemedText>
 						</TouchableOpacity>
 
 						<TouchableOpacity
