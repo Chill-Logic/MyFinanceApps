@@ -3,6 +3,8 @@ import { CalendarIcon } from 'lucide-react';
 
 import Button from '@/components/atoms/Button';
 import { Calendar } from '@/components/ui/calendar';
+import { FIELD_METRICS } from '@/components/ui/field';
+import Input from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface IProps {
@@ -31,7 +33,7 @@ const DateTimeField = ({ value, onChange, disabled }: IProps) => (
 	<div className='flex gap-2'>
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button type='button' variant='outline' disabled={disabled} className='flex-1 justify-start gap-2 font-normal'>
+				<Button type='button' variant='outline' disabled={disabled} className={`${ FIELD_METRICS } flex-1 justify-start gap-2`}>
 					<CalendarIcon className='h-4 w-4' />
 					{format(value, 'dd/MM/yyyy')}
 				</Button>
@@ -40,12 +42,12 @@ const DateTimeField = ({ value, onChange, disabled }: IProps) => (
 				<Calendar mode='single' selected={value} onSelect={(picked) => picked && onChange(withDatePart(value, picked))} />
 			</PopoverContent>
 		</Popover>
-		<input
+		<Input
 			type='time'
 			value={format(value, 'HH:mm')}
 			disabled={disabled}
 			onChange={(e) => onChange(withTimePart(value, e.target.value))}
-			className='h-10 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+			className='w-auto shrink-0'
 		/>
 	</div>
 );
