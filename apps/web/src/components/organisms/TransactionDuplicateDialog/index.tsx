@@ -12,6 +12,7 @@ import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
 import DateTimeField from '@/components/molecules/DateTimeField';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FIELD_METRICS } from '@/components/ui/field';
 
 interface IProps {
 	open: boolean;
@@ -24,7 +25,7 @@ interface IProps {
 
 /*
  * Duplicar = criar uma transação NOVA copiando tudo da original (valor, tipo, origem, cartão, rascunho),
- * deixando editável só a descrição e a data prevista — pensado pra cobranças recorrentes. Em conta, o
+ * deixando editável só a descrição e a data da transação — pensado pra cobranças recorrentes. Em conta, o
  * "Pago em" também é editável (opcional, mesma condicional do form normal) e começa vazio: a cópia nasce
  * pendente por padrão. Em crédito não há "Pago em" (o backend auto-efetiva).
  */
@@ -43,8 +44,12 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		if (!open || !transaction) return;
 
 		setDescription(transaction.description);
-		/* Default +1 mês, mesmo dia e horário da original — pensado pra cobrança recorrente do mês seguinte. */
-		setTransactionDate(DateUtils.addMonths(transaction.transaction_date, 1) ?? new Date(transaction.transaction_date));
+		/*
+		 * Default +1 mês e mesmo dia da original (pensado pra cobrança recorrente do mês seguinte), mas com o
+		 * HORÁRIO DE AGORA: a cópia é um lançamento novo, e herdar o horário da original faria uma transação
+		 * antiga de 00:00 nascer 00:00 de novo.
+		 */
+		setTransactionDate(DateUtils.withCurrentTime(DateUtils.addMonths(transaction.transaction_date, 1) ?? transaction.transaction_date));
 		setSettledDate(null); // cópia nasce pendente; o usuário marca como pago se quiser
 	}, [ open, transaction ]);
 
@@ -119,7 +124,7 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 						/>
 
 						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>{is_credit ? 'Data da transação' : 'Data prevista'}</label>
+							<label className='text-sm font-medium'>Data da transação</label>
 							<DateTimeField value={transaction_date} disabled={is_pending} onChange={setTransactionDate} />
 						</div>
 
@@ -150,8 +155,8 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 										type='button'
 										variant='outline'
 										disabled={is_pending}
-										className='justify-start gap-2 font-normal text-muted-foreground'
-										onClick={() => setSettledDate(new Date())}
+										className={`${ FIELD_METRICS } justify-start gap-2 text-muted-foreground`}
+										onClick={() => setSettledDate(new Date(transaction_date))}
 									>
 										<CalendarIcon className='h-4 w-4' />
 										Marcar como pago

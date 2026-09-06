@@ -27,7 +27,7 @@ interface CreditBalanceFormModalProps {
 const DEFAULT_VALUES: TCreditBalanceForm = {
 	name: '',
 	credit_limit: '',
-	closing_day: '',
+	best_purchase_day: '',
 	due_day: '',
 };
 
@@ -55,7 +55,7 @@ export const CreditBalanceFormModal = (props: CreditBalanceFormModalProps) => {
 		const body = {
 			name: values.name,
 			credit_limit: Number(MoneyUtils.unformatMoney(values.credit_limit)),
-			closing_day: Number(values.closing_day),
+			best_purchase_day: Number(values.best_purchase_day),
 			due_day: Number(values.due_day),
 		};
 
@@ -99,7 +99,7 @@ export const CreditBalanceFormModal = (props: CreditBalanceFormModalProps) => {
 		is_update_pending ||
 		!values.name ||
 		!values.credit_limit ||
-		!values.closing_day ||
+		!values.best_purchase_day ||
 		!values.due_day
 	);
 
@@ -108,7 +108,7 @@ export const CreditBalanceFormModal = (props: CreditBalanceFormModalProps) => {
 			setValues({
 				name: creditBalance.name,
 				credit_limit: MoneyUtils.formatMoney(creditBalance.credit_limit),
-				closing_day: String(creditBalance.closing_day),
+				best_purchase_day: String(creditBalance.best_purchase_day),
 				due_day: String(creditBalance.due_day),
 			});
 		}
@@ -143,9 +143,9 @@ export const CreditBalanceFormModal = (props: CreditBalanceFormModalProps) => {
 						<View style={styles.row}>
 							<View style={styles.rowItem}>
 								<ThemedTextInput
-									label='Fechamento *'
-									value={values.closing_day}
-									onChangeText={(text) => setValues({ ...values, closing_day: clampDay(text) })}
+									label='Melhor compra *'
+									value={values.best_purchase_day}
+									onChangeText={(text) => setValues({ ...values, best_purchase_day: clampDay(text) })}
 									placeholder='Dia (1–31)'
 									keyboardType='numeric'
 									maxLength={2}

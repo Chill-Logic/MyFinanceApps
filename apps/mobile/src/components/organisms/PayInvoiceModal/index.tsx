@@ -27,11 +27,12 @@ interface PayInvoiceModalProps {
 	creditBalance: TCreditBalance;
 	invoice?: TCurrentInvoice;
 	/* Data (YYYY-MM-DD) dentro do ciclo a pagar — mira a fatura exibida, não o ciclo de hoje. */
-	date?: string;
+	/* Mês da fatura a pagar ("YYYY-MM"). Ausente = o backend escolhe a fatura em aberto mais antiga. */
+	reference?: string;
 }
 
 export const PayInvoiceModal = (props: PayInvoiceModalProps) => {
-	const { visible, onClose, creditBalance, invoice, date } = props;
+	const { visible, onClose, creditBalance, invoice, reference } = props;
 	const { theme } = useTheme();
 	const { user_wallet } = useWallet();
 	const wallet_id = user_wallet.data?.id;
@@ -102,7 +103,7 @@ export const PayInvoiceModal = (props: PayInvoiceModalProps) => {
 		}
 
 		payInvoiceMutation({
-			body: { account_id, value: value_cents, settled_date: combineToISO(settled_date, settled_time), ...(date ? { date } : {}) },
+			body: { account_id, value: value_cents, settled_date: combineToISO(settled_date, settled_time), ...(reference ? { reference } : {}) },
 			id: creditBalance.id,
 			onSuccess: () => {
 				Toast.show({ type: 'success', text1: 'Pagamento registrado!' });

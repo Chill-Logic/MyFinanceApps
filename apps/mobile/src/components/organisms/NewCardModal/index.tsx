@@ -59,7 +59,7 @@ export const NewCardModal = ({ visible, onClose, defaultShareCreditBalanceId }: 
 	const [ share, setShare ] = useState(false);
 	const [ credit_balance_id, setCreditBalanceId ] = useState('');
 	const [ credit_limit, setCreditLimit ] = useState('');
-	const [ closing_day, setClosingDay ] = useState('');
+	const [ best_purchase_day, setBestPurchaseDay ] = useState('');
 	const [ due_day, setDueDay ] = useState('');
 	const [ submitting, setSubmitting ] = useState(false);
 	const [ show_info, setShowInfo ] = useState(false);
@@ -70,7 +70,7 @@ export const NewCardModal = ({ visible, onClose, defaultShareCreditBalanceId }: 
 		setName('');
 		setLastDigits('');
 		setCreditLimit('');
-		setClosingDay('');
+		setBestPurchaseDay('');
 		setDueDay('');
 		setSubmitting(false);
 		setShowInfo(false);
@@ -96,7 +96,7 @@ export const NewCardModal = ({ visible, onClose, defaultShareCreditBalanceId }: 
 
 	const is_submit_disabled = submitting
 		|| !name
-		|| (share ? !credit_balance_id : (!credit_limit || !closing_day || !due_day));
+		|| (share ? !credit_balance_id : (!credit_limit || !best_purchase_day || !due_day));
 
 	const handleSave = () => {
 		setSubmitting(true);
@@ -122,7 +122,7 @@ export const NewCardModal = ({ visible, onClose, defaultShareCreditBalanceId }: 
 			body: {
 				name,
 				credit_limit: Number(MoneyUtils.unformatMoney(credit_limit)),
-				closing_day: Number(closing_day),
+				best_purchase_day: Number(best_purchase_day),
 				due_day: Number(due_day),
 			},
 			onSuccess: (created_balance) => {
@@ -231,9 +231,9 @@ export const NewCardModal = ({ visible, onClose, defaultShareCreditBalanceId }: 
 									<View style={styles.row}>
 										<View style={styles.rowItem}>
 											<ThemedTextInput
-												label='Fechamento *'
-												value={closing_day}
-												onChangeText={(text) => setClosingDay(clampDay(text))}
+												label='Melhor compra *'
+												value={best_purchase_day}
+												onChangeText={(text) => setBestPurchaseDay(clampDay(text))}
 												placeholder='Dia (1–31)'
 												keyboardType='numeric'
 												maxLength={2}

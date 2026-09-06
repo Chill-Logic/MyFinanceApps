@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, InvoiceUtils, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
 import { AlertTriangle, CalendarIcon, CreditCard, Landmark, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
@@ -19,6 +19,7 @@ import TextInput from '@/components/atoms/TextInput';
 import DateTimeField from '@/components/molecules/DateTimeField';
 import Checkbox from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { FIELD_METRICS } from '@/components/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
@@ -38,12 +39,17 @@ type TFormValues = {
 	kind: TTransactionKind;
 	description: string;
 	value: string;
-	/* "Data prevista" (transaction_date) — carrega data + horário. */
+	/* "Data da transação" (transaction_date) — carrega data + horário. */
 	transaction_date: Date;
 	/* "Pago em" (settled_date) — `null` = pendente. Carrega data + horário. */
 	settled_date: Date | null;
+	/* Fatura do gasto de cartão: `AUTO_INVOICE_MONTH` = deixa o backend calcular pelo ciclo. */
+	invoice_month: string;
 	draft: boolean;
 };
+
+/* Sentinela do "deixa o backend decidir" — o Select do Radix não aceita item com value vazio. */
+const AUTO_INVOICE_MONTH = 'auto';
 
 const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => ({
 	origin,
@@ -51,10 +57,23 @@ const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => (
 	kind: 'withdraw',
 	description: '',
 	value: '',
-	transaction_date: suggestedDate ?? new Date(),
+	transaction_date: DateUtils.withCurrentTime(suggestedDate ?? new Date()),
 	settled_date: null,
+	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
 });
+
+/*
+ * Opções do campo "Fatura": a automática + uma janela de meses ancorada na data da compra (do mês
+ * anterior a doze à frente, que cobre parcelamento). O valor atual entra sempre, pra uma transação já
+ * movida pra fora da janela não abrir com o select vazio. "YYYY-MM" ordena lexicograficamente.
+ */
+const buildInvoiceMonthOptions = (transactionDate: Date, current: string): string[] => {
+	const anchor = `${ transactionDate.getFullYear() }-${ String(transactionDate.getMonth() + 1).padStart(2, '0') }`;
+	const window_months = Array.from({ length: 14 }, (_unused, index) => InvoiceUtils.shiftMonth(anchor, index - 1));
+	const all = current === AUTO_INVOICE_MONTH ? window_months : [ current, ...window_months ];
+	return Array.from(new Set(all)).sort();
+};
 
 const DEFAULT_KIND_OPTIONS = [
 	{ value: 'withdraw', label: 'Saída' },
@@ -128,6 +147,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				value: MoneyUtils.formatMoney(transaction.value),
 				transaction_date: new Date(transaction.transaction_date),
 				settled_date: transaction.settled_date ? new Date(transaction.settled_date) : null,
+				invoice_month: transaction.invoice_month || AUTO_INVOICE_MONTH,
 				draft: transaction.draft,
 			});
 		} else {
@@ -184,6 +204,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		 */
 		const account_settled_date = values.settled_date ? values.settled_date.toISOString() : null;
 		const settled_date = is_credit ? undefined : account_settled_date;
+		/*
+		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
+		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
+		 */
+		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
 
 		if (transaction) {
 			updateTransactionMutation({
@@ -194,6 +219,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					transaction_date,
 					settled_date,
 					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
 				},
 				id: transaction.id,
@@ -213,6 +239,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
+				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
 			},
 			onSuccess: () => finalize('Transação criada!'),
@@ -286,34 +313,56 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				{/* Etapa 2: o formulário (na edição entra direto aqui) */}
 				{(is_editing || origin_type !== null) && (
 					<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-						<div className='flex flex-col gap-1.5'>
-							<div className='flex items-center justify-between'>
-								<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
-								{!is_editing && (
-									<button type='button' onClick={backToTypeStep} className='text-xs font-medium text-muted-foreground hover:text-foreground'>
-										← Trocar tipo
-									</button>
-								)}
+						{/*
+						 * Em conta, origem e tipo dividem a linha (dois campos curtos, sem precisar de linha própria);
+						 * em cartão a origem ocupa a linha toda, porque logo abaixo vem o campo "Cartão".
+						 */}
+						<div className='flex gap-4'>
+							<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+								<div className='flex items-center justify-between gap-2'>
+									<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
+									{!is_editing && (
+										<button type='button' onClick={backToTypeStep} className='shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground'>
+											← Trocar tipo
+										</button>
+									)}
+								</div>
+								<Select
+									value={values.origin}
+									disabled={is_editing}
+									onValueChange={(origin) => setValues((prev) => ({ ...prev, origin, credit_card_id: '' }))}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder={is_credit ? 'Escolha o crédito' : 'Escolha a conta'} />
+									</SelectTrigger>
+									<SelectContent>
+										{(is_credit ? credit_balances : accounts).map((origin_item) => (
+											<SelectItem key={origin_item.id} value={`${ is_credit ? 'CreditBalance' : 'Account' }:${ origin_item.id }`}>
+												<span className='flex items-center gap-2'>
+													{is_credit ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
+													{origin_item.name}
+												</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
-							<Select
-								value={values.origin}
-								disabled={is_editing}
-								onValueChange={(origin) => setValues((prev) => ({ ...prev, origin, credit_card_id: '' }))}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder={is_credit ? 'Escolha o crédito' : 'Escolha a conta'} />
-								</SelectTrigger>
-								<SelectContent>
-									{(is_credit ? credit_balances : accounts).map((origin_item) => (
-										<SelectItem key={origin_item.id} value={`${ is_credit ? 'CreditBalance' : 'Account' }:${ origin_item.id }`}>
-											<span className='flex items-center gap-2'>
-												{is_credit ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
-												{origin_item.name}
-											</span>
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+
+							{!is_credit && (
+								<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+									<label className='text-sm font-medium'>Tipo</label>
+									<Select value={values.kind} onValueChange={(value) => setValues((prev) => ({ ...prev, kind: value as TTransactionKind }))}>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{kinds.map((option) => (
+												<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
 						</div>
 
 						{/* Só depois de escolher um crédito específico (source_id) — senão o aviso apareceria à toa */}
@@ -356,22 +405,6 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							</div>
 						)}
 
-						{!is_credit && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>Tipo</label>
-								<Select value={values.kind} onValueChange={(value) => setValues((prev) => ({ ...prev, kind: value as TTransactionKind }))}>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{kinds.map((option) => (
-											<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-
 						<TextInput
 							type='text'
 							label='Descrição'
@@ -393,13 +426,41 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						/>
 
 						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>{is_credit ? 'Data da transação' : 'Data prevista'}</label>
+							<label className='text-sm font-medium'>Data da transação</label>
 							<DateTimeField
 								value={values.transaction_date}
 								disabled={is_pending}
 								onChange={(next) => setValues((prev) => ({ ...prev, transaction_date: next }))}
 							/>
 						</div>
+
+						{/*
+						 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
+						 * O default vem do ciclo do cartão no backend — só mexer aqui pra jogar a compra pra outra
+						 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
+						 */}
+						{is_credit && (
+							<div className='flex flex-col gap-1.5'>
+								<label className='text-sm font-medium'>
+									Fatura <span className='font-normal text-muted-foreground'>— em qual fatura essa compra entra</span>
+								</label>
+								<Select
+									value={values.invoice_month}
+									disabled={is_pending}
+									onValueChange={(invoice_month) => setValues((prev) => ({ ...prev, invoice_month }))}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={AUTO_INVOICE_MONTH}>Automática — pelo ciclo do cartão</SelectItem>
+										{buildInvoiceMonthOptions(values.transaction_date, values.invoice_month).map((month) => (
+											<SelectItem key={month} value={month}>{InvoiceUtils.monthLabel(month)}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 
 						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
 						{!is_credit && (
@@ -432,8 +493,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 										type='button'
 										variant='outline'
 										disabled={is_pending}
-										className='justify-start gap-2 font-normal text-muted-foreground'
-										onClick={() => setValues((prev) => ({ ...prev, settled_date: new Date() }))}
+										className={`${ FIELD_METRICS } justify-start gap-2 text-muted-foreground`}
+										onClick={() => setValues((prev) => ({ ...prev, settled_date: new Date(prev.transaction_date) }))}
 									>
 										<CalendarIcon className='h-4 w-4' />
 										Marcar como pago

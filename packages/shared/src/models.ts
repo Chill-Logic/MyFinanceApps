@@ -40,6 +40,12 @@ export type TTransaction = WithModelFields<{
 	paid_credit_balance_id: string | null;
 	/* "Pago em" — `null` = pendente (só entra no total previsto); data = efetivada (entra no efetivado). */
 	settled_date: string | null;
+	/*
+	 * "YYYY-MM" da fatura em que a transação de crédito entra. `null` em transações de conta. É ISSO
+	 * que define de qual fatura a transação é — não a `transaction_date`. O backend preenche pelo ciclo
+	 * do cartão quando o campo não é enviado.
+	 */
+	invoice_month: string | null;
 	settled: boolean;
 	/* Rascunho/planejamento: aparece na lista, mas fica fora dos dois totais. */
 	draft: boolean;
@@ -65,8 +71,9 @@ export type TAccount = WithModelFields<{
 }>;
 
 /*
- * Fatura do ciclo atual de um saldo de crédito. `amount` em centavos; `cycle_start`/`cycle_end`
- * são datetime (limites do ciclo no fuso da app); `due_date` é a data de vencimento (YYYY-MM-DD).
+ * Fatura de um mês de um saldo de crédito. `amount` em centavos; `cycle_start`/`cycle_end` são
+ * datetime (limites do ciclo no fuso da app); `due_date` é a data de vencimento (YYYY-MM-DD).
+ * A composição vem do `invoice_month` das transações — o ciclo só informa as datas exibidas.
  */
 export type TCurrentInvoice = {
 	/* Valor total do ciclo em centavos (compras - estornos). */
@@ -75,6 +82,8 @@ export type TCurrentInvoice = {
 	paid_amount: number;
 	/* Saldo restante a pagar (`amount` - `paid_amount`, nunca negativo), em centavos. */
 	remaining: number;
+	/* "YYYY-MM" desta fatura — o mesmo valor que as transações dela carregam em `invoice_month`. */
+	invoice_month: string;
 	cycle_start: string;
 	cycle_end: string;
 	due_date: string;
@@ -85,7 +94,13 @@ export type TCurrentInvoice = {
 export type TCreditBalance = WithModelFields<{
 	name: string;
 	credit_limit: number;
-	closing_day: number;
+	/*
+	 * "Melhor dia de compra": o dia em que o ciclo VIRA. Uma compra nesse dia já entra no ciclo novo
+	 * (o de maior prazo). O ciclo vai daqui até a véspera do mesmo dia no mês seguinte; `1` = ciclo
+	 * igual ao mês-calendário. Substituiu o antigo `closing_day` (backend, 2026-09) — não existe mais
+	 * "dia de fechamento" no domínio, porque bancos divergem sobre cobrar ou não no próprio dia.
+	 */
+	best_purchase_day: number;
 	due_day: number;
 	wallet_id: string;
 	/* Total usado no ciclo atual (saídas - entradas). */

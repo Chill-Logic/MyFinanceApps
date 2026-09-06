@@ -15,8 +15,8 @@ import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdate
 
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
-import { DateUtils } from '../../../utils/date';
 import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
+import { InvoiceUtils } from '../../../utils/invoice';
 import { MoneyUtils } from '../../../utils/money';
 
 import { parseOrigin, TNewTransactionForm } from '../../../types/forms';
@@ -35,16 +35,21 @@ interface TransactionModalProps {
 	suggested_date?: string;
 }
 
+/* Sentinela do "deixa o backend decidir a fatura" — espelha o `AUTO_INVOICE_MONTH` do web. */
+const AUTO_INVOICE_MONTH = 'auto';
+
+/* `transaction_date`/`transaction_time` são preenchidos no efeito de criação (data sugerida + hora de agora). */
 const DEFAULT_VALUES: TNewTransactionForm = {
 	kind: 'deposit',
 	description: '',
 	value: '',
 	transaction_date: '',
-	transaction_time: '00:00',
+	transaction_time: '',
 	settled_date: '',
 	settled_time: '',
 	origin: '',
 	credit_card_id: '',
+	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
 };
 
@@ -52,6 +57,23 @@ const KIND_OPTIONS = [
 	{ label: 'Entrada', value: 'deposit' },
 	{ label: 'Saída', value: 'withdraw' },
 ];
+
+/*
+ * Opções do campo "Fatura": a automática + uma janela de meses ancorada na data da compra (do mês
+ * anterior a doze à frente, que cobre parcelamento). O valor atual entra sempre, pra uma transação já
+ * movida pra fora da janela não abrir com o select vazio. "YYYY-MM" ordena lexicograficamente.
+ */
+const buildInvoiceMonthOptions = (displayDate: string, current: string) => {
+	const [ , month, year ] = displayDate.split('/');
+	const anchor = year && month ? `${ year }-${ month }` : InvoiceUtils.shiftMonth(new Date().toISOString(), 0);
+	const window_months = Array.from({ length: 14 }, (_unused, index) => InvoiceUtils.shiftMonth(anchor, index - 1));
+	const all = current === AUTO_INVOICE_MONTH ? window_months : [ current, ...window_months ];
+
+	return [
+		{ label: 'Automática — pelo ciclo do cartão', value: AUTO_INVOICE_MONTH },
+		...Array.from(new Set(all)).sort().map((invoice_month) => ({ label: InvoiceUtils.monthLabel(invoice_month), value: invoice_month })),
+	];
+};
 
 /* Qual campo de data o calendário (que troca de conteúdo dentro do MESMO modal) está editando. */
 type TCalendarTarget = 'transaction' | 'settled' | null;
@@ -156,6 +178,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		 */
 		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
 		const settled_date = is_credit ? undefined : account_settled_date;
+		/*
+		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
+		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
+		 */
+		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
 
 		if (transaction) {
 			updateTransactionMutation({
@@ -166,6 +193,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					transaction_date,
 					settled_date,
 					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
 				},
 				id: transaction.id,
@@ -190,6 +218,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
+				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
 			},
 			onSuccess: () => {
@@ -223,6 +252,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				settled_time: paid ? paid.time : '',
 				origin: `${ transaction.source_type }:${ transaction.source_id }`,
 				credit_card_id: transaction.credit_card_id || '',
+				invoice_month: transaction.invoice_month || AUTO_INVOICE_MONTH,
 				draft: transaction.draft,
 			});
 		} else {
@@ -231,10 +261,15 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		}
 	}, [ transaction ]);
 
+	/*
+	 * Criação: a data vem da sugestão (o dia que a lista está mostrando) mas o HORÁRIO é sempre o de
+	 * AGORA — a sugestão é do DIA, e um lançamento novo nascendo 00:00 fica errado na ordenação e no
+	 * "Pago em", que herda esse horário.
+	 */
 	useEffect(() => {
 		if (!transaction) {
-			const fallback = suggested_date || DateUtils.formatDate(new Date().toISOString());
-			setValues((prev) => ({ ...prev, transaction_date: fallback }));
+			const now = nowParts();
+			setValues((prev) => ({ ...prev, transaction_date: suggested_date || now.date, transaction_time: now.time }));
 		}
 	}, [ suggested_date, visible, transaction ]);
 
@@ -318,21 +353,38 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
 
 			<ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
-				<ThemedView style={styles.formGroup}>
-					<ThemedView style={styles.originLabelRow}>
-						<ThemedText>{is_credit ? 'Crédito *' : 'Conta *'}</ThemedText>
-						{!is_editing && (
-							<TouchableOpacity onPress={backToTypeStep} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-								<ThemedText style={styles.switchTypeText}>← Trocar tipo</ThemedText>
-							</TouchableOpacity>
-						)}
+				{/*
+				 * Em conta, origem e tipo dividem a linha; em cartão a origem ocupa a linha toda, porque logo
+				 * abaixo vem o bloco "Cartão".
+				 */}
+				<ThemedView style={[ styles.formGroup, styles.originRow ]}>
+					<ThemedView style={styles.originCol}>
+						<ThemedView style={styles.originLabelRow}>
+							<ThemedText>{is_credit ? 'Crédito *' : 'Conta *'}</ThemedText>
+							{!is_editing && (
+								<TouchableOpacity onPress={backToTypeStep} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+									<ThemedText style={styles.switchTypeText}>← Trocar tipo</ThemedText>
+								</TouchableOpacity>
+							)}
+						</ThemedView>
+						<SelectInput
+							options={origin_options}
+							value={values.origin}
+							disabled={is_editing}
+							onChange={(origin) => setValues({ ...values, origin, credit_card_id: '' })}
+						/>
 					</ThemedView>
-					<SelectInput
-						options={origin_options}
-						value={values.origin}
-						disabled={is_editing}
-						onChange={(origin) => setValues({ ...values, origin, credit_card_id: '' })}
-					/>
+
+					{!is_credit && (
+						<ThemedView style={styles.originCol}>
+							<SelectInput
+								label='Tipo *'
+								options={KIND_OPTIONS}
+								value={values.kind}
+								onChange={(value) => setValues({ ...values, kind: value as TTransactionKind })}
+							/>
+						</ThemedView>
+					)}
 				</ThemedView>
 
 				{/* Bloco do cartão só depois de um crédito específico selecionado (source_id) — senão o aviso apareceria à toa */}
@@ -350,17 +402,6 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 								<ThemedText style={styles.cardWarning}>Este crédito não tem cartões. Toque para cadastrar um em Contas & Cartões.</ThemedText>
 							</TouchableOpacity>
 						)}
-					</ThemedView>
-				)}
-
-				{!is_credit && (
-					<ThemedView style={styles.formGroup}>
-						<SelectInput
-							label='Tipo *'
-							options={KIND_OPTIONS}
-							value={values.kind}
-							onChange={(value) => setValues({ ...values, kind: value as TTransactionKind })}
-						/>
 					</ThemedView>
 				)}
 
@@ -385,7 +426,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={[ styles.formGroup, styles.dateTimeRow ]}>
 					<ThemedView style={styles.dateCol}>
-						<ThemedText>{is_credit ? 'Data da transação *' : 'Data prevista *'}</ThemedText>
+						<ThemedText>Data da transação *</ThemedText>
 						{renderDateTrigger(values.transaction_date, 'transaction')}
 					</ThemedView>
 					<ThemedView style={styles.timeCol}>
@@ -399,6 +440,22 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 						/>
 					</ThemedView>
 				</ThemedView>
+
+				{/*
+				 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
+				 * O default vem do ciclo do cartão no backend — só mexer aqui pra jogar a compra pra outra
+				 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
+				 */}
+				{is_credit && (
+					<ThemedView style={styles.formGroup}>
+						<SelectInput
+							label='Fatura'
+							options={buildInvoiceMonthOptions(values.transaction_date, values.invoice_month)}
+							value={values.invoice_month}
+							onChange={(invoice_month) => setValues((prev) => ({ ...prev, invoice_month }))}
+						/>
+					</ThemedView>
+				)}
 
 				{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
 				{!is_credit && (
@@ -433,7 +490,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 								style={[ styles.markPaidButton, { borderColor: theme.colors.border } ]}
 								onPress={() => {
 									const now = nowParts();
-									setValues((prev) => ({ ...prev, settled_date: now.date, settled_time: now.time }));
+									setValues((prev) => ({
+										...prev,
+										settled_date: prev.transaction_date || now.date,
+										settled_time: prev.transaction_time || now.time,
+									}));
 								}}
 								activeOpacity={0.7}
 							>
@@ -478,7 +539,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					<TouchableOpacity onPress={() => setCalendarTarget(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
 						<Icon name='arrow-back' size={22} color={theme.colors.text} />
 					</TouchableOpacity>
-					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data prevista'}</ThemedText>
+					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data da transação'}</ThemedText>
 					<ThemedView style={styles.calendarHeaderSpacer} />
 				</ThemedView>
 
@@ -631,6 +692,15 @@ const styles = StyleSheet.create({
 	originTypeHint: {
 		fontSize: 11,
 		color: '#888',
+	},
+	originRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-end',
+		gap: 10,
+	},
+	originCol: {
+		flex: 1,
+		backgroundColor: 'transparent',
 	},
 	dateTimeRow: {
 		flexDirection: 'row',

@@ -32,29 +32,6 @@ const formatDayMonth = (iso: string): string => {
 	return day && month ? `${ day }/${ month }` : iso;
 };
 
-/*
- * Navegação de fatura por `date` (não por `reference`), ancorada no MÊS de fechamento (`cycle_end`) da
- * fatura atual + offset, mandando SEMPRE o dia 1 do mês. Motivo: `date` cai em `cycle_range` no backend
- * (o mesmo cálculo da `current_invoice` embutida — estável entre versões), enquanto a convenção de
- * `reference`/`cycle_for_month` divergiu entre o deploy e o checkout local (deploy: `reference` M → vence
- * M; local: → vence M+1). O dia 1 é sempre válido (sem rollover) e cai sempre dentro do ciclo que FECHA
- * naquele mês (`cycle_range`: `date ≤ closing(mês)` ⇒ ciclo que fecha nesse mês), então cada seta anda
- * exatamente um ciclo.
- */
-const dateForOffset = (cycleEnd: string, offset: number): string => {
-	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
-	const date = new Date(year, (month - 1) + offset, 1);
-	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
-};
-
-/* Rótulo de fallback enquanto a fatura navegada carrega: vencimento ≈ mês do fechamento + 1 (config
- * comum, vencimento < fechamento). Some assim que a fatura real chega (label vem do `due_date`). */
-const dueLabelForOffset = (cycleEnd: string, offset: number): string => {
-	const [ year, month ] = cycleEnd.split('T')[0].split('-').map(Number);
-	const date = new Date(year, month + offset, 1);
-	return `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-01`;
-};
-
 const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance }) => {
 	const { theme, mode } = useTheme();
 	const card_surface = mode === 'dark' ? '#121214' : '#ffffff';
@@ -74,14 +51,15 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const [ cycle_offset, setCycleOffset ] = useState(0);
 
 	const is_current_cycle = cycle_offset === 0;
-	const cycle_end = credit_balance.current_invoice.cycle_end;
-	/* Data (dia 1 do mês de fechamento + offset) que mira o ciclo. Sempre calculada (inclusive offset 0)
-	 * pra o pagamento mirar exatamente a fatura exibida — sem ela o backend pagaria o ciclo de HOJE. */
-	const invoice_date = dateForOffset(cycle_end, cycle_offset);
+	/*
+	 * Mês da fatura exibida = `invoice_month` da fatura atual + offset. Sempre calculado (inclusive no
+	 * offset 0) pra o pagamento mirar exatamente a fatura da tela — sem ele o backend pagaria a de HOJE.
+	 */
+	const invoice_month = InvoiceUtils.shiftMonth(credit_balance.current_invoice.invoice_month, cycle_offset);
 	const { data: navigated_invoice, isFetching: is_invoice_fetching } = useGetInvoice({
 		id: credit_balance.id,
 		enabled: !is_current_cycle,
-		params: { date: invoice_date },
+		params: { reference: invoice_month },
 	});
 
 	const cards = cards_data?.data || [];
@@ -89,7 +67,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const is_invoice_loading = !is_current_cycle && is_invoice_fetching && !invoice;
 	/* Fatura atual = hoje ∈ [cycle_start, cycle_end] (não o offset 0); nome pelo vencimento (due_date). */
 	const is_current = Boolean(invoice) && InvoiceUtils.isCurrent(invoice!);
-	const cycle_label = invoice ? InvoiceUtils.label(invoice) : InvoiceUtils.label({ due_date: dueLabelForOffset(cycle_end, cycle_offset) });
+	const cycle_label = invoice ? InvoiceUtils.label(invoice) : InvoiceUtils.monthLabel(invoice_month);
 	const limit = credit_balance.credit_limit || 0;
 	const used_pct = limit > 0 ? Math.min(100, Math.max(0, (credit_balance.used / limit) * 100)) : 0;
 	const remaining = invoice?.remaining ?? 0;
@@ -285,7 +263,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				onClose={() => setIsPayOpen(false)}
 				creditBalance={credit_balance}
 				invoice={invoice}
-				date={invoice_date}
+				reference={invoice_month}
 			/>
 			<CreditCardFormModal visible={Boolean(editing_card)} card={editing_card} onClose={() => setEditingCard(null)} />
 		</ThemedView>
@@ -324,7 +302,7 @@ export const CreditBalanceList = () => {
 			{!isLoading && credit_balances.length === 0 && (
 				<View style={styles.centered}>
 					<ThemedText style={styles.emptyTitle}>Nenhum cartão ainda</ThemedText>
-					<ThemedText style={styles.emptyMessage}>Cadastre um cartão de crédito com limite e datas de fechamento/vencimento.</ThemedText>
+					<ThemedText style={styles.emptyMessage}>Cadastre um cartão de crédito com limite, melhor dia de compra e vencimento.</ThemedText>
 				</View>
 			)}
 

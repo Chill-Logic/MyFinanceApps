@@ -4,12 +4,14 @@ export type TNewTransactionForm = {
 	kind: TTransaction['kind'];
 	description: string;
 	value: string;
-	/* "Data prevista" (transaction_date) — dd/MM/yyyy; o horário fica separado em `transaction_time`. */
+	/* "Data da transação" (transaction_date) — dd/MM/yyyy; o horário fica separado em `transaction_time`. */
 	transaction_date: string;
 	transaction_time: string;
 	/* "Pago em" (settled_date) — vazio = pendente; horário separado em `settled_time`. */
 	settled_date: string;
 	settled_time: string;
+	/* Fatura do gasto de cartão ("YYYY-MM"); `AUTO_INVOICE_MONTH` = deixa o backend calcular pelo ciclo. */
+	invoice_month: string;
 	/* Origem codificada como `${source_type}:${source_id}` (ex.: "Account:uuid"). */
 	origin: string;
 	credit_card_id: string;
@@ -31,7 +33,7 @@ export type TAccountForm = {
 export type TCreditBalanceForm = {
 	name: string;
 	credit_limit: string;
-	closing_day: string;
+	best_purchase_day: string;
 	due_day: string;
 };
 

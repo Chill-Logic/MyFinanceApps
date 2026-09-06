@@ -21,10 +21,11 @@ interface IProps {
 	/* Fatura do ciclo selecionado; ausente = fatura corrente do `creditBalance`. */
 	invoice?: TCurrentInvoice | null;
 	/* Data (YYYY-MM-DD) dentro do ciclo a pagar — mira a fatura exibida, não o ciclo de hoje. */
-	date?: string;
+	/* Mês da fatura a pagar ("YYYY-MM"). Ausente = o backend escolhe a fatura em aberto mais antiga. */
+	reference?: string;
 }
 
-const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: IProps) => {
+const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, reference }: IProps) => {
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
 
@@ -64,7 +65,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, date }: 
 
 		payInvoiceMutation({
 			id: creditBalance.id,
-			body: { account_id, value: value_cents, settled_date: settled_date.toISOString(), ...(date ? { date } : {}) },
+			body: { account_id, value: value_cents, settled_date: settled_date.toISOString(), ...(reference ? { reference } : {}) },
 			onSuccess: () => {
 				toast.success('Pagamento registrado!');
 				onOpenChange(false);

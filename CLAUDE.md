@@ -665,7 +665,8 @@ reaparecer se alguém comparar os dois apps):
   compras só em `credits`) e fazer a aba Cartões respeitar o **ciclo de fatura** de cada crédito. As duas
   visões usam **janelas diferentes**: `accounts` = mês-calendário seguindo `settled_at` (ou
   `transaction_date` enquanto pendente); `credits` = ciclo de fechamento de cada `CreditBalance` por
-  `transaction_date`. Impacto no front: os dois `TransactionList` (web e mobile) **paravam de listar**
+  `transaction_date` (desde 2026-09-06 o bucket é o `invoice_month` da transação — ver seção abaixo).
+  Impacto no front: os dois `TransactionList` (web e mobile) **paravam de listar**
   (liam `.data` de um objeto que não tem mais esse campo → lista vazia). Correção: `TListTransactionsResponse`
   virou `{ accounts, credits }` + `TTransactionGroup`; a aba (`SegmentedControl`) agora **escolhe o grupo**
   (`source_type === 'Account' ? accounts.data : credits.data`) em vez de filtrar `source_type` no cliente
@@ -713,12 +714,68 @@ reaparecer se alguém comparar os dois apps):
     passado pro `PayInvoiceDialog`/`PayInvoiceModal` — sem ele o backend pagaria o ciclo de HOJE, que pode
     não ser a fatura exibida (bug latente de pagamento no ciclo errado, também corrigido). `useGetInvoice`
     ganhou `placeholderData: keepPreviousData` (mantém a fatura anterior na tela durante a troca, sem
-    piscar loader) e a query key inclui `reference` e `date`. Se algum dia o `reference` do backend
-    estabilizar (deploy alcançar o local), dá pra reavaliar voltar pra ele, mas `date`/`cycle_range` é o
-    caminho robusto porque é o mesmo primitivo da fatura embutida.
+    piscar loader) e a query key inclui `reference` e `date`. **RESOLVIDO em 2026-09-06** — o backend
+    passou a expor `invoice_month` e a definir `reference` sem ambiguidade, e a navegação voltou pra
+    `reference`; ver a seção do `invoice_month` abaixo. Os helpers `dateForOffset`/`dueLabelForOffset`
+    não existem mais.
 - **Token não expira mais** (`jwt_encode` com `exp = nil`): não muda nada no front — o auto-login do mobile
   já valida via `/users/me` ([[feedback_never_trust_persisted_token]]); só sumiu a causa da cascata de 401
   por expiração de 7 dias.
+
+**Adaptação ao backend novo — `invoice_month` e melhor dia de compra (2026-09-06):** o backend trocou a
+forma de decidir de que fatura é uma transação de crédito. Duas mudanças, uma delas *breaking*:
+- **`closing_day` virou `best_purchase_day`** (breaking — o param antigo não é mais aceito). Não existe
+  mais "dia de fechamento" no domínio: bancos divergem sobre cobrar ou não no próprio dia, então o campo
+  passou a ser o **melhor dia de compra**, o dia em que o ciclo VIRA — uma compra nesse dia já entra no
+  ciclo novo, o de maior prazo. O ciclo vai do `best_purchase_day` de um mês até a véspera dele no mês
+  seguinte; `1` = ciclo igual ao mês-calendário. A migration converteu os valores existentes
+  (`best_purchase_day = closing_day + 1`), então **o usuário vê um número diferente do que cadastrou** —
+  quem tinha fechamento 3 agora tem melhor compra 4. Renomeado em `TCreditBalance`/`TCreditBalanceBody`
+  (`packages/shared`), nos dois formulários do web (`CreditBalanceFormDialog`, `NewCardDialog`), nos dois
+  do mobile (`CreditBalanceFormModal`, `NewCardModal`) e no `TCreditBalanceForm` de
+  `apps/mobile/src/types/forms.ts`. Rótulos: "Dia de fechamento" → "Melhor dia de compra" (web),
+  "Fechamento *" → "Melhor compra *" (mobile).
+- **`Transaction` ganhou `invoice_month`** (`"YYYY-MM"`, nulo em transações de conta) e a **regra de ouro
+  inverteu**: quem define a fatura de uma transação é esse campo gravado nela, NÃO uma conta de datas.
+  O ciclo do cartão só calcula o *default* do campo e as datas exibidas (`cycle_start`/`cycle_end`/
+  `due_date`). `TCurrentInvoice` também ganhou `invoice_month`, e `TCreateTransactionBody`/
+  `TUpdateTransactionBody` aceitam `invoice_month` opcional — dá pra jogar uma compra pra outra fatura
+  sem mexer na data dela (útil pra parcelamento e compra lançada fora do ciclo). No web, o
+  `TransactionFormDialog` ganhou o campo **"Fatura"** (só em cartão): um select com "Automática — pelo
+  ciclo do cartão" (sentinela `AUTO_INVOICE_MONTH`, porque o Select do Radix não aceita item com value
+  vazio) + uma janela de meses ancorada na data da compra (−1 a +12, cobre parcelamento), sempre
+  incluindo o valor atual pra uma transação já movida pra fora da janela não abrir com o select vazio.
+  "Automática" vira `''` no UPDATE (é assim que o backend devolve o campo pro default) e some no CREATE.
+  Uma transação de cartão carregada pra edição vem com o mês concreto, não com "Automática" — ou seja,
+  mudar a data NÃO move a fatura (mesmo comportamento de antes, já que o backend só calcula o default
+  quando o campo está em branco); pra fazer a fatura seguir a data, escolher "Automática". O mobile tem
+  o mesmo campo no `TransactionFormModal` (via `SelectInput`), com a mesma sentinela e as mesmas opções —
+  `apps/mobile/src/utils/invoice.ts` re-exporta o `InvoiceUtils` do shared, no padrão dos outros utils.
+  - **Navegação de fatura voltou pra `reference`.** Com `invoice_month` na resposta, a âncora deixou de
+    ser o mês do `cycle_end` (que exigia adivinhar o vencimento) e virou o próprio `invoice_month` da
+    `current_invoice`: `InvoiceUtils.shiftMonth(invoice_month, cycle_offset)` → `reference: "YYYY-MM"`.
+    Isso apagou os dois helpers de heurística (`dateForOffset`, `dueLabelForOffset`) dos dois
+    `CreditBalanceList` e o rótulo de fallback virou `InvoiceUtils.monthLabel(invoice_month)` — sem o
+    chute de "vencimento ≈ fechamento + 1", porque o `invoice_month` **já é** o mês do vencimento.
+    `PayInvoiceDialog`/`PayInvoiceModal` passaram a receber `reference` em vez de `date` e mandam
+    `reference` no `pay_invoice` (o backend prioriza ele sobre `date`).
+
+**Ajustes de UX do formulário de transação (2026-09-06, web + mobile):**
+- **"Data prevista" virou "Data da transação"** nos dois tipos de origem (era ternário por `is_credit`),
+  nos quatro lugares: `TransactionFormDialog`/`TransactionDuplicateDialog` (web) e
+  `TransactionFormModal`/`TransactionDuplicateModal` (mobile), incluindo o título do calendário do mobile.
+- **Horário nasce com a hora de AGORA**, não 00:00. A data sugerida (o dia que a lista está mostrando)
+  é do DIA, não da hora — antes o lançamento nascia meia-noite, o que bagunçava a ordenação e o "Pago em",
+  que herda esse horário. Helper `DateUtils.withCurrentTime` no `packages/shared` (web); no mobile, que
+  guarda data e hora em campos separados, o efeito de criação usa `nowParts().time`. Vale também na
+  DUPLICAÇÃO: a cópia é um lançamento novo, então não herda o horário da original (que podia ser 00:00).
+- **"Marcar como pago" pré-preenche com a data/hora da transação**, não com "agora" — o caso comum é
+  registrar algo que já foi pago na hora em que aconteceu.
+- **"Conta" e "Tipo" na mesma linha** quando a origem não é cartão (em cartão a origem ocupa a linha
+  toda, porque logo abaixo vem o campo "Cartão"). No mobile isso fica apertado em tela estreita: os dois
+  selects dividem ~50% cada.
+- **Altura dos campos**: o botão "Marcar como pago" (web) usava a altura padrão do `Button` (36px) e
+  destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `apps/web/src/components/ui/field.ts`).
 
 ### apps/web (Vite + React)
 

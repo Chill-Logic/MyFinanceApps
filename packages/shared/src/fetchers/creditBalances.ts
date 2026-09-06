@@ -12,9 +12,12 @@ export type TIndexCreditBalancesParams = {
 };
 
 export type TGetInvoiceParams = {
-	/* Mês do ciclo no formato `YYYY-MM` (mesmo ciclo do index); tem prioridade sobre `date`. */
+	/*
+	 * Mês da fatura no formato `YYYY-MM` — o `invoice_month`, que é o mês do VENCIMENTO (mesmo bucket do
+	 * grupo `credits` do index). É a forma preferida de navegar; tem prioridade sobre `date`.
+	 */
 	reference?: string;
-	/* Data de referência do ciclo (YYYY-MM-DD); usada quando `reference` não vem; ausente = hoje. */
+	/* Qualquer data (YYYY-MM-DD) dentro do ciclo: cai na fatura daquele ciclo. Ausente = hoje. */
 	date?: string;
 };
 
