@@ -199,11 +199,14 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
 		const transaction_date = values.transaction_date.toISOString();
 		/*
-		 * "Pago em" só é controlável em conta — o crédito é auto-efetivado pelo backend (settled_date =
-		 * transaction_date), então nem enviamos o campo (seria sobrescrito). Em conta, `null` = pendente.
+		 * "Pago em" só é controlável em conta, onde `null` = pendente. Em crédito não existe pendente (o gasto
+		 * é efetivado no ato) e mandamos o `settled_date` IGUAL ao `transaction_date` de propósito: o backend
+		 * só carimba o campo quando ele está vazio (`settled_date ||= transaction_date`), então numa EDIÇÃO
+		 * ele não acompanhava a mudança da data e ficava fossilizado no valor antigo — a transação passava a
+		 * ter data de compra num mês e efetivação em outro.
 		 */
 		const account_settled_date = values.settled_date ? values.settled_date.toISOString() : null;
-		const settled_date = is_credit ? undefined : account_settled_date;
+		const settled_date = is_credit ? transaction_date : account_settled_date;
 		/*
 		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
 		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
