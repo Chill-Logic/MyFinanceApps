@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { DateUtils, getApiErrorMessage, InvoiceUtils, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
 import { AlertTriangle, CalendarIcon, CreditCard, Landmark, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
@@ -63,16 +63,20 @@ const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => (
 	draft: false,
 });
 
+/* "YYYY-MM" de um Date, no fuso local — o formato do `invoice_month`. */
+const monthKey = (date: Date): string =>
+	`${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }`;
+
 /*
- * Opções do campo "Fatura": a automática + uma janela de meses ancorada na data da compra (do mês
- * anterior a doze à frente, que cobre parcelamento). O valor atual entra sempre, pra uma transação já
- * movida pra fora da janela não abrir com o select vazio. "YYYY-MM" ordena lexicograficamente.
+ * Anos do seletor de fatura: dois pra trás, o atual e dois pra frente. O ano do valor atual entra mesmo
+ * fora dessa janela, pra uma transação numa fatura antiga não abrir com o select vazio.
  */
-const buildInvoiceMonthOptions = (transactionDate: Date, current: string): string[] => {
-	const anchor = `${ transactionDate.getFullYear() }-${ String(transactionDate.getMonth() + 1).padStart(2, '0') }`;
-	const window_months = Array.from({ length: 14 }, (_unused, index) => InvoiceUtils.shiftMonth(anchor, index - 1));
-	const all = current === AUTO_INVOICE_MONTH ? window_months : [ current, ...window_months ];
-	return Array.from(new Set(all)).sort();
+const buildInvoiceYearOptions = (current: string): string[] => {
+	const this_year = new Date().getFullYear();
+	const window_years = Array.from({ length: 5 }, (_unused, index) => String(this_year - 2 + index));
+	const [ year_part ] = current.split('-');
+	const current_year = /^\d{4}$/.test(year_part) ? year_part : '';
+	return Array.from(new Set(current_year ? [ current_year, ...window_years ] : window_years)).sort();
 };
 
 const DEFAULT_KIND_OPTIONS = [
@@ -179,6 +183,18 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		const list = type === 'Account' ? accounts : credit_balances;
 		setOriginType(type);
 		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
+	};
+
+	const is_invoice_auto = values.invoice_month === AUTO_INVOICE_MONTH;
+	const [ invoice_year, invoice_month_part ] = is_invoice_auto ? [ '', '' ] : values.invoice_month.split('-');
+
+	/* Mês e ano são escolhidos separados, mas o estado guarda o "YYYY-MM" que vai pro backend. */
+	const setInvoicePart = (part: 'year' | 'month', value: string) => {
+		setValues((prev) => {
+			const [ year, month ] = prev.invoice_month.split('-');
+
+			return { ...prev, invoice_month: part === 'year' ? `${ value }-${ month }` : `${ year }-${ value }` };
+		});
 	};
 
 	/* Volta pra etapa 1 (só na criação), limpando a origem escolhida. */
@@ -432,29 +448,53 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 						{/*
 						 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
-						 * O default vem do ciclo do cartão no backend — só mexer aqui pra jogar a compra pra outra
-						 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
+						 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra
+						 * outra fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 						 */}
 						{is_credit && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>
-									Fatura <span className='font-normal text-muted-foreground'>— em qual fatura essa compra entra</span>
+							<div className='flex flex-col gap-2'>
+								<label className='flex items-center gap-2 text-sm'>
+									<Checkbox
+										checked={is_invoice_auto}
+										disabled={is_pending}
+										onCheckedChange={(checked) => setValues((prev) => ({
+											...prev,
+											invoice_month: checked === true ? AUTO_INVOICE_MONTH : monthKey(prev.transaction_date),
+										}))}
+									/>
+									<span>Fatura automática <span className='text-muted-foreground'>— pelo ciclo do cartão</span></span>
 								</label>
-								<Select
-									value={values.invoice_month}
-									disabled={is_pending}
-									onValueChange={(invoice_month) => setValues((prev) => ({ ...prev, invoice_month }))}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value={AUTO_INVOICE_MONTH}>Automática — pelo ciclo do cartão</SelectItem>
-										{buildInvoiceMonthOptions(values.transaction_date, values.invoice_month).map((month) => (
-											<SelectItem key={month} value={month}>{InvoiceUtils.monthLabel(month)}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+
+								{!is_invoice_auto && (
+									<div className='flex gap-4'>
+										<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+											<label className='text-sm font-medium'>Mês</label>
+											<Select value={invoice_month_part} disabled={is_pending} onValueChange={(month) => setInvoicePart('month', month)}>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{MONTH_NAMES_PT.map((name, index) => (
+														<SelectItem key={name} value={String(index + 1).padStart(2, '0')}>{name}</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</div>
+										<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+											<label className='text-sm font-medium'>Ano</label>
+											<Select value={invoice_year} disabled={is_pending} onValueChange={(year) => setInvoicePart('year', year)}>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{buildInvoiceYearOptions(values.invoice_month).map((year) => (
+														<SelectItem key={year} value={year}>{year}</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</div>
+									</div>
+								)}
 							</div>
 						)}
 

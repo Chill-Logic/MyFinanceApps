@@ -1,6 +1,7 @@
 import type { TCurrentInvoice } from '../models';
 
-const MONTHS_PT = [
+/* Nomes dos meses em pt-BR, índice 0 = Janeiro. Exportado pra montar seletores de mês nos dois apps. */
+export const MONTH_NAMES_PT = [
 	'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 	'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
@@ -17,7 +18,7 @@ const toYmdString = (date: Date): string =>
 /* Nome do mês de um "YYYY-MM" ou de uma data ISO, ex "Agosto 2026". */
 const monthName = (iso: string): string => {
 	const [ year, month ] = ymd(iso);
-	return `${ MONTHS_PT[month - 1] } ${ year }`;
+	return `${ MONTH_NAMES_PT[month - 1] } ${ year }`;
 };
 
 export const InvoiceUtils = {

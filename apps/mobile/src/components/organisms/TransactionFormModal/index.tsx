@@ -16,7 +16,7 @@ import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdate
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
-import { InvoiceUtils } from '../../../utils/invoice';
+import { MONTH_NAMES_PT } from '../../../utils/invoice';
 import { MoneyUtils } from '../../../utils/money';
 
 import { parseOrigin, TNewTransactionForm } from '../../../types/forms';
@@ -58,21 +58,34 @@ const KIND_OPTIONS = [
 	{ label: 'Saída', value: 'withdraw' },
 ];
 
-/*
- * Opções do campo "Fatura": a automática + uma janela de meses ancorada na data da compra (do mês
- * anterior a doze à frente, que cobre parcelamento). O valor atual entra sempre, pra uma transação já
- * movida pra fora da janela não abrir com o select vazio. "YYYY-MM" ordena lexicograficamente.
- */
-const buildInvoiceMonthOptions = (displayDate: string, current: string) => {
-	const [ , month, year ] = displayDate.split('/');
-	const anchor = year && month ? `${ year }-${ month }` : InvoiceUtils.shiftMonth(new Date().toISOString(), 0);
-	const window_months = Array.from({ length: 14 }, (_unused, index) => InvoiceUtils.shiftMonth(anchor, index - 1));
-	const all = current === AUTO_INVOICE_MONTH ? window_months : [ current, ...window_months ];
+/* Opções de mês do seletor de fatura: os 12, com o valor no formato do `invoice_month` ("01".."12"). */
+const INVOICE_MONTH_OPTIONS = MONTH_NAMES_PT.map((name, index) => ({
+	label: name,
+	value: String(index + 1).padStart(2, '0'),
+}));
 
-	return [
-		{ label: 'Automática — pelo ciclo do cartão', value: AUTO_INVOICE_MONTH },
-		...Array.from(new Set(all)).sort().map((invoice_month) => ({ label: InvoiceUtils.monthLabel(invoice_month), value: invoice_month })),
-	];
+/* "YYYY-MM" a partir da data de tela "dd/MM/yyyy"; sem data válida, cai no mês atual. */
+const monthKey = (displayDate: string) => {
+	const [ , month, year ] = displayDate.split('/');
+	if (month && year) return `${ year }-${ month }`;
+
+	const now = new Date();
+
+	return `${ now.getFullYear() }-${ String(now.getMonth() + 1).padStart(2, '0') }`;
+};
+
+/*
+ * Anos do seletor de fatura: dois pra trás, o atual e dois pra frente. O ano do valor atual entra mesmo
+ * fora dessa janela, pra uma transação numa fatura antiga não abrir com o select vazio.
+ */
+const buildInvoiceYearOptions = (current: string) => {
+	const this_year = new Date().getFullYear();
+	const window_years = Array.from({ length: 5 }, (_unused, index) => String(this_year - 2 + index));
+	const [ year_part ] = current.split('-');
+	const current_year = /^\d{4}$/.test(year_part) ? year_part : '';
+	const all = current_year ? [ current_year, ...window_years ] : window_years;
+
+	return Array.from(new Set(all)).sort().map((year) => ({ label: year, value: year }));
 };
 
 /* Qual campo de data o calendário (que troca de conteúdo dentro do MESMO modal) está editando. */
@@ -146,6 +159,18 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		const list = type === 'Account' ? accounts : credit_balances;
 		setOriginType(type);
 		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
+	};
+
+	const is_invoice_auto = values.invoice_month === AUTO_INVOICE_MONTH;
+	const [ invoice_year, invoice_month_part ] = is_invoice_auto ? [ '', '' ] : values.invoice_month.split('-');
+
+	/* Mês e ano são escolhidos separados, mas o estado guarda o "YYYY-MM" que vai pro backend. */
+	const setInvoicePart = (part: 'year' | 'month', value: string) => {
+		setValues((prev) => {
+			const [ year, month ] = prev.invoice_month.split('-');
+
+			return { ...prev, invoice_month: part === 'year' ? `${ value }-${ month }` : `${ year }-${ value }` };
+		});
 	};
 
 	/* Volta pra etapa 1 (só na criação), limpando o tipo e a origem escolhida. */
@@ -439,17 +464,47 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				{/*
 				 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
-				 * O default vem do ciclo do cartão no backend — só mexer aqui pra jogar a compra pra outra
+				 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra outra
 				 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 				 */}
 				{is_credit && (
 					<ThemedView style={styles.formGroup}>
-						<SelectInput
-							label='Fatura'
-							options={buildInvoiceMonthOptions(values.transaction_date, values.invoice_month)}
-							value={values.invoice_month}
-							onChange={(invoice_month) => setValues((prev) => ({ ...prev, invoice_month }))}
-						/>
+						<TouchableOpacity
+							style={styles.toggleRow}
+							onPress={() => setValues((prev) => ({
+								...prev,
+								invoice_month: is_invoice_auto ? monthKey(prev.transaction_date) : AUTO_INVOICE_MONTH,
+							}))}
+							activeOpacity={0.7}
+						>
+							<Icon
+								name={is_invoice_auto ? 'check-box' : 'check-box-outline-blank'}
+								size={22}
+								color={colors['brand-secondary']}
+							/>
+							<ThemedText>Fatura automática <ThemedText style={styles.toggleHint}>— pelo ciclo do cartão</ThemedText></ThemedText>
+						</TouchableOpacity>
+
+						{!is_invoice_auto && (
+							<ThemedView style={styles.originRow}>
+								<ThemedView style={styles.originCol}>
+									<SelectInput
+										label='Mês'
+										options={INVOICE_MONTH_OPTIONS}
+										value={invoice_month_part}
+										onChange={(month) => setInvoicePart('month', month)}
+									/>
+								</ThemedView>
+								<ThemedView style={styles.originCol}>
+									<SelectInput
+										label='Ano'
+										options={buildInvoiceYearOptions(values.invoice_month)}
+										value={invoice_year}
+										onChange={(year) => setInvoicePart('year', year)}
+									/>
+								</ThemedView>
+							</ThemedView>
+						)}
 					</ThemedView>
 				)}
 

@@ -740,17 +740,19 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   O ciclo do cartão só calcula o *default* do campo e as datas exibidas (`cycle_start`/`cycle_end`/
   `due_date`). `TCurrentInvoice` também ganhou `invoice_month`, e `TCreateTransactionBody`/
   `TUpdateTransactionBody` aceitam `invoice_month` opcional — dá pra jogar uma compra pra outra fatura
-  sem mexer na data dela (útil pra parcelamento e compra lançada fora do ciclo). No web, o
-  `TransactionFormDialog` ganhou o campo **"Fatura"** (só em cartão): um select com "Automática — pelo
-  ciclo do cartão" (sentinela `AUTO_INVOICE_MONTH`, porque o Select do Radix não aceita item com value
-  vazio) + uma janela de meses ancorada na data da compra (−1 a +12, cobre parcelamento), sempre
-  incluindo o valor atual pra uma transação já movida pra fora da janela não abrir com o select vazio.
-  "Automática" vira `''` no UPDATE (é assim que o backend devolve o campo pro default) e some no CREATE.
-  Uma transação de cartão carregada pra edição vem com o mês concreto, não com "Automática" — ou seja,
-  mudar a data NÃO move a fatura (mesmo comportamento de antes, já que o backend só calcula o default
-  quando o campo está em branco); pra fazer a fatura seguir a data, escolher "Automática". O mobile tem
-  o mesmo campo no `TransactionFormModal` (via `SelectInput`), com a mesma sentinela e as mesmas opções —
-  `apps/mobile/src/utils/invoice.ts` re-exporta o `InvoiceUtils` do shared, no padrão dos outros utils.
+  sem mexer na data dela (útil pra parcelamento e compra lançada fora do ciclo). Os dois formulários de
+  transação (`TransactionFormDialog` no web, `TransactionFormModal` no mobile) têm, só em cartão, o
+  checkbox **"Fatura automática — pelo ciclo do cartão"**, marcado por padrão; desmarcando, aparecem dois
+  seletores independentes, **Mês** (os 12) e **Ano** (dois pra trás, o atual, dois pra frente). O estado
+  guarda um só campo, `invoice_month`: ou a sentinela `AUTO_INVOICE_MONTH` (o Select do Radix não aceita
+  item com value vazio), ou o `"YYYY-MM"` composto pelos dois seletores. "Automática" vira `''` no UPDATE
+  (é assim que o backend devolve o campo pro default) e some no CREATE. Os nomes dos meses vêm do
+  `MONTH_NAMES_PT` exportado por `packages/shared/src/utils/invoice.ts`, e o ano do valor atual entra na
+  lista mesmo fora da janela de 5 anos, pra uma transação em fatura antiga não abrir com o select vazio.
+  Uma transação de cartão carregada pra edição vem com o mês concreto, ou seja, **desmarcada** — mudar a
+  data NÃO move a fatura (mesmo comportamento de antes, já que o backend só calcula o default quando o
+  campo está em branco); pra fazer a fatura voltar a seguir a data, marcar "Fatura automática".
+  `apps/mobile/src/utils/invoice.ts` re-exporta o util de fatura do shared, no padrão dos outros utils.
   - **Navegação de fatura voltou pra `reference`.** Com `invoice_month` na resposta, a âncora deixou de
     ser o mês do `cycle_end` (que exigia adivinhar o vencimento) e virou o próprio `invoice_month` da
     `current_invoice`: `InvoiceUtils.shiftMonth(invoice_month, cycle_offset)` → `reference: "YYYY-MM"`.
