@@ -319,14 +319,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						 */}
 						<div className='flex gap-4'>
 							<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-								<div className='flex items-center justify-between gap-2'>
-									<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
-									{!is_editing && (
-										<button type='button' onClick={backToTypeStep} className='shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground'>
-											← Trocar tipo
-										</button>
-									)}
-								</div>
+								<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
 								<Select
 									value={values.origin}
 									disabled={is_editing}
@@ -514,6 +507,12 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						</div>
 
 						<DialogFooter>
+							{/* Ação secundária: fica à esquerda no desktop (`mr-auto`) e por último no mobile, onde o rodapé empilha. */}
+							{!is_editing && (
+								<Button type='button' variant='ghost' onClick={backToTypeStep} disabled={is_pending} className='sm:mr-auto'>
+									← Trocar tipo
+								</Button>
+							)}
 							<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
 								Cancelar
 							</Button>

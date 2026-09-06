@@ -359,15 +359,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				 */}
 				<ThemedView style={[ styles.formGroup, styles.originRow ]}>
 					<ThemedView style={styles.originCol}>
-						<ThemedView style={styles.originLabelRow}>
-							<ThemedText>{is_credit ? 'Crédito *' : 'Conta *'}</ThemedText>
-							{!is_editing && (
-								<TouchableOpacity onPress={backToTypeStep} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-									<ThemedText style={styles.switchTypeText}>← Trocar tipo</ThemedText>
-								</TouchableOpacity>
-							)}
-						</ThemedView>
 						<SelectInput
+							label={is_credit ? 'Crédito *' : 'Conta *'}
 							options={origin_options}
 							value={values.origin}
 							disabled={is_editing}
@@ -520,12 +513,25 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			</ScrollView>
 
 			<ThemedView style={styles.buttonContainer}>
-				<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-					<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-				</TouchableOpacity>
-				<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
-					<ThemedText style={styles.buttonText}>{is_pending ? <Loader /> : 'Salvar'}</ThemedText>
-				</TouchableOpacity>
+				{/* Ação secundária à esquerda, os dois botões principais agrupados à direita — igual ao rodapé do web. */}
+				{!is_editing && (
+					<TouchableOpacity
+						disabled={is_pending}
+						style={styles.linkButton}
+						onPress={backToTypeStep}
+						hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+					>
+						<ThemedText style={styles.linkText}>← Trocar tipo</ThemedText>
+					</TouchableOpacity>
+				)}
+				<ThemedView style={styles.buttonGroup}>
+					<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+						<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+					</TouchableOpacity>
+					<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
+						<ThemedText style={styles.buttonText}>{is_pending ? <Loader /> : 'Salvar'}</ThemedText>
+					</TouchableOpacity>
+				</ThemedView>
 			</ThemedView>
 		</>
 	);
@@ -652,17 +658,6 @@ const styles = StyleSheet.create({
 	formGroup: {
 		marginBottom: 15,
 	},
-	originLabelRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		backgroundColor: 'transparent',
-		marginBottom: 5,
-	},
-	switchTypeText: {
-		color: '#888',
-		fontSize: 13,
-	},
 	originQuestion: {
 		textAlign: 'center',
 		color: '#888',
@@ -767,12 +762,26 @@ const styles = StyleSheet.create({
 	},
 	buttonContainer: {
 		flexDirection: 'row',
+		alignItems: 'center',
 		justifyContent: 'space-between',
+		backgroundColor: 'transparent',
 		marginTop: 20,
 	},
+	/* Cancelar + Salvar dividem o espaço que sobra depois do link "Trocar tipo". */
+	buttonGroup: {
+		flex: 1,
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+		backgroundColor: 'transparent',
+	},
+	/*
+	 * Padding lateral menor que o vertical: com o "Trocar tipo" dividindo a linha, num telefone estreito
+	 * sobra pouco pros dois botões e o "Cancelar" quebrava em duas linhas.
+	 */
 	button: {
 		flex: 1,
-		padding: 15,
+		paddingVertical: 15,
+		paddingHorizontal: 10,
 		borderRadius: 5,
 		marginHorizontal: 5,
 	},
