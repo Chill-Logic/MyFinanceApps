@@ -158,7 +158,7 @@ const groupTransactionsByDay = (transactions: TTransaction[]): TDayGroup[] => {
 	const groups = new Map<string, TDayGroup>();
 
 	transactions.forEach((transaction_item) => {
-		const date = new Date(TransactionUtils.effectiveDate(transaction_item));
+		const date = new Date(TransactionUtils.groupingDate(transaction_item));
 		const key = `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
 
 		if (!groups.has(key)) {
@@ -490,20 +490,22 @@ const TransactionsList = () => {
 	};
 
 	/*
-	 * Linha de data/hora: "Prevista" (transaction_date) + "Pago" (settled_date, quando efetivada). Em
-	 * crédito não mostramos a "Prevista" — a compra é auto-efetivada (settled_date = transaction_date),
-	 * então só o "Pago" é relevante.
+	 * Linha de data/hora: "Prevista" (transaction_date) + "Pago". Em crédito não mostramos a "Prevista" —
+	 * a compra é auto-efetivada — e o "Pago" sai da `transaction_date`, não do `settled_date`: os dois
+	 * nascem iguais, mas o `settled_date` pode acabar carimbado noutro dia (ex.: passando pelo endpoint de
+	 * settle, que usa `Time.current`) e a linha passaria a mostrar uma data que não é a da compra.
 	 */
 	const renderDates = (transaction_item: TTransaction) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
+		const paid_date = is_credit ? transaction_item.transaction_date : transaction_item.settled_date;
 
 		return (
 			<View style={styles.datesCol}>
 				{!is_credit && (
 					<ThemedText style={styles.dateLine}>Prevista: {DateUtils.formateTo(transaction_item.transaction_date, 'dd/MM/yyyy HH:mm')}</ThemedText>
 				)}
-				{transaction_item.settled_date && (
-					<ThemedText style={styles.dateLine}>Pago: {DateUtils.formateTo(transaction_item.settled_date, 'dd/MM/yyyy HH:mm')}</ThemedText>
+				{paid_date && (
+					<ThemedText style={styles.dateLine}>Pago: {DateUtils.formateTo(paid_date, 'dd/MM/yyyy HH:mm')}</ThemedText>
 				)}
 			</View>
 		);
