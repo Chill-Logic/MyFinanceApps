@@ -149,13 +149,16 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
 		const transaction_date = combineToISO(values.transaction_date, values.transaction_time);
 		/*
-		 * "Pago em" só é controlável em conta — o crédito é auto-efetivado pelo backend (settled_date =
-		 * transaction_date), então nem enviamos o campo (seria sobrescrito). Em conta, vazio = null
-		 * (nasce/volta a pendente); com data, manda o instante escolhido — sem a antiga cadeia
-		 * create→settle (o backend já aceita `settled_date` direto no body).
+		 * "Pago em" só é controlável em conta: vazio = null (nasce/volta a pendente); com data, manda o
+		 * instante escolhido — sem a antiga cadeia create→settle (o backend aceita `settled_date` no body).
+		 * Em crédito não existe pendente (o gasto é efetivado no ato) e mandamos o `settled_date` IGUAL ao
+		 * `transaction_date` de propósito: o backend só carimba o campo quando ele está vazio
+		 * (`settled_date ||= transaction_date`), então numa EDIÇÃO ele não acompanhava a mudança da data e
+		 * ficava fossilizado no valor antigo — a transação passava a ter data de compra num mês e efetivação
+		 * em outro.
 		 */
 		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
-		const settled_date = is_credit ? undefined : account_settled_date;
+		const settled_date = is_credit ? transaction_date : account_settled_date;
 
 		if (transaction) {
 			updateTransactionMutation({
