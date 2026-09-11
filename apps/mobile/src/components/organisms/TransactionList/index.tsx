@@ -159,7 +159,7 @@ const groupTransactionsByDay = (transactions: TTransaction[]): TDayGroup[] => {
 
 	transactions.forEach((transaction_item) => {
 		const date = new Date(TransactionUtils.groupingDate(transaction_item));
-		const key = `${ date.getFullYear() }-${ date.getMonth() }-${ date.getDate() }`;
+		const key = `${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }-${ String(date.getDate()).padStart(2, '0') }`;
 
 		if (!groups.has(key)) {
 			groups.set(key, { title: getGroupLabel(date), data: [] });
@@ -167,7 +167,16 @@ const groupTransactionsByDay = (transactions: TTransaction[]): TDayGroup[] => {
 		groups.get(key)!.data.push(transaction_item);
 	});
 
-	return Array.from(groups.values());
+	/*
+	 * Do dia mais recente pro mais antigo. O Map preserva ordem de INSERÇÃO, que é a ordem em que o
+	 * backend mandou (`ORDER BY transaction_date DESC`) — mas o grupo é pela data de agrupamento, que em
+	 * conta é o `settled_date` quando existe. As duas não têm relação, então sem este sort os cabeçalhos
+	 * saíam na sequência das `transaction_date` (6, 8, 2, 5...). A chave é "YYYY-MM-DD" com zero à
+	 * esquerda, então comparar string já ordena cronologicamente.
+	 */
+	return Array.from(groups.entries())
+		.sort(([ a ], [ b ]) => b.localeCompare(a))
+		.map(([ , group ]) => group);
 };
 
 /**
