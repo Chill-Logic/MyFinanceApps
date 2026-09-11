@@ -570,8 +570,18 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				</TouchableOpacity>
 			</ScrollView>
 
+			{/*
+			  * Rodapé empilhado, igual ao `DialogFooter` do web em telas estreitas (`flex-col-reverse`):
+			  * a ação principal fica no topo, a secundária embaixo — com os três lado a lado, num
+			  * telefone estreito não sobrava largura e o texto dos botões quebrava.
+			  */}
 			<ThemedView style={styles.buttonContainer}>
-				{/* Ação secundária à esquerda, os dois botões principais agrupados à direita — igual ao rodapé do web. */}
+				<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
+					<ThemedText style={styles.buttonText}>{is_pending ? <Loader /> : 'Salvar'}</ThemedText>
+				</TouchableOpacity>
+				<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+					<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+				</TouchableOpacity>
 				{!is_editing && (
 					<TouchableOpacity
 						disabled={is_pending}
@@ -582,14 +592,6 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 						<ThemedText style={styles.linkText}>← Trocar tipo</ThemedText>
 					</TouchableOpacity>
 				)}
-				<ThemedView style={styles.buttonGroup}>
-					<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-						<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-					</TouchableOpacity>
-					<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
-						<ThemedText style={styles.buttonText}>{is_pending ? <Loader /> : 'Salvar'}</ThemedText>
-					</TouchableOpacity>
-				</ThemedView>
 			</ThemedView>
 		</>
 	);
@@ -819,35 +821,19 @@ const styles = StyleSheet.create({
 		color: '#888',
 	},
 	buttonContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
+		flexDirection: 'column',
+		gap: 8,
 		backgroundColor: 'transparent',
 		marginTop: 20,
 	},
-	/* Cancelar + Salvar dividem o espaço que sobra depois do link "Trocar tipo". */
-	buttonGroup: {
-		flex: 1,
-		flexDirection: 'row',
-		justifyContent: 'flex-end',
-		backgroundColor: 'transparent',
-	},
-	/*
-	 * Padding lateral menor que o vertical: com o "Trocar tipo" dividindo a linha, num telefone estreito
-	 * sobra pouco pros dois botões e o "Cancelar" quebrava em duas linhas.
-	 */
 	button: {
-		flex: 1,
 		paddingVertical: 15,
 		paddingHorizontal: 10,
 		borderRadius: 5,
-		marginHorizontal: 5,
+		alignItems: 'center',
 	},
 	fullButton: {
 		width: '100%',
-		flex: 0,
-		alignItems: 'center',
-		marginHorizontal: 0,
 		marginTop: 8,
 	},
 	cancelButton: {
@@ -866,6 +852,7 @@ const styles = StyleSheet.create({
 	},
 	linkButton: {
 		paddingVertical: 8,
+		alignItems: 'center',
 	},
 	linkText: {
 		color: '#888',
