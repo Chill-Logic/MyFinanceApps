@@ -18,7 +18,7 @@ interface IProps {
 	creditBalance?: TCreditBalance | null;
 }
 
-/* Mantém o dígito entre 1 e 31 (dias de fechamento/vencimento). */
+/* Mantém o dígito entre 1 e 31 (melhor dia de compra / vencimento). */
 const clampDay = (value: string): string => {
 	const digits = value.replace(/\D/g, '').slice(0, 2);
 	if (!digits) return '';
@@ -34,7 +34,7 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 
 	const [ name, setName ] = useState('');
 	const [ credit_limit, setCreditLimit ] = useState('');
-	const [ closing_day, setClosingDay ] = useState('');
+	const [ best_purchase_day, setBestPurchaseDay ] = useState('');
 	const [ due_day, setDueDay ] = useState('');
 
 	useEffect(() => {
@@ -43,18 +43,18 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 		if (creditBalance) {
 			setName(creditBalance.name);
 			setCreditLimit(MoneyUtils.formatMoney(creditBalance.credit_limit));
-			setClosingDay(String(creditBalance.closing_day));
+			setBestPurchaseDay(String(creditBalance.best_purchase_day));
 			setDueDay(String(creditBalance.due_day));
 		} else {
 			setName('');
 			setCreditLimit('');
-			setClosingDay('');
+			setBestPurchaseDay('');
 			setDueDay('');
 		}
 	}, [ open, creditBalance ]);
 
 	const is_pending = is_create_pending || is_update_pending;
-	const is_disabled = is_pending || !name || !credit_limit || !closing_day || !due_day;
+	const is_disabled = is_pending || !name || !credit_limit || !best_purchase_day || !due_day;
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
@@ -62,7 +62,7 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 		const body = {
 			name,
 			credit_limit: Number(MoneyUtils.unformatMoney(credit_limit)),
-			closing_day: Number(closing_day),
+			best_purchase_day: Number(best_purchase_day),
 			due_day: Number(due_day),
 		};
 
@@ -126,11 +126,11 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 					<div className='flex gap-4'>
 						<TextInput
 							type='text'
-							label='Dia de fechamento'
-							name='closing_day'
+							label='Melhor dia de compra'
+							name='best_purchase_day'
 							placeholder='1 a 31'
-							value={closing_day}
-							onChange={(e) => setClosingDay(clampDay(e.target.value))}
+							value={best_purchase_day}
+							onChange={(e) => setBestPurchaseDay(clampDay(e.target.value))}
 							disabled={is_pending}
 							className='flex-1'
 						/>

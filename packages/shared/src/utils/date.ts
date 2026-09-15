@@ -86,6 +86,23 @@ export const DateUtils = {
 
 		return addMonthsFns(parsed_date, months);
 	},
+	/*
+	 * Mesma DATA, com o HORÁRIO DE AGORA (segundos zerados). Serve pra quando a data vem de uma sugestão
+	 * (o dia que a lista está mostrando) ou de uma transação antiga: o que interessa ali é o DIA, mas o
+	 * horário tem que ser o do lançamento — senão o registro nasce 00:00 e fica errado na ordenação e no
+	 * "pago em", que herda esse horário. Data inválida cai em `new Date()`, que já é agora.
+	 */
+	withCurrentTime: (date: string | Date): Date => {
+		const now = new Date();
+		const parsed_date = parseDate(date);
+		if (!parsed_date) {
+			return now;
+		}
+
+		const next = new Date(parsed_date);
+		next.setHours(now.getHours(), now.getMinutes(), 0, 0);
+		return next;
+	},
 	getMonthRange: (year: number, month: number) => {
 		const start = new Date(year, month, 1);
 		const end = endOfMonth(start);

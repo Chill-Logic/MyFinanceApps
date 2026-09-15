@@ -58,11 +58,15 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 		if (!visible || !transaction) return;
 
 		const planned = isoToParts(transaction.transaction_date);
-		/* Default +1 mês, mesmo dia e horário da original — pensado pra cobrança recorrente do mês seguinte. */
+		/*
+		 * Default +1 mês e mesmo dia da original (pensado pra cobrança recorrente do mês seguinte), mas com o
+		 * HORÁRIO DE AGORA: a cópia é um lançamento novo, e herdar o horário da original faria uma transação
+		 * antiga de 00:00 nascer 00:00 de novo.
+		 */
 		const next_month = DateUtils.addMonths(transaction.transaction_date, 1);
 		setDescription(transaction.description);
 		setTransactionDate(next_month ? DateUtils.formateTo(next_month, 'dd/MM/yyyy') : planned.date);
-		setTransactionTime(planned.time);
+		setTransactionTime(nowParts().time);
 		setSettledDate(''); // cópia nasce pendente; o usuário marca como pago se quiser
 		setSettledTime('');
 		setCalendarTarget(null);
@@ -132,7 +136,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 					<TouchableOpacity onPress={() => setCalendarTarget(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
 						<Icon name='arrow-back' size={22} color={theme.colors.text} />
 					</TouchableOpacity>
-					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data prevista'}</ThemedText>
+					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data da transação'}</ThemedText>
 					<ThemedView style={styles.calendarHeaderSpacer} />
 				</ThemedView>
 
@@ -206,7 +210,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 				<ThemedView style={[ styles.formGroup, styles.dateTimeRow ]}>
 					<ThemedView style={styles.dateCol}>
-						<ThemedText>{is_credit ? 'Data da transação *' : 'Data prevista *'}</ThemedText>
+						<ThemedText>Data da transação *</ThemedText>
 						{renderDateTrigger(transaction_date, 'transaction')}
 					</ThemedView>
 					<ThemedView style={styles.timeCol}>
@@ -254,8 +258,8 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 								style={[ styles.markPaidButton, { borderColor: theme.colors.border } ]}
 								onPress={() => {
 									const now = nowParts();
-									setSettledDate(now.date);
-									setSettledTime(now.time);
+									setSettledDate(transaction_date || now.date);
+									setSettledTime(transaction_time || now.time);
 								}}
 								activeOpacity={0.7}
 							>

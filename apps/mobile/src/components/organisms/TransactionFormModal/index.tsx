@@ -15,8 +15,8 @@ import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdate
 
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
-import { DateUtils } from '../../../utils/date';
 import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
+import { MONTH_NAMES_PT } from '../../../utils/invoice';
 import { MoneyUtils } from '../../../utils/money';
 
 import { parseOrigin, TNewTransactionForm } from '../../../types/forms';
@@ -35,16 +35,21 @@ interface TransactionModalProps {
 	suggested_date?: string;
 }
 
+/* Sentinela do "deixa o backend decidir a fatura" — espelha o `AUTO_INVOICE_MONTH` do web. */
+const AUTO_INVOICE_MONTH = 'auto';
+
+/* `transaction_date`/`transaction_time` são preenchidos no efeito de criação (data sugerida + hora de agora). */
 const DEFAULT_VALUES: TNewTransactionForm = {
 	kind: 'deposit',
 	description: '',
 	value: '',
 	transaction_date: '',
-	transaction_time: '00:00',
+	transaction_time: '',
 	settled_date: '',
 	settled_time: '',
 	origin: '',
 	credit_card_id: '',
+	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
 };
 
@@ -52,6 +57,36 @@ const KIND_OPTIONS = [
 	{ label: 'Entrada', value: 'deposit' },
 	{ label: 'Saída', value: 'withdraw' },
 ];
+
+/* Opções de mês do seletor de fatura: os 12, com o valor no formato do `invoice_month` ("01".."12"). */
+const INVOICE_MONTH_OPTIONS = MONTH_NAMES_PT.map((name, index) => ({
+	label: name,
+	value: String(index + 1).padStart(2, '0'),
+}));
+
+/* "YYYY-MM" a partir da data de tela "dd/MM/yyyy"; sem data válida, cai no mês atual. */
+const monthKey = (displayDate: string) => {
+	const [ , month, year ] = displayDate.split('/');
+	if (month && year) return `${ year }-${ month }`;
+
+	const now = new Date();
+
+	return `${ now.getFullYear() }-${ String(now.getMonth() + 1).padStart(2, '0') }`;
+};
+
+/*
+ * Anos do seletor de fatura: dois pra trás, o atual e dois pra frente. O ano do valor atual entra mesmo
+ * fora dessa janela, pra uma transação numa fatura antiga não abrir com o select vazio.
+ */
+const buildInvoiceYearOptions = (current: string) => {
+	const this_year = new Date().getFullYear();
+	const window_years = Array.from({ length: 5 }, (_unused, index) => String(this_year - 2 + index));
+	const [ year_part ] = current.split('-');
+	const current_year = /^\d{4}$/.test(year_part) ? year_part : '';
+	const all = current_year ? [ current_year, ...window_years ] : window_years;
+
+	return Array.from(new Set(all)).sort().map((year) => ({ label: year, value: year }));
+};
 
 /* Qual campo de data o calendário (que troca de conteúdo dentro do MESMO modal) está editando. */
 type TCalendarTarget = 'transaction' | 'settled' | null;
@@ -126,6 +161,18 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
 	};
 
+	const is_invoice_auto = values.invoice_month === AUTO_INVOICE_MONTH;
+	const [ invoice_year, invoice_month_part ] = is_invoice_auto ? [ '', '' ] : values.invoice_month.split('-');
+
+	/* Mês e ano são escolhidos separados, mas o estado guarda o "YYYY-MM" que vai pro backend. */
+	const setInvoicePart = (part: 'year' | 'month', value: string) => {
+		setValues((prev) => {
+			const [ year, month ] = prev.invoice_month.split('-');
+
+			return { ...prev, invoice_month: part === 'year' ? `${ value }-${ month }` : `${ year }-${ value }` };
+		});
+	};
+
 	/* Volta pra etapa 1 (só na criação), limpando o tipo e a origem escolhida. */
 	const backToTypeStep = () => {
 		setOriginType(null);
@@ -159,6 +206,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		 */
 		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
 		const settled_date = is_credit ? transaction_date : account_settled_date;
+		/*
+		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
+		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
+		 */
+		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
 
 		if (transaction) {
 			updateTransactionMutation({
@@ -169,6 +221,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					transaction_date,
 					settled_date,
 					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
 				},
 				id: transaction.id,
@@ -193,6 +246,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
+				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
 			},
 			onSuccess: () => {
@@ -226,6 +280,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				settled_time: paid ? paid.time : '',
 				origin: `${ transaction.source_type }:${ transaction.source_id }`,
 				credit_card_id: transaction.credit_card_id || '',
+				invoice_month: transaction.invoice_month || AUTO_INVOICE_MONTH,
 				draft: transaction.draft,
 			});
 		} else {
@@ -234,10 +289,15 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		}
 	}, [ transaction ]);
 
+	/*
+	 * Criação: a data vem da sugestão (o dia que a lista está mostrando) mas o HORÁRIO é sempre o de
+	 * AGORA — a sugestão é do DIA, e um lançamento novo nascendo 00:00 fica errado na ordenação e no
+	 * "Pago em", que herda esse horário.
+	 */
 	useEffect(() => {
 		if (!transaction) {
-			const fallback = suggested_date || DateUtils.formatDate(new Date().toISOString());
-			setValues((prev) => ({ ...prev, transaction_date: fallback }));
+			const now = nowParts();
+			setValues((prev) => ({ ...prev, transaction_date: suggested_date || now.date, transaction_time: now.time }));
 		}
 	}, [ suggested_date, visible, transaction ]);
 
@@ -321,21 +381,31 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
 
 			<ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
-				<ThemedView style={styles.formGroup}>
-					<ThemedView style={styles.originLabelRow}>
-						<ThemedText>{is_credit ? 'Crédito *' : 'Conta *'}</ThemedText>
-						{!is_editing && (
-							<TouchableOpacity onPress={backToTypeStep} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-								<ThemedText style={styles.switchTypeText}>← Trocar tipo</ThemedText>
-							</TouchableOpacity>
-						)}
+				{/*
+				 * Em conta, origem e tipo dividem a linha; em cartão a origem ocupa a linha toda, porque logo
+				 * abaixo vem o bloco "Cartão".
+				 */}
+				<ThemedView style={[ styles.formGroup, styles.originRow ]}>
+					<ThemedView style={styles.originCol}>
+						<SelectInput
+							label={is_credit ? 'Crédito *' : 'Conta *'}
+							options={origin_options}
+							value={values.origin}
+							disabled={is_editing}
+							onChange={(origin) => setValues({ ...values, origin, credit_card_id: '' })}
+						/>
 					</ThemedView>
-					<SelectInput
-						options={origin_options}
-						value={values.origin}
-						disabled={is_editing}
-						onChange={(origin) => setValues({ ...values, origin, credit_card_id: '' })}
-					/>
+
+					{!is_credit && (
+						<ThemedView style={styles.originCol}>
+							<SelectInput
+								label='Tipo *'
+								options={KIND_OPTIONS}
+								value={values.kind}
+								onChange={(value) => setValues({ ...values, kind: value as TTransactionKind })}
+							/>
+						</ThemedView>
+					)}
 				</ThemedView>
 
 				{/* Bloco do cartão só depois de um crédito específico selecionado (source_id) — senão o aviso apareceria à toa */}
@@ -353,17 +423,6 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 								<ThemedText style={styles.cardWarning}>Este crédito não tem cartões. Toque para cadastrar um em Contas & Cartões.</ThemedText>
 							</TouchableOpacity>
 						)}
-					</ThemedView>
-				)}
-
-				{!is_credit && (
-					<ThemedView style={styles.formGroup}>
-						<SelectInput
-							label='Tipo *'
-							options={KIND_OPTIONS}
-							value={values.kind}
-							onChange={(value) => setValues({ ...values, kind: value as TTransactionKind })}
-						/>
 					</ThemedView>
 				)}
 
@@ -388,7 +447,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={[ styles.formGroup, styles.dateTimeRow ]}>
 					<ThemedView style={styles.dateCol}>
-						<ThemedText>{is_credit ? 'Data da transação *' : 'Data prevista *'}</ThemedText>
+						<ThemedText>Data da transação *</ThemedText>
 						{renderDateTrigger(values.transaction_date, 'transaction')}
 					</ThemedView>
 					<ThemedView style={styles.timeCol}>
@@ -402,6 +461,52 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 						/>
 					</ThemedView>
 				</ThemedView>
+
+				{/*
+				 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
+				 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra outra
+				 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
+				 */}
+				{is_credit && (
+					<ThemedView style={styles.formGroup}>
+						<TouchableOpacity
+							style={styles.toggleRow}
+							onPress={() => setValues((prev) => ({
+								...prev,
+								invoice_month: is_invoice_auto ? monthKey(prev.transaction_date) : AUTO_INVOICE_MONTH,
+							}))}
+							activeOpacity={0.7}
+						>
+							<Icon
+								name={is_invoice_auto ? 'check-box' : 'check-box-outline-blank'}
+								size={22}
+								color={colors['brand-secondary']}
+							/>
+							<ThemedText>Fatura automática <ThemedText style={styles.toggleHint}>— pelo ciclo do cartão</ThemedText></ThemedText>
+						</TouchableOpacity>
+
+						{!is_invoice_auto && (
+							<ThemedView style={styles.originRow}>
+								<ThemedView style={styles.originCol}>
+									<SelectInput
+										label='Mês'
+										options={INVOICE_MONTH_OPTIONS}
+										value={invoice_month_part}
+										onChange={(month) => setInvoicePart('month', month)}
+									/>
+								</ThemedView>
+								<ThemedView style={styles.originCol}>
+									<SelectInput
+										label='Ano'
+										options={buildInvoiceYearOptions(values.invoice_month)}
+										value={invoice_year}
+										onChange={(year) => setInvoicePart('year', year)}
+									/>
+								</ThemedView>
+							</ThemedView>
+						)}
+					</ThemedView>
+				)}
 
 				{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
 				{!is_credit && (
@@ -436,7 +541,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 								style={[ styles.markPaidButton, { borderColor: theme.colors.border } ]}
 								onPress={() => {
 									const now = nowParts();
-									setValues((prev) => ({ ...prev, settled_date: now.date, settled_time: now.time }));
+									setValues((prev) => ({
+										...prev,
+										settled_date: prev.transaction_date || now.date,
+										settled_time: prev.transaction_time || now.time,
+									}));
 								}}
 								activeOpacity={0.7}
 							>
@@ -461,13 +570,28 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				</TouchableOpacity>
 			</ScrollView>
 
+			{/*
+			  * Rodapé empilhado, igual ao `DialogFooter` do web em telas estreitas (`flex-col-reverse`):
+			  * a ação principal fica no topo, a secundária embaixo — com os três lado a lado, num
+			  * telefone estreito não sobrava largura e o texto dos botões quebrava.
+			  */}
 			<ThemedView style={styles.buttonContainer}>
-				<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
-					<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
-				</TouchableOpacity>
 				<TouchableOpacity disabled={is_submit_disabled} style={[ styles.button, is_submit_disabled ? styles.saveButtonDisabled : styles.saveButton ]} onPress={handleSave}>
 					<ThemedText style={styles.buttonText}>{is_pending ? <Loader /> : 'Salvar'}</ThemedText>
 				</TouchableOpacity>
+				<TouchableOpacity disabled={is_pending} style={[ styles.button, styles.cancelButton ]} onPress={handleClose}>
+					<ThemedText style={styles.buttonText}>Cancelar</ThemedText>
+				</TouchableOpacity>
+				{!is_editing && (
+					<TouchableOpacity
+						disabled={is_pending}
+						style={styles.linkButton}
+						onPress={backToTypeStep}
+						hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+					>
+						<ThemedText style={styles.linkText}>← Trocar tipo</ThemedText>
+					</TouchableOpacity>
+				)}
 			</ThemedView>
 		</>
 	);
@@ -481,7 +605,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					<TouchableOpacity onPress={() => setCalendarTarget(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
 						<Icon name='arrow-back' size={22} color={theme.colors.text} />
 					</TouchableOpacity>
-					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data prevista'}</ThemedText>
+					<ThemedText style={styles.calendarHeaderTitle}>{calendar_target === 'settled' ? 'Data do pagamento' : 'Data da transação'}</ThemedText>
 					<ThemedView style={styles.calendarHeaderSpacer} />
 				</ThemedView>
 
@@ -594,17 +718,6 @@ const styles = StyleSheet.create({
 	formGroup: {
 		marginBottom: 15,
 	},
-	originLabelRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		backgroundColor: 'transparent',
-		marginBottom: 5,
-	},
-	switchTypeText: {
-		color: '#888',
-		fontSize: 13,
-	},
 	originQuestion: {
 		textAlign: 'center',
 		color: '#888',
@@ -634,6 +747,15 @@ const styles = StyleSheet.create({
 	originTypeHint: {
 		fontSize: 11,
 		color: '#888',
+	},
+	originRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-end',
+		gap: 10,
+	},
+	originCol: {
+		flex: 1,
+		backgroundColor: 'transparent',
 	},
 	dateTimeRow: {
 		flexDirection: 'row',
@@ -699,21 +821,19 @@ const styles = StyleSheet.create({
 		color: '#888',
 	},
 	buttonContainer: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
+		flexDirection: 'column',
+		gap: 8,
+		backgroundColor: 'transparent',
 		marginTop: 20,
 	},
 	button: {
-		flex: 1,
-		padding: 15,
+		paddingVertical: 15,
+		paddingHorizontal: 10,
 		borderRadius: 5,
-		marginHorizontal: 5,
+		alignItems: 'center',
 	},
 	fullButton: {
 		width: '100%',
-		flex: 0,
-		alignItems: 'center',
-		marginHorizontal: 0,
 		marginTop: 8,
 	},
 	cancelButton: {
@@ -732,6 +852,7 @@ const styles = StyleSheet.create({
 	},
 	linkButton: {
 		paddingVertical: 8,
+		alignItems: 'center',
 	},
 	linkText: {
 		color: '#888',

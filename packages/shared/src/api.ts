@@ -67,9 +67,9 @@ export type TTransactionGroup = {
 /*
  * O index de transações vem SEPARADO em duas visões (mudança de 2026-08-02): `accounts` (origem
  * `Account`, bucket = mês-calendário por `settled_at`/`transaction_date`) e `credits` (origem
- * `CreditBalance`, bucket = ciclo da fatura de cada cartão). Separar evita a dupla contagem do cartão
+ * `CreditBalance`, bucket = `invoice_month` da transação). Separar evita a dupla contagem do cartão
  * (o pagamento da fatura conta só em `accounts`, as compras só em `credits`) e faz a aba Cartões
- * respeitar o ciclo de fechamento de cada crédito — o cliente NÃO filtra mais `source_type` na mão.
+ * mostrar a fatura do mês — o cliente NÃO filtra mais `source_type` na mão.
  */
 export type TListTransactionsResponse = {
 	accounts: TTransactionGroup;
@@ -94,6 +94,12 @@ export type TCreateTransactionBody = {
 	source_id: string;
 	/* Obrigatório na prática quando `source_type === 'CreditBalance'`: qual cartão. */
 	credit_card_id?: string;
+	/*
+	 * "YYYY-MM" da fatura em que o gasto entra. Só vale pra origem `CreditBalance`. Ausente = o backend
+	 * calcula pelo ciclo do cartão (melhor dia de compra). Serve pra jogar a compra pra outra fatura
+	 * sem mexer na data dela.
+	 */
+	invoice_month?: string;
 	draft?: boolean;
 }
 
@@ -106,6 +112,8 @@ export type TUpdateTransactionBody = Partial<{
 	/* "Pago em": `null` volta pra pendente; data efetiva. */
 	settled_date: string | null;
 	credit_card_id: string;
+	/* "YYYY-MM"; string vazia devolve o campo pro default calculado pelo ciclo do cartão. */
+	invoice_month: string;
 	draft: boolean;
 }>
 
@@ -127,7 +135,8 @@ export type TIndexCreditBalancesResponse = TPaginatedResponse<TCreditBalance>;
 export type TCreditBalanceBody = {
 	name: string;
 	credit_limit: number;
-	closing_day: number;
+	/* Melhor dia de compra (1-31) — ver `TCreditBalance.best_purchase_day`. */
+	best_purchase_day: number;
 	due_day: number;
 }
 
@@ -141,9 +150,9 @@ export type TPayInvoiceBody = {
 	 * exceder o restante (paga a mais) e a mesma fatura pode ser paga mais de uma vez (parcial).
 	 */
 	value?: number;
-	/* Mês do ciclo a pagar no formato `YYYY-MM` (mesmo ciclo do index); tem prioridade sobre `date`. */
+	/* Mês da fatura a pagar no formato `YYYY-MM` (mesmo bucket do index); tem prioridade sobre `date`. */
 	reference?: string;
-	/* Qualquer data dentro do ciclo a pagar (usado quando `reference` não vem); ausente = hoje. */
+	/* Qualquer data dentro do ciclo da fatura a pagar (usado quando `reference` não vem); ausente = hoje. */
 	date?: string;
 	description?: string;
 	settled_date?: string;
