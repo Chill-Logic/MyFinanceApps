@@ -1,5 +1,11 @@
 import type { TTransaction } from '../models';
 
+/*
+ * Sentido de uma transação pra quem está olhando: `in` (+), `out` (−) ou `internal` (transferência
+ * entre duas contas que a visão enxerga — neutra, sem sinal, não afeta o total).
+ */
+export type TTransactionDirection = 'in' | 'out' | 'internal';
+
 export const TransactionUtils = {
 	/*
 	 * Data efetiva de uma transação pra agrupar/ordenar por dia no cliente — espelha o bucketing do
@@ -22,4 +28,23 @@ export const TransactionUtils = {
 		(transaction.source_type === 'CreditBalance'
 			? transaction.transaction_date
 			: TransactionUtils.effectiveDate(transaction)),
+
+	/*
+	 * Sentido pela visão de `account_ids` (as contas que a tela está mostrando — a carteira inteira, ou uma
+	 * conta só). Entrada/saída comuns não dependem da visão. Transferência: o `value` é sempre positivo e o
+	 * sinal vem de quem olha — origem visível e destino não = saída; destino visível e origem não = entrada;
+	 * as duas visíveis = movimento interno. Espelha a regra do backend pros totais.
+	 */
+	direction: (
+		transaction: Pick<TTransaction, 'kind' | 'source_id' | 'destination_account_id'>,
+		account_ids: ReadonlySet<string>,
+	): TTransactionDirection => {
+		if (transaction.kind === 'deposit') return 'in';
+		if (transaction.kind === 'withdraw') return 'out';
+
+		const sees_source = account_ids.has(transaction.source_id);
+		const sees_destination = Boolean(transaction.destination_account_id) && account_ids.has(transaction.destination_account_id as string);
+		if (sees_source && sees_destination) return 'internal';
+		return sees_destination ? 'in' : 'out';
+	},
 };

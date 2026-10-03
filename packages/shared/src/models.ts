@@ -1,4 +1,8 @@
-export type TTransactionKind = 'deposit' | 'withdraw';
+/*
+ * `transfer` = transferência entre contas: UM registro só (não um par saque/depósito), com origem
+ * `Account` e `destination_account_id`. O sinal depende de quem olha — ver `TransactionUtils.direction`.
+ */
+export type TTransactionKind = 'deposit' | 'withdraw' | 'transfer';
 
 export type TTransactionSourceType = 'Account' | 'CreditBalance';
 
@@ -34,6 +38,11 @@ export type TTransaction = WithModelFields<{
 	 */
 	source_type: TTransactionSourceType;
 	source_id: string;
+	/* Nome da conta/crédito de origem (vem em todas as transações, inclusive de origem de outra carteira). */
+	source_name: string;
+	/* Só em transferências: a conta que recebe (pode ser de outra carteira acessível). Nulo nos outros tipos. */
+	destination_account_id: string | null;
+	destination_account_name: string | null;
 	/* Só preenchido quando `source_type === 'CreditBalance'` — qual cartão gerou o gasto. */
 	credit_card_id: string | null;
 	/* Preenchido só na transação criada pelo pagamento de uma fatura (`pay_invoice`). */

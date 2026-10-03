@@ -787,14 +787,37 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   **Exceção:** transação de pagamento de fatura (`paid_credit_balance_id` preenchido) tem a origem travada
   (select desabilitado + aviso) — ela é amarrada à fatura que quitou, e trocar a conta ou virar gasto de
   crédito deixaria esse vínculo incoerente. O backend ainda não bloqueia isso sozinho; a trava é só no front.
-  **Depende do backend** aceitar `source_type`/`source_id` no `update` (hoje o `transaction_params` não
-  permite; até lá o Rails só descarta os campos e a troca de origem não tem efeito).
+  O backend passou a aceitar `source_type`/`source_id` no `update` (`dev` 3db1ad7): zera e recalcula
+  `credit_card_id`/`invoice_month` pela nova origem (o que vier no mesmo payload prevalece) e, de conta pra
+  cartão, efetiva na `transaction_date`.
 - **`Select` do Radix dentro de `<form>` zera o valor se as opções chegam depois** (web): o Radix espelha
   o `value` num `<select>` nativo escondido e dispara `change` a cada troca; sem o `<option>` ainda
   carregado, o nativo cai em `''` e o Radix chama `onValueChange('')`. Sintoma: na 1ª abertura da edição o
   campo "Crédito" vinha vazio (a 2ª funcionava, com a lista já em cache). Fix no `TransactionFormDialog`:
   ignorar `''` no `onValueChange` (nenhum item tem value vazio). Vale pra qualquer `Select` novo com opções
   assíncronas dentro de form.
+- **Transferência entre contas (2026-10-03, web + mobile; backend `dev` 3db1ad7).** É uma transação
+  comum com `kind: 'transfer'` — UM registro só, não um par saque/depósito — com origem `Account` e
+  `destination_account_id` (pode ser conta de outra carteira acessível). A resposta traz também
+  `source_name` (em toda transação) e `destination_account_name`. O `value` é sempre positivo e **o sinal
+  depende de quem olha**: `TransactionUtils.direction(t, account_ids)` (shared) devolve `in`/`out`/
+  `internal` a partir das contas que a visão enxerga (na Home, as contas da carteira) — origem visível =
+  saída, destino visível = entrada, as duas = movimento interno (sem sinal, ícone `ArrowLeftRight`/
+  `swap-horiz` em azul, fora das somas de entrada/saída do card de total; `total_settled`/
+  `total_projected` já vêm certos do backend). O chip de origem vira "X → Y". Formulário: na criação, "Transferência"
+  é a 3ª opção da etapa 1 (Conta / Cartão / Transferência; exige 2 contas na carteira) — vira uma conta com
+  `kind: 'transfer'`, campos "Da conta" + "Para a conta" (contas da carteira menos a origem) e SEM o select
+  Tipo; o Tipo de "Conta" fica só Entrada/Saída. Na edição o Tipo mostra os três (dá pra converter). Só mandamos
+  `destination_account_id` quando é transferência — trocar o tipo pra entrada/saída zera o destino no
+  backend. Origem/destino de OUTRA carteira (transferência recebida) entram como opção extra no select da
+  edição, com o nome vindo do backend, senão o campo abriria vazio. Duplicar copia o destino. **Pendente:**
+  escolher como destino uma conta de outra carteira na criação (hoje o select só lista a carteira atual).
+  - **Descrição opcional em transferência** (form e duplicar): em branco, o front manda "Transferência para
+    <destino>" — o backend valida `description` como obrigatória, então não dá pra mandar vazio.
+  - **Valor nas opções de origem/destino** (qualquer tipo de transação): conta mostra o saldo (`balance`,
+    em vermelho se negativo no web) e crédito mostra "fatura R$ X" (`current_invoice.remaining` — o que falta pagar; sem pagamento parcial é igual ao `amount`), vindos das
+    mesmas listagens que o form já busca. No web vai como `<span>` dentro do `SelectItem`; no mobile, no
+    texto da opção do Picker ("Itaú — R$ 1.234,00"), que não aceita marcação.
 - **Altura dos campos**: o botão "Marcar como pago" (web) usava a altura padrão do `Button` (36px) e
   destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `apps/web/src/components/ui/field.ts`).
 

@@ -101,6 +101,8 @@ export type TCreateTransactionBody = {
 	 */
 	invoice_month?: string;
 	draft?: boolean;
+	/* Obrigatório quando `kind === 'transfer'`: conta que recebe (≠ origem, que precisa ser `Account`). */
+	destination_account_id?: string;
 }
 
 /* O backend não aceita mudar a origem no update (`source_type`/`source_id` fora do permit). */
@@ -122,6 +124,8 @@ export type TUpdateTransactionBody = Partial<{
 	 */
 	source_type: TTransactionSourceType;
 	source_id: string;
+	/* Troca o destino de uma transferência. Mudar o `kind` pra deposit/withdraw zera o destino sozinho. */
+	destination_account_id: string;
 }>
 
 /* `settled_date` opcional (ISO); ausente = efetiva no momento atual (backend usa `Time.current`). */

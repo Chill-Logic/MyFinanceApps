@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionGroup } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
 	ArrowDown,
 	ArrowDownRight,
+	ArrowLeftRight,
+	ArrowRight,
 	ArrowUp,
 	ArrowUpDown,
 	ArrowUpRight,
@@ -100,11 +102,15 @@ const groupTransactionsByDay = (transactions: TTransaction[]) => {
  * (evita divergir da fonte). Só o split entradas/saídas e a contagem de pendentes saem da lista no cliente,
  * porque o backend não os devolve.
  */
-const buildSummary = (group: TTransactionGroup | undefined) => {
+const buildSummary = (group: TTransactionGroup | undefined, account_ids: ReadonlySet<string>) => {
 	const non_draft = (group?.data || []).filter((item) => !item.draft);
+	/* Transferência entre duas contas da carteira é interna: não é entrada nem saída (o backend também a zera). */
+	const sumBy = (direction: TTransactionDirection) => non_draft
+		.filter((item) => TransactionUtils.direction(item, account_ids) === direction)
+		.reduce((acc, item) => acc + item.value, 0);
 
-	const deposit = non_draft.filter((i) => i.kind === 'deposit').reduce((acc, i) => acc + i.value, 0);
-	const withdraw = non_draft.filter((i) => i.kind === 'withdraw').reduce((acc, i) => acc + i.value, 0);
+	const deposit = sumBy('in');
+	const withdraw = sumBy('out');
 	const settled = group?.total_settled ?? 0;
 	const projected = group?.total_projected ?? 0;
 	const pending = non_draft.filter((i) => !i.settled).length;
@@ -124,6 +130,13 @@ const sectionNet = (items: TTransaction[]) =>
 	items
 		.filter((item) => !item.draft)
 		.reduce((acc, item) => acc + (item.kind === 'deposit' ? item.value : -item.value), 0);
+
+/* Ícone por sentido da transação pra visão atual (ver `TransactionUtils.direction`). */
+const KIND_ICON_STYLE: Record<TTransactionDirection, { className: string; Icon: typeof ArrowUpRight }> = {
+	in: { className: 'bg-feedback-success-light text-feedback-success-dark', Icon: ArrowUpRight },
+	out: { className: 'bg-feedback-danger-light text-feedback-danger-dark', Icon: ArrowDownRight },
+	internal: { className: 'bg-feedback-info-light text-feedback-info-default', Icon: ArrowLeftRight },
+};
 
 const formatDateTime = (iso: string) => format(new Date(iso), 'dd/MM/yyyy HH:mm');
 
@@ -181,6 +194,9 @@ const TransactionList = () => {
 		return map;
 	}, [ accounts, credit_balances ]);
 
+	/* Contas que esta visão (a carteira) enxerga — decidem o sinal de uma transferência. */
+	const account_ids = useMemo(() => new Set(accounts.map((account) => account.id)), [ accounts ]);
+
 	const is_loading = is_wallet_loading || is_transactions_loading || is_accounts_loading || is_credit_loading;
 
 	const { mutate: deleteTransactionMutation, isPending: is_delete_pending } = useDeleteTransactions();
@@ -215,7 +231,7 @@ const TransactionList = () => {
 		return ordered;
 	}, [ credit_txs, credit_balances, source_names ]);
 
-	const summary = buildSummary(data_all?.accounts); // total do mês = SÓ contas (fluxo de caixa real)
+	const summary = buildSummary(data_all?.accounts, account_ids); // total do mês = SÓ contas (fluxo de caixa real)
 
 	const has_transactions = account_txs.length + credit_txs.length > 0;
 	const has_sources = accounts.length > 0 || credit_balances.length > 0;
@@ -300,19 +316,25 @@ const TransactionList = () => {
 		});
 	};
 
+	const directionOf = (transaction_item: TTransaction) => TransactionUtils.direction(transaction_item, account_ids);
+
 	const renderKindIcon = (transaction_item: TTransaction) => {
-		const is_deposit = transaction_item.kind === 'deposit';
+		const { className, Icon } = KIND_ICON_STYLE[directionOf(transaction_item)];
 
 		return (
-			<div
-				className={cn(
-					'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-					is_deposit ? 'bg-feedback-success-light text-feedback-success-dark' : 'bg-feedback-danger-light text-feedback-danger-dark',
-				)}
-			>
-				{is_deposit ? <ArrowUpRight className='h-4 w-4' /> : <ArrowDownRight className='h-4 w-4' />}
+			<div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', className)}>
+				<Icon className='h-4 w-4' />
 			</div>
 		);
+	};
+
+	/* Valor com sinal pela visão: + entrada, − saída; movimento interno (transferência) fica sem sinal e neutro. */
+	const renderValue = (transaction_item: TTransaction, className: string) => {
+		const direction = directionOf(transaction_item);
+		const sign = { in: '+', out: '-', internal: '' }[direction];
+		const color = { in: 'text-feedback-success-default', out: 'text-destructive', internal: 'text-muted-foreground' }[direction];
+
+		return <span className={cn(className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
 	};
 
 	/*
@@ -321,7 +343,9 @@ const TransactionList = () => {
 	 */
 	const renderMeta = (transaction_item: TTransaction, hide_source = false) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
-		const name = source_names.get(transaction_item.source_id);
+		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
+		const name = transaction_item.source_name || source_names.get(transaction_item.source_id);
+		const is_transfer = transaction_item.kind === 'transfer';
 		const is_pending = !transaction_item.draft && !transaction_item.settled;
 
 		return (
@@ -335,6 +359,13 @@ const TransactionList = () => {
 					>
 						{is_credit ? <CreditCard className='h-3 w-3' /> : <Wallet className='h-3 w-3' />}
 						{name || (is_credit ? 'Crédito' : 'Conta')}
+						{/* Transferência: "De X para Y" — o chip mostra os dois lados */}
+						{is_transfer && (
+							<>
+								<ArrowRight className='h-3 w-3' />
+								{transaction_item.destination_account_name || 'Conta'}
+							</>
+						)}
 					</span>
 				)}
 
@@ -450,33 +481,27 @@ const TransactionList = () => {
 	);
 
 	/* ----- Desktop: linhas da tabela ----- */
-	const renderTableRow = (transaction_item: TTransaction, hide_source = false) => {
-		const is_deposit = transaction_item.kind === 'deposit';
-
-		return (
-			<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
-				<TableCell className='text-muted-foreground'>
-					<div className='flex flex-col leading-tight'>
-						<span>{formatDateTime(transaction_item.transaction_date)}</span>
-						{transaction_item.settled_date && (
-							<span className='text-xs text-feedback-success-default'>pago {formatDateTime(transaction_item.settled_date)}</span>
-						)}
-					</div>
-				</TableCell>
-				<TableCell>
-					<div className='flex flex-col'>
-						<span className='font-medium'>{transaction_item.description}</span>
-						{renderMeta(transaction_item, hide_source)}
-					</div>
-				</TableCell>
-				<TableCell>{renderKindIcon(transaction_item)}</TableCell>
-				<TableCell className={cn('text-right font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
-					{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-				</TableCell>
-				<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
-			</TableRow>
-		);
-	};
+	const renderTableRow = (transaction_item: TTransaction, hide_source = false) => (
+		<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
+			<TableCell className='text-muted-foreground'>
+				<div className='flex flex-col leading-tight'>
+					<span>{formatDateTime(transaction_item.transaction_date)}</span>
+					{transaction_item.settled_date && (
+						<span className='text-xs text-feedback-success-default'>pago {formatDateTime(transaction_item.settled_date)}</span>
+					)}
+				</div>
+			</TableCell>
+			<TableCell>
+				<div className='flex flex-col'>
+					<span className='font-medium'>{transaction_item.description}</span>
+					{renderMeta(transaction_item, hide_source)}
+				</div>
+			</TableCell>
+			<TableCell>{renderKindIcon(transaction_item)}</TableCell>
+			<TableCell className='text-right'>{renderValue(transaction_item, 'font-semibold')}</TableCell>
+			<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
+		</TableRow>
+	);
 
 	/*
 	 * Accordion de um cartão (usado no desktop — coluna direita — e no mobile): header com a altura de um
@@ -524,30 +549,24 @@ const TransactionList = () => {
 	};
 
 	/* ----- Mobile: card de transação ----- */
-	const renderCard = (transaction_item: TTransaction, hide_source = false) => {
-		const is_deposit = transaction_item.kind === 'deposit';
+	const renderCard = (transaction_item: TTransaction, hide_source = false) => (
+		<div
+			key={transaction_item.id}
+			className={cn('flex items-start gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
+		>
+			{renderKindIcon(transaction_item)}
 
-		return (
-			<div
-				key={transaction_item.id}
-				className={cn('flex items-start gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
-			>
-				{renderKindIcon(transaction_item)}
-
-				<div className='flex flex-1 flex-col overflow-hidden'>
-					<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
-					{renderMeta(transaction_item, hide_source)}
-					{renderDates(transaction_item)}
-				</div>
-
-				<span className={cn('shrink-0 text-sm font-semibold', is_deposit ? 'text-feedback-success-default' : 'text-destructive')}>
-					{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
-				</span>
-
-				{renderActionsMenu(transaction_item)}
+			<div className='flex flex-1 flex-col overflow-hidden'>
+				<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
+				{renderMeta(transaction_item, hide_source)}
+				{renderDates(transaction_item)}
 			</div>
-		);
-	};
+
+			{renderValue(transaction_item, 'shrink-0 text-sm font-semibold')}
+
+			{renderActionsMenu(transaction_item)}
+		</div>
+	);
 
 	const renderDayGroups = (items: TTransaction[], hide_source = false) =>
 		groupTransactionsByDay(items).map((group) => (
@@ -622,7 +641,7 @@ const TransactionList = () => {
 						<Receipt className='h-10 w-10 text-muted-foreground' />
 						<div className='flex flex-col gap-1'>
 							<span className='font-medium'>Nenhuma transação neste mês</span>
-							<span className='text-sm text-muted-foreground'>Registre uma entrada ou saída pra começar</span>
+							<span className='text-sm text-muted-foreground'>Registre uma entrada, saída ou transferência pra começar</span>
 						</div>
 						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id} className='gap-2'>
 							<Plus className='h-4 w-4' />
@@ -709,7 +728,7 @@ const TransactionList = () => {
 				open={Boolean(duplicating_transaction)}
 				onOpenChange={(open) => !open && setDuplicatingTransaction(null)}
 				transaction={duplicating_transaction}
-				sourceName={duplicating_transaction ? source_names.get(duplicating_transaction.source_id) : undefined}
+				sourceName={duplicating_transaction ? (duplicating_transaction.source_name || source_names.get(duplicating_transaction.source_id)) : undefined}
 			/>
 
 			<AlertDialog open={Boolean(deleting_transaction)} onOpenChange={(open) => !open && setDeletingTransaction(null)}>

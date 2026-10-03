@@ -18,7 +18,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils, type TTransactionDirection } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
@@ -116,17 +116,28 @@ const nowParts = () => {
 	};
 };
 
+/* Ícone por sentido da transação pra visão atual (ver `TransactionUtils.direction`). */
+const KIND_ICON_STYLE: Record<TTransactionDirection, { background: string; color: string; icon: 'north-east' | 'south-east' | 'swap-horiz' }> = {
+	in: { background: colors['feedback-success-light'], color: colors['feedback-success-dark'], icon: 'north-east' },
+	out: { background: colors['feedback-danger-light'], color: colors['feedback-danger-dark'], icon: 'south-east' },
+	internal: { background: colors['feedback-info-light'], color: colors['feedback-info-default'], icon: 'swap-horiz' },
+};
+
 /*
  * Resumo do card de total — SEMPRE das contas (`accounts`), o único fluxo de caixa real (combinar
  * crédito duplicaria a saída: o pagamento da fatura já é um `withdraw` em `accounts`). Efetivado/previsto
  * vêm PRONTOS do backend (`total_settled`/`total_projected` do grupo) — não recalculamos. Só o split
  * entradas/saídas e a contagem de pendentes saem da lista no cliente (o backend não os devolve).
  */
-const buildSummary = (group?: TTransactionGroup) => {
+const buildSummary = (account_ids: ReadonlySet<string>, group?: TTransactionGroup) => {
 	const non_draft = (group?.data || []).filter((item) => !item.draft);
+	/* Transferência entre duas contas da carteira é interna: não é entrada nem saída (o backend também a zera). */
+	const sumBy = (direction: TTransactionDirection) => non_draft
+		.filter((item) => TransactionUtils.direction(item, account_ids) === direction)
+		.reduce((acc, item) => acc + item.value, 0);
 
-	const deposit = non_draft.filter((i) => i.kind === 'deposit').reduce((acc, i) => acc + i.value, 0);
-	const withdraw = non_draft.filter((i) => i.kind === 'withdraw').reduce((acc, i) => acc + i.value, 0);
+	const deposit = sumBy('in');
+	const withdraw = sumBy('out');
 	const settled = group?.total_settled ?? 0;
 	const projected = group?.total_projected ?? 0;
 	const pending = non_draft.filter((i) => !i.settled).length;
@@ -229,6 +240,9 @@ const TransactionsList = () => {
 		credit_balances.forEach((credit_balance) => map.set(credit_balance.id, credit_balance.name));
 		return map;
 	}, [ accounts, credit_balances ]);
+
+	/* Contas que esta visão (a carteira) enxerga — decidem o sinal de uma transferência. */
+	const account_ids = useMemo(() => new Set(accounts.map((account) => account.id)), [ accounts ]);
 
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
@@ -385,7 +399,7 @@ const TransactionsList = () => {
 		return ordered;
 	}, [ credit_txs, credit_balances, source_names ]);
 
-	const summary = useMemo(() => buildSummary(accounts_group), [ accounts_group ]);
+	const summary = useMemo(() => buildSummary(account_ids, accounts_group), [ account_ids, accounts_group ]);
 
 	const has_sources = accounts.length > 0 || credit_balances.length > 0;
 	const has_transactions = account_txs.length + credit_txs.length > 0;
@@ -446,25 +460,19 @@ const TransactionsList = () => {
 		}, 100);
 	};
 
-	const getTransactionColor = (type: string) => (
-		type === 'deposit' ? styles.textGreen : styles.textRed
-	);
+	const directionOf = (transaction_item: TTransaction) => TransactionUtils.direction(transaction_item, account_ids);
+	const VALUE_STYLE = {
+		in: { sign: '+', style: styles.textGreen },
+		out: { sign: '-', style: styles.textRed },
+		internal: { sign: '', style: styles.textNeutral },
+	};
 
 	const renderKindIcon = (transaction_item: TTransaction) => {
-		const is_deposit = transaction_item.kind === 'deposit';
+		const { background, color, icon } = KIND_ICON_STYLE[directionOf(transaction_item)];
 
 		return (
-			<View
-				style={[
-					styles.kindIcon,
-					{ backgroundColor: is_deposit ? colors['feedback-success-light'] : colors['feedback-danger-light'] },
-				]}
-			>
-				<Icon
-					name={is_deposit ? 'north-east' : 'south-east'}
-					size={16}
-					color={is_deposit ? colors['feedback-success-dark'] : colors['feedback-danger-dark']}
-				/>
+			<View style={[ styles.kindIcon, { backgroundColor: background } ]}>
+				<Icon name={icon} size={16} color={color} />
 			</View>
 		);
 	};
@@ -476,7 +484,12 @@ const TransactionsList = () => {
 	 */
 	const renderTransactionMeta = (transaction_item: TTransaction, hide_source = false) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
-		const name = source_names.get(transaction_item.source_id) || (is_credit ? 'Crédito' : 'Conta');
+		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
+		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id) || (is_credit ? 'Crédito' : 'Conta');
+		/* Transferência: "De X para Y" — o chip mostra os dois lados. */
+		const name = transaction_item.kind === 'transfer'
+			? `${ source_label } → ${ transaction_item.destination_account_name || 'Conta' }`
+			: source_label;
 		const is_pending = !transaction_item.draft && !transaction_item.settled;
 		const chip_color = is_credit ? colors['feedback-info-default'] : colors['brand-secondary'];
 
@@ -534,8 +547,9 @@ const TransactionsList = () => {
 				{renderDates(transaction_item)}
 			</ThemedView>
 
-			<ThemedText style={[ styles.transactionValue, getTransactionColor(transaction_item.kind) ]}>
-				{transaction_item.kind === 'deposit' ? '+' : '-'}{MoneyUtils.formatMoney(transaction_item.value)}
+			{/* Sinal pela visão: + entrada, − saída; movimento interno (transferência) fica sem sinal e neutro. */}
+			<ThemedText style={[ styles.transactionValue, VALUE_STYLE[directionOf(transaction_item)].style ]}>
+				{VALUE_STYLE[directionOf(transaction_item)].sign}{MoneyUtils.formatMoney(transaction_item.value)}
 			</ThemedText>
 
 			<TouchableOpacity
@@ -742,7 +756,7 @@ const TransactionsList = () => {
 			<TransactionDuplicateModal
 				visible={Boolean(duplicating_transaction)}
 				transaction={duplicating_transaction}
-				source_name={duplicating_transaction ? source_names.get(duplicating_transaction.source_id) : undefined}
+				source_name={duplicating_transaction ? (duplicating_transaction.source_name || source_names.get(duplicating_transaction.source_id)) : undefined}
 				onClose={() => setDuplicatingTransaction(null)}
 			/>
 
@@ -1007,6 +1021,9 @@ const styles = StyleSheet.create({
 	},
 	textRed: {
 		color: colors['feedback-danger-default'],
+	},
+	textNeutral: {
+		color: '#888',
 	},
 	transactionSeparator: {
 		height: 8,
