@@ -20,7 +20,7 @@ import DateTimeField from '@/components/molecules/DateTimeField';
 import Checkbox from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FIELD_METRICS } from '@/components/ui/field';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
 	open: boolean;
@@ -112,6 +112,17 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const { source_type, source_id } = parseOrigin(values.origin);
 	/* Deriva do TIPO escolhido (não do source_id): vale já na etapa 2, antes de escolher a origem específica. */
 	const is_credit = origin_type === 'CreditBalance';
+	/*
+	 * Na edição a origem pode ser trocada (conta↔conta, conta↔crédito, crédito↔crédito). Só quando ela de
+	 * fato muda é que `source_type`/`source_id` vão no body e a fatura volta a ter o checkbox "automática".
+	 */
+	const original_origin = transaction ? `${ transaction.source_type }:${ transaction.source_id }` : '';
+	const origin_changed = is_editing && Boolean(values.origin) && values.origin !== original_origin;
+	/*
+	 * Pagamento de fatura (`paid_credit_balance_id`) não troca de origem: ele é amarrado à fatura que quitou,
+	 * e mudar a conta de onde saiu (ou virar gasto de crédito) deixaria esse vínculo incoerente.
+	 */
+	const is_origin_locked = Boolean(transaction?.paid_credit_balance_id);
 
 	const { data: accounts_data } = useIndexAccounts({
 		enabled: open && Boolean(wallet_id),
@@ -151,7 +162,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				value: MoneyUtils.formatMoney(transaction.value),
 				transaction_date: new Date(transaction.transaction_date),
 				settled_date: transaction.settled_date ? new Date(transaction.settled_date) : null,
-				invoice_month: transaction.invoice_month || AUTO_INVOICE_MONTH,
+				invoice_month: transaction.invoice_month || monthKey(new Date(transaction.transaction_date)),
 				draft: transaction.draft,
 			});
 		} else {
@@ -197,6 +208,42 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		});
 	};
 
+	/*
+	 * Dentro de um <form>, o Select do Radix espelha o valor num <select> nativo escondido e dispara um
+	 * `change` a cada troca de `value`. Se as opções ainda não chegaram da API (1ª abertura da edição),
+	 * o <option> não existe, o nativo cai em '' e o Radix chama `onValueChange('')` — zerando a origem/cartão
+	 * que o efeito de edição acabou de preencher. Nenhum item tem value vazio, então '' é sempre esse ruído.
+	 */
+	const setOrigin = (origin: string) => {
+		if (!origin) return;
+
+		/* Na edição o tipo pode mudar junto com a origem (a lista mostra contas E créditos). */
+		setOriginType(parseOrigin(origin).source_type || null);
+
+		/* Voltou pra origem original da edição: restaura o cartão e a fatura gravados. */
+		if (transaction && origin === original_origin) {
+			setValues((prev) => ({
+				...prev,
+				origin,
+				credit_card_id: transaction.credit_card_id || '',
+				invoice_month: transaction.invoice_month || monthKey(prev.transaction_date),
+			}));
+			return;
+		}
+
+		/* Origem nova na edição: a fatura antiga não vale mais, volta a ser calculada pelo ciclo. */
+		setValues((prev) => ({
+			...prev,
+			origin,
+			credit_card_id: '',
+			invoice_month: is_editing ? AUTO_INVOICE_MONTH : prev.invoice_month,
+		}));
+	};
+
+	const setCreditCard = (credit_card_id: string) => {
+		if (credit_card_id) setValues((prev) => ({ ...prev, credit_card_id }));
+	};
+
 	/* Volta pra etapa 1 (só na criação), limpando a origem escolhida. */
 	const backToTypeStep = () => {
 		setOriginType(null);
@@ -230,6 +277,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
 
 		if (transaction) {
+			/* Saindo de um crédito pra uma conta, '' desvincula o cartão antigo. */
+			const unlinked_card_id = origin_changed ? '' : undefined;
+
 			updateTransactionMutation({
 				body: {
 					kind: effective_kind,
@@ -237,9 +287,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					value,
 					transaction_date,
 					settled_date,
-					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					credit_card_id: is_credit ? values.credit_card_id : unlinked_card_id,
 					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
+					...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
 				},
 				id: transaction.id,
 				onSuccess: () => finalize('Transação atualizada!'),
@@ -265,6 +316,17 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
 		});
 	};
+
+	const origin_label = is_credit ? 'Crédito' : 'Conta';
+
+	const renderOriginItem = (type: TTransactionSourceType, origin_item: { id: string; name: string }) => (
+		<SelectItem key={origin_item.id} value={`${ type }:${ origin_item.id }`}>
+			<span className='flex items-center gap-2'>
+				{type === 'CreditBalance' ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
+				{origin_item.name}
+			</span>
+		</SelectItem>
+	);
 
 	const dialog_title = transaction
 		? `Editar ${ transaction.kind === 'deposit' ? 'entrada' : 'saída' }`
@@ -338,26 +400,36 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						 */}
 						<div className='flex gap-4'>
 							<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-								<label className='text-sm font-medium'>{is_credit ? 'Crédito' : 'Conta'}</label>
-								<Select
-									value={values.origin}
-									disabled={is_editing}
-									onValueChange={(origin) => setValues((prev) => ({ ...prev, origin, credit_card_id: '' }))}
-								>
+								<label className='text-sm font-medium'>{is_editing ? 'Origem' : origin_label}</label>
+								<Select value={values.origin} disabled={is_origin_locked} onValueChange={setOrigin}>
 									<SelectTrigger>
 										<SelectValue placeholder={is_credit ? 'Escolha o crédito' : 'Escolha a conta'} />
 									</SelectTrigger>
 									<SelectContent>
-										{(is_credit ? credit_balances : accounts).map((origin_item) => (
-											<SelectItem key={origin_item.id} value={`${ is_credit ? 'CreditBalance' : 'Account' }:${ origin_item.id }`}>
-												<span className='flex items-center gap-2'>
-													{is_credit ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
-													{origin_item.name}
-												</span>
-											</SelectItem>
-										))}
+										{/* Na criação o tipo já foi escolhido na etapa 1; na edição dá pra trocar de tipo aqui. */}
+										{is_editing ? (
+											<>
+												{accounts.length > 0 && (
+													<SelectGroup>
+														<SelectLabel>Contas</SelectLabel>
+														{accounts.map((origin_item) => renderOriginItem('Account', origin_item))}
+													</SelectGroup>
+												)}
+												{credit_balances.length > 0 && (
+													<SelectGroup>
+														<SelectLabel>Créditos</SelectLabel>
+														{credit_balances.map((origin_item) => renderOriginItem('CreditBalance', origin_item))}
+													</SelectGroup>
+												)}
+											</>
+										) : (
+											(is_credit ? credit_balances : accounts).map((origin_item) => (
+												renderOriginItem(is_credit ? 'CreditBalance' : 'Account', origin_item)
+											))
+										)}
 									</SelectContent>
 								</Select>
+								{is_origin_locked && <span className='text-xs text-muted-foreground'>Pagamento de fatura não pode trocar de origem.</span>}
 							</div>
 
 							{!is_credit && (
@@ -384,7 +456,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								<Select
 									value={values.credit_card_id}
 									disabled={!credit_cards.length}
-									onValueChange={(credit_card_id) => setValues((prev) => ({ ...prev, credit_card_id }))}
+									onValueChange={setCreditCard}
 								>
 									<SelectTrigger>
 										<SelectValue placeholder={credit_cards.length ? 'Escolha o cartão' : 'Nenhum cartão neste crédito'} />
@@ -453,17 +525,23 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						 */}
 						{is_credit && (
 							<div className='flex flex-col gap-2'>
-								<label className='flex items-center gap-2 text-sm'>
-									<Checkbox
-										checked={is_invoice_auto}
-										disabled={is_pending}
-										onCheckedChange={(checked) => setValues((prev) => ({
-											...prev,
-											invoice_month: checked === true ? AUTO_INVOICE_MONTH : monthKey(prev.transaction_date),
-										}))}
-									/>
-									<span>Fatura automática <span className='text-muted-foreground'>— pelo ciclo do cartão</span></span>
-								</label>
+								{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
+								    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
+								    direto com ela. */}
+								{(!is_editing || origin_changed) && (
+									<label className='flex items-center gap-2 text-sm'>
+										<Checkbox
+											checked={is_invoice_auto}
+											disabled={is_pending}
+											onCheckedChange={(checked) => setValues((prev) => ({
+												...prev,
+												invoice_month: checked === true ? AUTO_INVOICE_MONTH : monthKey(prev.transaction_date),
+											}))}
+										/>
+										<span>Fatura automática <span className='text-muted-foreground'>— pelo ciclo do cartão</span></span>
+									</label>
+								)}
+								{is_editing && !origin_changed && <span className='text-sm font-medium'>Fatura</span>}
 
 								{!is_invoice_auto && (
 									<div className='flex gap-4'>

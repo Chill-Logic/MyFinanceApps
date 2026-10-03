@@ -776,6 +776,25 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
 - **"Conta" e "Tipo" na mesma linha** quando a origem não é cartão (em cartão a origem ocupa a linha
   toda, porque logo abaixo vem o campo "Cartão"). No mobile isso fica apertado em tela estreita: os dois
   selects dividem ~50% cada.
+- **Edição: fatura sem checkbox e origem trocável (2026-10-03).** Na edição de transação de cartão, o
+  checkbox "Fatura automática" não aparece: os seletores Mês/Ano vêm direto com o `invoice_month` gravado
+  (o backend sempre grava o mês concreto, então o checkbox vinha sempre desmarcado e não ajudava em nada —
+  ele existe pra criação, pro usuário não precisar pensar na fatura). A **origem** também passou a ser
+  editável: o select lista contas E créditos (web: `SelectGroup` "Contas"/"Créditos"; mobile: Picker com
+  prefixo "Conta · "/"Crédito · ") e, se a origem muda, o update manda `source_type`/`source_id`,
+  `credit_card_id: ''` ao sair de um crédito, e o checkbox "Fatura automática" volta (marcado) — a fatura
+  antiga não vale pra outro cartão. Voltar pra origem original restaura cartão e fatura gravados.
+  **Exceção:** transação de pagamento de fatura (`paid_credit_balance_id` preenchido) tem a origem travada
+  (select desabilitado + aviso) — ela é amarrada à fatura que quitou, e trocar a conta ou virar gasto de
+  crédito deixaria esse vínculo incoerente. O backend ainda não bloqueia isso sozinho; a trava é só no front.
+  **Depende do backend** aceitar `source_type`/`source_id` no `update` (hoje o `transaction_params` não
+  permite; até lá o Rails só descarta os campos e a troca de origem não tem efeito).
+- **`Select` do Radix dentro de `<form>` zera o valor se as opções chegam depois** (web): o Radix espelha
+  o `value` num `<select>` nativo escondido e dispara `change` a cada troca; sem o `<option>` ainda
+  carregado, o nativo cai em `''` e o Radix chama `onValueChange('')`. Sintoma: na 1ª abertura da edição o
+  campo "Crédito" vinha vazio (a 2ª funcionava, com a lista já em cache). Fix no `TransactionFormDialog`:
+  ignorar `''` no `onValueChange` (nenhum item tem value vazio). Vale pra qualquer `Select` novo com opções
+  assíncronas dentro de form.
 - **Altura dos campos**: o botão "Marcar como pago" (web) usava a altura padrão do `Button` (36px) e
   destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `apps/web/src/components/ui/field.ts`).
 
