@@ -4,7 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 
@@ -56,7 +56,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 	/* Transferência copia o destino junto; no resumo fica neutra (o sinal dependeria de quem olha). */
 	const is_transfer = transaction?.kind === 'transfer';
 	const default_transfer_description = is_transfer
-		? `Transferência para ${ transaction?.destination_account_name || 'outra conta' }`
+		? TransactionUtils.transferDescription(transaction?.source_name || source_name, transaction?.destination_account_name)
 		: '';
 	const kind_style = (() => {
 		if (is_transfer) return { background: colors['feedback-info-light'], color: colors['feedback-info-default'], icon: 'swap-horiz' as const, sign: '', value: undefined };
@@ -102,8 +102,8 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 		createTransactionMutation({
 			body: {
-				/* Em transferência a descrição é opcional: em branco, vai um texto padrão (o backend exige o campo). */
-				description: description.trim() || default_transfer_description,
+				/* Em transferência pode ir em branco: o backend gera "Transferência <origem> -> <destino>". */
+				description: description.trim(),
 				value: transaction.value,
 				kind: transaction.kind,
 				transaction_date: combineToISO(transaction_date, transaction_time),

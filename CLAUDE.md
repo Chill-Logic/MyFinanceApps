@@ -807,13 +807,21 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   `total_projected` já vêm certos do backend). O chip de origem vira "X → Y". Formulário: na criação, "Transferência"
   é a 3ª opção da etapa 1 (Conta / Cartão / Transferência; exige 2 contas na carteira) — vira uma conta com
   `kind: 'transfer'`, campos "Da conta" + "Para a conta" (contas da carteira menos a origem) e SEM o select
-  Tipo; o Tipo de "Conta" fica só Entrada/Saída. Na edição o Tipo mostra os três (dá pra converter). Só mandamos
-  `destination_account_id` quando é transferência — trocar o tipo pra entrada/saída zera o destino no
-  backend. Origem/destino de OUTRA carteira (transferência recebida) entram como opção extra no select da
-  edição, com o nome vindo do backend, senão o campo abriria vazio. Duplicar copia o destino. **Pendente:**
+  Tipo; o Tipo de "Conta" fica só Entrada/Saída. **Transferência NÃO é editável** (regra do dono): a lista
+  não oferece "Editar" pra ela (web: item some do menu; mobile: some do action-sheet e o toque no card abre
+  as ações em vez da edição) — só Duplicar, Efetivar/Desfazer e Excluir. Pelo mesmo motivo, o Tipo na edição
+  de uma entrada/saída também não oferece "Transferência". Duplicar copia o destino. **Pendente:**
   escolher como destino uma conta de outra carteira na criação (hoje o select só lista a carteira atual).
-  - **Descrição opcional em transferência** (form e duplicar): em branco, o front manda "Transferência para
-    <destino>" — o backend valida `description` como obrigatória, então não dá pra mandar vazio.
+  - **Descrição opcional em transferência** (form e duplicar): em branco, o front MANDA EM BRANCO e o
+    backend (b7242bf) gera "Transferência <origem> -> <destino>" — no update, regenera com as contas atuais.
+    `TransactionUtils.transferDescription` (shared) reproduz o formato só pro placeholder. No Duplicar o
+    campo vem preenchido com a descrição que veio da API.
+  - **Origem excluída** (backend b7242bf): excluir conta/carteira não apaga mais as transações. A lista
+    mostra "<nome> (excluída)" quando a transação é DESTA carteira e a origem não está mais entre as
+    ativas — origem de outra carteira (transferência recebida) não dá pra distinguir, fica só o nome.
+  - **Autor (`user_id`) no create/update — NÃO implementado:** o backend aceita, mas não existe endpoint
+    que liste os membros (convites aceitos) de uma carteira (`GET /user_wallets` só traz os convites
+    PENDENTES do próprio usuário). Precisa disso no backend antes de montar o seletor.
   - **Valor nas opções de origem/destino** (qualquer tipo de transação): conta mostra o saldo (`balance`,
     em vermelho se negativo no web) e crédito mostra "fatura R$ X" (`current_invoice.remaining` — o que falta pagar; sem pagamento parcial é igual ao `amount`), vindos das
     mesmas listagens que o form já busca. No web vai como `<span>` dentro do `SelectItem`; no mobile, no

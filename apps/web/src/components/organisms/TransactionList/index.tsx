@@ -194,6 +194,15 @@ const TransactionList = () => {
 		return map;
 	}, [ accounts, credit_balances ]);
 
+	/*
+	 * Excluir conta/carteira não apaga mais as transações: a origem pode ter sido excluída. Só dá pra
+	 * afirmar isso quando a transação é DESTA carteira e a origem não está mais entre as ativas (uma origem
+	 * de outra carteira, numa transferência recebida, não está nas listas daqui de qualquer jeito).
+	 */
+	const sources_loaded = Boolean(accounts_data && credit_balances_data);
+	const isDeletedSource = (transaction_item: TTransaction) =>
+		sources_loaded && transaction_item.wallet_id === wallet_id && !source_names.has(transaction_item.source_id);
+
 	/* Contas que esta visão (a carteira) enxerga — decidem o sinal de uma transferência. */
 	const account_ids = useMemo(() => new Set(accounts.map((account) => account.id)), [ accounts ]);
 
@@ -344,7 +353,8 @@ const TransactionList = () => {
 	const renderMeta = (transaction_item: TTransaction, hide_source = false) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
 		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
-		const name = transaction_item.source_name || source_names.get(transaction_item.source_id);
+		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id);
+		const name = source_label && isDeletedSource(transaction_item) ? `${ source_label } (excluída)` : source_label;
 		const is_transfer = transaction_item.kind === 'transfer';
 		const is_pending = !transaction_item.draft && !transaction_item.settled;
 
@@ -466,9 +476,12 @@ const TransactionList = () => {
 							</DropdownMenuItem>
 						)
 				)}
-				<DropdownMenuItem onClick={() => setEditingTransaction(transaction_item)}>
-					Editar
-				</DropdownMenuItem>
+				{/* Transferência não é editável — só duplicar, efetivar/desfazer e excluir. */}
+				{transaction_item.kind !== 'transfer' && (
+					<DropdownMenuItem onClick={() => setEditingTransaction(transaction_item)}>
+						Editar
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem onClick={() => setDuplicatingTransaction(transaction_item)}>
 					<Copy className='mr-2 h-4 w-4' /> Duplicar
 				</DropdownMenuItem>

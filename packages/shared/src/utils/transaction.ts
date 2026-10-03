@@ -47,4 +47,13 @@ export const TransactionUtils = {
 		if (sees_source && sees_destination) return 'internal';
 		return sees_destination ? 'in' : 'out';
 	},
+
+	/*
+	 * Descrição padrão de uma transferência: "Transferência Itaú -> Nubank" — o MESMO texto que o backend
+	 * gera quando a descrição vem em branco. O front manda em branco e deixa o backend gerar; isto serve só
+	 * pro placeholder (lado ainda não escolhido vira "?"). Se o formato mudar no backend, mude aqui junto.
+	 */
+	transferDescription: (source_name?: string | null, destination_name?: string | null): string =>
+		`Transferência ${ source_name || '?' } -> ${ destination_name || '?' }`,
+
 };

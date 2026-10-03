@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { DateUtils, getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
+import { DateUtils, getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
 import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
@@ -162,28 +162,24 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	/* Transferência só sai de conta — em crédito o `kind` é sempre saída (ver `effective_kind`). */
 	const is_transfer = !is_credit && values.kind === 'transfer';
 	/*
-	 * Na criação, transferência é escolhida na etapa 1 (botão próprio), então o select "Tipo" de uma conta
-	 * fica só com Entrada/Saída e some numa transferência. Na edição o Tipo mostra os três — dá pra converter.
+	 * Transferência é escolhida na etapa 1 (botão próprio) e NÃO é editável (a lista não oferece "Editar"
+	 * pra ela). Então o "Tipo" de uma conta é só Entrada/Saída — nem na edição uma transação vira
+	 * transferência — e numa transferência ele some.
 	 */
-	const kind_options_for_form = is_editing ? kinds : kinds.filter((option) => option.value !== 'transfer');
-	const show_kind_select = !is_credit && (is_editing || !is_transfer);
+	const kind_options_for_form = kinds.filter((option) => option.value !== 'transfer');
+	const show_kind_select = !is_credit && !is_transfer;
 
 	/*
-	 * Opções que podem não estar nas listas desta carteira: uma transferência pode vir de/ir pra uma conta
-	 * de OUTRA carteira acessível. Sem isso o select abriria vazio na edição. O nome vem pronto do backend.
+	 * Origem que pode não estar entre as contas ativas desta carteira (conta excluída — as transações dela
+	 * continuam existindo). Sem isso o select abriria vazio na edição. O nome vem pronto do backend.
 	 */
 	const foreign_source = transaction && transaction.source_type === 'Account' && !accounts.some((item) => item.id === transaction.source_id)
 		? { id: transaction.source_id, name: transaction.source_name }
 		: null;
-	const foreign_destination = transaction?.destination_account_id && !accounts.some((item) => item.id === transaction.destination_account_id)
-		? { id: transaction.destination_account_id, name: transaction.destination_account_name || 'Conta' }
-		: null;
-	const destination_options = [ ...accounts, ...(foreign_destination ? [ foreign_destination ] : []) ]
-		.filter((item) => item.id !== source_id);
+	const destination_options = accounts.filter((item) => item.id !== source_id);
 	const destination_name = destination_options.find((item) => item.id === values.destination_account_id)?.name;
-	const default_transfer_description = is_transfer
-		? `Transferência${ destination_name ? ` para ${ destination_name }` : '' }`
-		: '';
+	const source_name = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ].find((item) => item.id === source_id)?.name;
+	const default_transfer_description = is_transfer ? TransactionUtils.transferDescription(source_name, destination_name) : '';
 
 	useEffect(() => {
 		if (!open) return;
@@ -332,8 +328,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
 		 */
 		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
-		/* Em transferência a descrição é opcional: em branco, vai um texto padrão (o backend exige o campo). */
-		const description = values.description.trim() || default_transfer_description;
+		/* Em transferência pode ir em branco: o backend gera "Transferência <origem> -> <destino>". */
+		const description = values.description.trim();
 
 		if (transaction) {
 			/* Saindo de um crédito pra uma conta, '' desvincula o cartão antigo. */
@@ -530,7 +526,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							{show_kind_select && (
 								<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
 									<label className='text-sm font-medium'>Tipo</label>
-									<Select value={values.kind} onValueChange={(value) => setValues((prev) => ({ ...prev, kind: value as TTransactionKind }))}>
+									<Select value={values.kind} onValueChange={(value) => value && setValues((prev) => ({ ...prev, kind: value as TTransactionKind }))}>
 										<SelectTrigger>
 											<SelectValue />
 										</SelectTrigger>

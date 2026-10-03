@@ -241,6 +241,15 @@ const TransactionsList = () => {
 		return map;
 	}, [ accounts, credit_balances ]);
 
+	/*
+	 * Excluir conta/carteira não apaga mais as transações: a origem pode ter sido excluída. Só dá pra
+	 * afirmar isso quando a transação é DESTA carteira e a origem não está mais entre as ativas (uma origem
+	 * de outra carteira, numa transferência recebida, não está nas listas daqui de qualquer jeito).
+	 */
+	const sources_loaded = Boolean(accounts_data && credit_balances_data);
+	const isDeletedSource = (transaction_item: TTransaction) =>
+		sources_loaded && transaction_item.wallet_id === wallet_id && !source_names.has(transaction_item.source_id);
+
 	/* Contas que esta visão (a carteira) enxerga — decidem o sinal de uma transferência. */
 	const account_ids = useMemo(() => new Set(accounts.map((account) => account.id)), [ accounts ]);
 
@@ -485,7 +494,8 @@ const TransactionsList = () => {
 	const renderTransactionMeta = (transaction_item: TTransaction, hide_source = false) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
 		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
-		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id) || (is_credit ? 'Crédito' : 'Conta');
+		const raw_source_label = transaction_item.source_name || source_names.get(transaction_item.source_id) || (is_credit ? 'Crédito' : 'Conta');
+		const source_label = isDeletedSource(transaction_item) ? `${ raw_source_label } (excluída)` : raw_source_label;
 		/* Transferência: "De X para Y" — o chip mostra os dois lados. */
 		const name = transaction_item.kind === 'transfer'
 			? `${ source_label } → ${ transaction_item.destination_account_name || 'Conta' }`
@@ -537,7 +547,8 @@ const TransactionsList = () => {
 		<TouchableOpacity
 			key={transaction_item.id}
 			style={[ styles.transactionItem, { backgroundColor: card_surface }, transaction_item.draft && styles.draftItem ]}
-			onPress={() => setTransaction(transaction_item)}
+			/* Transferência não é editável: o toque abre as ações (duplicar/efetivar/excluir) em vez da edição. */
+			onPress={() => (transaction_item.kind === 'transfer' ? setActionsTransaction(transaction_item) : setTransaction(transaction_item))}
 		>
 			{renderKindIcon(transaction_item)}
 
@@ -831,17 +842,20 @@ const TransactionsList = () => {
 							</TouchableOpacity>
 						)}
 
-						<TouchableOpacity
-							style={styles.actionsSheetItem}
-							onPress={() => {
-								const target = actions_transaction;
-								setActionsTransaction(null);
-								if (target) setTransaction(target);
-							}}
-						>
-							<Icon name='edit' size={20} color={theme.colors.text} />
-							<ThemedText style={styles.actionsSheetItemText}>Editar</ThemedText>
-						</TouchableOpacity>
+						{/* Transferência não é editável — só duplicar, efetivar/desfazer e excluir. */}
+						{actions_transaction?.kind !== 'transfer' && (
+							<TouchableOpacity
+								style={styles.actionsSheetItem}
+								onPress={() => {
+									const target = actions_transaction;
+									setActionsTransaction(null);
+									if (target) setTransaction(target);
+								}}
+							>
+								<Icon name='edit' size={20} color={theme.colors.text} />
+								<ThemedText style={styles.actionsSheetItemText}>Editar</ThemedText>
+							</TouchableOpacity>
+						)}
 
 						<TouchableOpacity
 							style={styles.actionsSheetItem}

@@ -4,7 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
@@ -172,14 +172,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		{ label: `${ prefix }${ item.name }${ amountSuffix(type, item.id) }`, value: `${ type }:${ item.id }` }
 	);
 	/*
-	 * Contas que podem não estar nesta carteira: uma transferência pode vir de/ir pra uma conta de OUTRA
-	 * carteira acessível. Sem isso o Picker abriria sem a opção atual na edição. O nome vem do backend.
+	 * Origem que pode não estar entre as contas ativas desta carteira (conta excluída — as transações dela
+	 * continuam existindo). Sem isso o Picker abriria sem a opção atual na edição. O nome vem pronto do backend.
 	 */
 	const foreign_source = transaction && transaction.source_type === 'Account' && !accounts.some((item) => item.id === transaction.source_id)
 		? { id: transaction.source_id, name: transaction.source_name }
-		: null;
-	const foreign_destination = transaction?.destination_account_id && !accounts.some((item) => item.id === transaction.destination_account_id)
-		? { id: transaction.destination_account_id, name: transaction.destination_account_name || 'Conta' }
 		: null;
 
 	const origin_options = is_editing
@@ -195,22 +192,21 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	/* Transferência só sai de conta — em crédito o `kind` é sempre saída (ver `effective_kind`). */
 	const is_transfer = !is_credit && values.kind === 'transfer';
 	/*
-	 * Na criação, transferência é escolhida na etapa 1, então o "Tipo" de uma conta fica só com
-	 * Entrada/Saída e some numa transferência. Na edição mostra os três — dá pra converter.
+	 * Transferência é escolhida na etapa 1 (botão próprio) e NÃO é editável (a lista não oferece "Editar"
+	 * pra ela). Então o "Tipo" de uma conta é só Entrada/Saída — nem na edição uma transação vira
+	 * transferência — e numa transferência ele some.
 	 */
-	const kind_options = is_editing ? KIND_OPTIONS : KIND_OPTIONS.filter((option) => option.value !== 'transfer');
-	const show_kind_select = !is_credit && (is_editing || !is_transfer);
+	const kind_options = KIND_OPTIONS.filter((option) => option.value !== 'transfer');
+	const show_kind_select = !is_credit && !is_transfer;
 	const destination_options = [
 		{ label: 'Escolha a conta de destino', value: '' },
-		...[ ...accounts, ...(foreign_destination ? [ foreign_destination ] : []) ]
+		...accounts
 			.filter((item) => item.id !== source_id)
 			.map((item) => ({ label: `${ item.name }${ amountSuffix('Account', item.id) }`, value: item.id })),
 	];
-	const destination_name = [ ...accounts, ...(foreign_destination ? [ foreign_destination ] : []) ]
-		.find((item) => item.id === values.destination_account_id)?.name;
-	const default_transfer_description = is_transfer
-		? `Transferência${ destination_name ? ` para ${ destination_name }` : '' }`
-		: '';
+	const destination_name = accounts.find((item) => item.id === values.destination_account_id)?.name;
+	const source_name = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ].find((item) => item.id === source_id)?.name;
+	const default_transfer_description = is_transfer ? TransactionUtils.transferDescription(source_name, destination_name) : '';
 
 	const card_options = [
 		{ label: cards.length ? 'Escolha o cartão' : 'Nenhum cartão neste crédito', value: '' },
@@ -322,8 +318,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		 */
 		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
 		const settled_date = is_credit ? transaction_date : account_settled_date;
-		/* Em transferência a descrição é opcional: em branco, vai um texto padrão (o backend exige o campo). */
-		const description = values.description.trim() || default_transfer_description;
+		/* Em transferência pode ir em branco: o backend gera "Transferência <origem> -> <destino>". */
+		const description = values.description.trim();
 		/*
 		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
 		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
@@ -560,7 +556,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 							label='Para a conta *'
 							options={destination_options}
 							value={values.destination_account_id}
-							onChange={(destination_account_id) => setValues((prev) => ({ ...prev, destination_account_id }))}
+							/* '' é o placeholder — nunca "desescolhe" o destino (evita zerar na edição enquanto a lista carrega). */
+							onChange={(destination_account_id) => destination_account_id && setValues((prev) => ({ ...prev, destination_account_id }))}
 						/>
 					</ThemedView>
 				)}
