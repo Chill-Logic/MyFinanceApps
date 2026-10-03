@@ -4,7 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 
@@ -53,6 +53,16 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 	const is_credit = transaction?.source_type === 'CreditBalance';
 	const is_deposit = transaction?.kind === 'deposit';
+	/* Transferência copia o destino junto; no resumo fica neutra (o sinal dependeria de quem olha). */
+	const is_transfer = transaction?.kind === 'transfer';
+	const default_transfer_description = is_transfer
+		? TransactionUtils.transferDescription(transaction?.source_name || source_name, transaction?.destination_account_name)
+		: '';
+	const kind_style = (() => {
+		if (is_transfer) return { background: colors['feedback-info-light'], color: colors['feedback-info-default'], icon: 'swap-horiz' as const, sign: '', value: undefined };
+		if (is_deposit) return { background: colors['feedback-success-light'], color: colors['feedback-success-dark'], icon: 'north-east' as const, sign: '+', value: styles.textGreen };
+		return { background: colors['feedback-danger-light'], color: colors['feedback-danger-dark'], icon: 'south-east' as const, sign: '-', value: styles.textRed };
+	})();
 
 	useEffect(() => {
 		if (!visible || !transaction) return;
@@ -79,7 +89,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 	const is_submit_disabled = (
 		is_pending ||
-		!description ||
+		(!is_transfer && !description.trim()) ||
 		!transaction_date ||
 		!isValidTime(transaction_time) ||
 		(Boolean(settled_date) && !isValidTime(settled_time))
@@ -92,7 +102,8 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 		createTransactionMutation({
 			body: {
-				description,
+				/* Em transferência pode ir em branco: o backend gera "Transferência <origem> -> <destino>". */
+				description: description.trim(),
 				value: transaction.value,
 				kind: transaction.kind,
 				transaction_date: combineToISO(transaction_date, transaction_time),
@@ -101,6 +112,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 				source_type: transaction.source_type,
 				source_id: transaction.source_id,
 				credit_card_id: is_credit ? (transaction.credit_card_id || undefined) : undefined,
+				destination_account_id: is_transfer ? (transaction.destination_account_id || undefined) : undefined,
 				draft: transaction.draft,
 			},
 			onSuccess: () => {
@@ -177,23 +189,19 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 						<View
 							style={[
 								styles.kindIcon,
-								{ backgroundColor: is_deposit ? colors['feedback-success-light'] : colors['feedback-danger-light'] },
+								{ backgroundColor: kind_style.background },
 							]}
 						>
-							<Icon
-								name={is_deposit ? 'north-east' : 'south-east'}
-								size={16}
-								color={is_deposit ? colors['feedback-success-dark'] : colors['feedback-danger-dark']}
-							/>
+							<Icon name={kind_style.icon} size={16} color={kind_style.color} />
 						</View>
 						<View style={styles.summaryTextCol}>
 							<View style={styles.summaryOriginRow}>
 								<Icon name={is_credit ? 'credit-card' : 'account-balance-wallet'} size={13} color={theme.colors.placeholder} />
-								<ThemedText style={styles.summaryOrigin} numberOfLines={1}>{source_name || (is_credit ? 'Crédito' : 'Conta')}</ThemedText>
+								<ThemedText style={styles.summaryOrigin} numberOfLines={1}>{source_name || (is_credit ? 'Crédito' : 'Conta')}{is_transfer ? ` → ${ transaction.destination_account_name || 'Conta' }` : ''}</ThemedText>
 								{transaction.draft && <ThemedText style={styles.draftBadge}>Rascunho</ThemedText>}
 							</View>
-							<ThemedText style={[ styles.summaryValue, is_deposit ? styles.textGreen : styles.textRed ]}>
-								{is_deposit ? '+' : '-'}{MoneyUtils.formatMoney(transaction.value)}
+							<ThemedText style={[ styles.summaryValue, kind_style.value ]}>
+								{kind_style.sign}{MoneyUtils.formatMoney(transaction.value)}
 							</ThemedText>
 						</View>
 					</View>
@@ -201,10 +209,10 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 				<ThemedView style={styles.formGroup}>
 					<ThemedTextInput
-						label='Descrição *'
+						label={is_transfer ? 'Descrição (opcional)' : 'Descrição *'}
 						value={description}
 						onChangeText={setDescription}
-						placeholder='Digite a descrição'
+						placeholder={is_transfer ? default_transfer_description : 'Digite a descrição'}
 					/>
 				</ThemedView>
 

@@ -101,6 +101,8 @@ export type TCreateTransactionBody = {
 	 */
 	invoice_month?: string;
 	draft?: boolean;
+	/* Obrigatório quando `kind === 'transfer'`: conta que recebe (≠ origem, que precisa ser `Account`). */
+	destination_account_id?: string;
 }
 
 /* O backend não aceita mudar a origem no update (`source_type`/`source_id` fora do permit). */
@@ -111,10 +113,19 @@ export type TUpdateTransactionBody = Partial<{
 	transaction_date: string;
 	/* "Pago em": `null` volta pra pendente; data efetiva. */
 	settled_date: string | null;
+	/* String vazia desvincula o cartão (ao mover a transação de um crédito pra uma conta). */
 	credit_card_id: string;
 	/* "YYYY-MM"; string vazia devolve o campo pro default calculado pelo ciclo do cartão. */
 	invoice_month: string;
 	draft: boolean;
+	/*
+	 * Troca de origem (conta↔conta, conta↔crédito, crédito↔crédito). Os dois vão juntos e só quando a
+	 * origem muda; a carteira continua derivada da origem pelo backend.
+	 */
+	source_type: TTransactionSourceType;
+	source_id: string;
+	/* Troca o destino de uma transferência. Mudar o `kind` pra deposit/withdraw zera o destino sozinho. */
+	destination_account_id: string;
 }>
 
 /* `settled_date` opcional (ISO); ausente = efetiva no momento atual (backend usa `Time.current`). */

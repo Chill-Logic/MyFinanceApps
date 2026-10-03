@@ -776,6 +776,56 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
 - **"Conta" e "Tipo" na mesma linha** quando a origem não é cartão (em cartão a origem ocupa a linha
   toda, porque logo abaixo vem o campo "Cartão"). No mobile isso fica apertado em tela estreita: os dois
   selects dividem ~50% cada.
+- **Edição: fatura sem checkbox e origem trocável (2026-10-03).** Na edição de transação de cartão, o
+  checkbox "Fatura automática" não aparece: os seletores Mês/Ano vêm direto com o `invoice_month` gravado
+  (o backend sempre grava o mês concreto, então o checkbox vinha sempre desmarcado e não ajudava em nada —
+  ele existe pra criação, pro usuário não precisar pensar na fatura). A **origem** também passou a ser
+  editável: o select lista contas E créditos (web: `SelectGroup` "Contas"/"Créditos"; mobile: Picker com
+  prefixo "Conta · "/"Crédito · ") e, se a origem muda, o update manda `source_type`/`source_id`,
+  `credit_card_id: ''` ao sair de um crédito, e o checkbox "Fatura automática" volta (marcado) — a fatura
+  antiga não vale pra outro cartão. Voltar pra origem original restaura cartão e fatura gravados.
+  **Exceção:** transação de pagamento de fatura (`paid_credit_balance_id` preenchido) tem a origem travada
+  (select desabilitado + aviso) — ela é amarrada à fatura que quitou, e trocar a conta ou virar gasto de
+  crédito deixaria esse vínculo incoerente. O backend ainda não bloqueia isso sozinho; a trava é só no front.
+  O backend passou a aceitar `source_type`/`source_id` no `update` (`dev` 3db1ad7): zera e recalcula
+  `credit_card_id`/`invoice_month` pela nova origem (o que vier no mesmo payload prevalece) e, de conta pra
+  cartão, efetiva na `transaction_date`.
+- **`Select` do Radix dentro de `<form>` zera o valor se as opções chegam depois** (web): o Radix espelha
+  o `value` num `<select>` nativo escondido e dispara `change` a cada troca; sem o `<option>` ainda
+  carregado, o nativo cai em `''` e o Radix chama `onValueChange('')`. Sintoma: na 1ª abertura da edição o
+  campo "Crédito" vinha vazio (a 2ª funcionava, com a lista já em cache). Fix no `TransactionFormDialog`:
+  ignorar `''` no `onValueChange` (nenhum item tem value vazio). Vale pra qualquer `Select` novo com opções
+  assíncronas dentro de form.
+- **Transferência entre contas (2026-10-03, web + mobile; backend `dev` 3db1ad7).** É uma transação
+  comum com `kind: 'transfer'` — UM registro só, não um par saque/depósito — com origem `Account` e
+  `destination_account_id` (pode ser conta de outra carteira acessível). A resposta traz também
+  `source_name` (em toda transação) e `destination_account_name`. O `value` é sempre positivo e **o sinal
+  depende de quem olha**: `TransactionUtils.direction(t, account_ids)` (shared) devolve `in`/`out`/
+  `internal` a partir das contas que a visão enxerga (na Home, as contas da carteira) — origem visível =
+  saída, destino visível = entrada, as duas = movimento interno (sem sinal, ícone `ArrowLeftRight`/
+  `swap-horiz` em azul, fora das somas de entrada/saída do card de total; `total_settled`/
+  `total_projected` já vêm certos do backend). O chip de origem vira "X → Y". Formulário: na criação, "Transferência"
+  é a 3ª opção da etapa 1 (Conta / Cartão / Transferência; exige 2 contas na carteira) — vira uma conta com
+  `kind: 'transfer'`, campos "Da conta" + "Para a conta" (contas da carteira menos a origem) e SEM o select
+  Tipo; o Tipo de "Conta" fica só Entrada/Saída. **Transferência NÃO é editável** (regra do dono): a lista
+  não oferece "Editar" pra ela (web: item some do menu; mobile: some do action-sheet e o toque no card abre
+  as ações em vez da edição) — só Duplicar, Efetivar/Desfazer e Excluir. Pelo mesmo motivo, o Tipo na edição
+  de uma entrada/saída também não oferece "Transferência". Duplicar copia o destino. **Pendente:**
+  escolher como destino uma conta de outra carteira na criação (hoje o select só lista a carteira atual).
+  - **Descrição opcional em transferência** (form e duplicar): em branco, o front MANDA EM BRANCO e o
+    backend (b7242bf) gera "Transferência <origem> -> <destino>" — no update, regenera com as contas atuais.
+    `TransactionUtils.transferDescription` (shared) reproduz o formato só pro placeholder. No Duplicar o
+    campo vem preenchido com a descrição que veio da API.
+  - **Origem excluída** (backend b7242bf): excluir conta/carteira não apaga mais as transações. A lista
+    mostra "<nome> (excluída)" quando a transação é DESTA carteira e a origem não está mais entre as
+    ativas — origem de outra carteira (transferência recebida) não dá pra distinguir, fica só o nome.
+  - **Autor (`user_id`) no create/update — NÃO implementado:** o backend aceita, mas não existe endpoint
+    que liste os membros (convites aceitos) de uma carteira (`GET /user_wallets` só traz os convites
+    PENDENTES do próprio usuário). Precisa disso no backend antes de montar o seletor.
+  - **Valor nas opções de origem/destino** (qualquer tipo de transação): conta mostra o saldo (`balance`,
+    em vermelho se negativo no web) e crédito mostra "fatura R$ X" (`current_invoice.remaining` — o que falta pagar; sem pagamento parcial é igual ao `amount`), vindos das
+    mesmas listagens que o form já busca. No web vai como `<span>` dentro do `SelectItem`; no mobile, no
+    texto da opção do Picker ("Itaú — R$ 1.234,00"), que não aceita marcação.
 - **Altura dos campos**: o botão "Marcar como pago" (web) usava a altura padrão do `Button` (36px) e
   destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `apps/web/src/components/ui/field.ts`).
 

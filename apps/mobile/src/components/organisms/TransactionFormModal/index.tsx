@@ -4,7 +4,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage } from '@myfinance/shared';
+import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
@@ -51,12 +51,16 @@ const DEFAULT_VALUES: TNewTransactionForm = {
 	credit_card_id: '',
 	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
+	destination_account_id: '',
 };
 
 const KIND_OPTIONS = [
 	{ label: 'Entrada', value: 'deposit' },
 	{ label: 'Saída', value: 'withdraw' },
+	{ label: 'Transferência', value: 'transfer' },
 ];
+
+const KIND_TITLE: Record<TTransactionKind, string> = { deposit: 'Entrada', withdraw: 'Saída', transfer: 'Transferência' };
 
 /* Opções de mês do seletor de fatura: os 12, com o valor no formato do `invoice_month` ("01".."12"). */
 const INVOICE_MONTH_OPTIONS = MONTH_NAMES_PT.map((name, index) => ({
@@ -114,6 +118,17 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const { source_type, source_id } = parseOrigin(values.origin);
 	/* Deriva do TIPO escolhido (não do source_id): vale já na etapa 2, antes de escolher a origem específica. */
 	const is_credit = origin_type === 'CreditBalance';
+	/*
+	 * Na edição a origem pode ser trocada (conta↔conta, conta↔crédito, crédito↔crédito). Só quando ela de
+	 * fato muda é que `source_type`/`source_id` vão no body e a fatura volta a ter o checkbox "automática".
+	 */
+	const original_origin = transaction ? `${ transaction.source_type }:${ transaction.source_id }` : '';
+	const origin_changed = is_editing && Boolean(values.origin) && values.origin !== original_origin;
+	/*
+	 * Pagamento de fatura (`paid_credit_balance_id`) não troca de origem: ele é amarrado à fatura que quitou,
+	 * e mudar a conta de onde saiu (ou virar gasto de crédito) deixaria esse vínculo incoerente.
+	 */
+	const is_origin_locked = Boolean(transaction?.paid_credit_balance_id);
 
 	const { data: accounts_data, isLoading: is_accounts_loading } = useIndexAccounts({
 		enabled: visible && Boolean(wallet_id),
@@ -135,12 +150,63 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const is_origins_loading = is_accounts_loading || is_credit_loading;
 	const single_card_id = cards.length === 1 ? cards[0].id : null;
 
-	/* Etapa 2 lista SÓ o tipo escolhido (conta OU crédito), sem o prefixo "Conta ·/Crédito ·". */
-	const origin_list = is_credit ? credit_balances : accounts;
-	const origin_options = [
-		...(is_editing ? [] : [ { label: is_credit ? 'Escolha o crédito' : 'Escolha a conta', value: '' } ]),
-		...origin_list.map((item) => ({ label: item.name, value: `${ is_credit ? 'CreditBalance' : 'Account' }:${ item.id }` })),
+	/*
+	 * Na criação a etapa 2 lista SÓ o tipo escolhido na etapa 1, sem prefixo. Na edição lista contas E
+	 * créditos (dá pra trocar de tipo aqui), com o prefixo "Conta ·/Crédito ·" — o Picker nativo não agrupa.
+	 */
+	/*
+	 * Valor ao lado do nome: saldo da conta, ou o total da fatura atual do crédito — ajuda a escolher de
+	 * onde sai o dinheiro. Origem/destino de outra carteira não está nas listas: fica sem valor.
+	 */
+	const amountSuffix = (type: TTransactionSourceType, id: string) => {
+		if (type === 'CreditBalance') {
+			const credit_balance = credit_balances.find((item) => item.id === id);
+			return credit_balance ? ` — fatura ${ MoneyUtils.formatMoney(credit_balance.current_invoice.remaining) }` : '';
+		}
+
+		const account = accounts.find((item) => item.id === id);
+		return account ? ` — ${ MoneyUtils.formatSignedMoney(account.balance) }` : '';
+	};
+
+	const toOption = (type: TTransactionSourceType, item: { id: string; name: string }, prefix = '') => (
+		{ label: `${ prefix }${ item.name }${ amountSuffix(type, item.id) }`, value: `${ type }:${ item.id }` }
+	);
+	/*
+	 * Origem que pode não estar entre as contas ativas desta carteira (conta excluída — as transações dela
+	 * continuam existindo). Sem isso o Picker abriria sem a opção atual na edição. O nome vem pronto do backend.
+	 */
+	const foreign_source = transaction && transaction.source_type === 'Account' && !accounts.some((item) => item.id === transaction.source_id)
+		? { id: transaction.source_id, name: transaction.source_name }
+		: null;
+
+	const origin_options = is_editing
+		? [
+			...[ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ].map((item) => toOption('Account', item, 'Conta · ')),
+			...credit_balances.map((item) => toOption('CreditBalance', item, 'Crédito · ')),
+		]
+		: [
+			{ label: is_credit ? 'Escolha o crédito' : 'Escolha a conta', value: '' },
+			...(is_credit ? credit_balances : accounts).map((item) => toOption(is_credit ? 'CreditBalance' : 'Account', item)),
+		];
+
+	/* Transferência só sai de conta — em crédito o `kind` é sempre saída (ver `effective_kind`). */
+	const is_transfer = !is_credit && values.kind === 'transfer';
+	/*
+	 * Transferência é escolhida na etapa 1 (botão próprio) e NÃO é editável (a lista não oferece "Editar"
+	 * pra ela). Então o "Tipo" de uma conta é só Entrada/Saída — nem na edição uma transação vira
+	 * transferência — e numa transferência ele some.
+	 */
+	const kind_options = KIND_OPTIONS.filter((option) => option.value !== 'transfer');
+	const show_kind_select = !is_credit && !is_transfer;
+	const destination_options = [
+		{ label: 'Escolha a conta de destino', value: '' },
+		...accounts
+			.filter((item) => item.id !== source_id)
+			.map((item) => ({ label: `${ item.name }${ amountSuffix('Account', item.id) }`, value: item.id })),
 	];
+	const destination_name = accounts.find((item) => item.id === values.destination_account_id)?.name;
+	const source_name = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ].find((item) => item.id === source_id)?.name;
+	const default_transfer_description = is_transfer ? TransactionUtils.transferDescription(source_name, destination_name) : '';
 
 	const card_options = [
 		{ label: cards.length ? 'Escolha o cartão' : 'Nenhum cartão neste crédito', value: '' },
@@ -155,11 +221,24 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	};
 
 	/* Etapa 1 → 2: escolhe o tipo e, se só houver uma origem daquele tipo, já a pré-seleciona. */
-	const chooseOriginType = (type: TTransactionSourceType) => {
+	/*
+	 * Transferência é uma conta com `kind: 'transfer'` (botão próprio na etapa 1); escolher Conta volta o
+	 * kind pra saída, caso tenha passado por ela.
+	 */
+	const chooseOriginType = (type: TTransactionSourceType, kind: TTransactionKind = 'withdraw') => {
 		const list = type === 'Account' ? accounts : credit_balances;
 		setOriginType(type);
-		setValues((prev) => ({ ...prev, origin: list.length === 1 ? `${ type }:${ list[0].id }` : '', credit_card_id: '' }));
+		setValues((prev) => ({
+			...prev,
+			origin: list.length === 1 ? `${ type }:${ list[0].id }` : '',
+			credit_card_id: '',
+			destination_account_id: '',
+			kind,
+		}));
 	};
+
+	/* Transferência na criação precisa de duas contas nesta carteira (origem ≠ destino). */
+	const can_transfer = accounts.length >= 2;
 
 	const is_invoice_auto = values.invoice_month === AUTO_INVOICE_MONTH;
 	const [ invoice_year, invoice_month_part ] = is_invoice_auto ? [ '', '' ] : values.invoice_month.split('-');
@@ -173,6 +252,38 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		});
 	};
 
+	const setOrigin = (origin: string) => {
+		/* '' é o placeholder da criação; na edição o Picker pode emitir valor vazio enquanto a lista carrega. */
+		if (!origin) {
+			if (!is_editing) setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
+			return;
+		}
+
+		/* Na edição o tipo pode mudar junto com a origem (a lista mostra contas E créditos). */
+		setOriginType(parseOrigin(origin).source_type || null);
+
+		/* Voltou pra origem original da edição: restaura o cartão e a fatura gravados. */
+		if (transaction && origin === original_origin) {
+			setValues((prev) => ({
+				...prev,
+				origin,
+				credit_card_id: transaction.credit_card_id || '',
+				invoice_month: transaction.invoice_month || monthKey(prev.transaction_date),
+			}));
+			return;
+		}
+
+		/* Origem nova na edição: a fatura antiga não vale mais, volta a ser calculada pelo ciclo. */
+		setValues((prev) => ({
+			...prev,
+			origin,
+			credit_card_id: '',
+			invoice_month: is_editing ? AUTO_INVOICE_MONTH : prev.invoice_month,
+			/* Origem e destino de uma transferência não podem ser a mesma conta. */
+			destination_account_id: parseOrigin(origin).source_id === prev.destination_account_id ? '' : prev.destination_account_id,
+		}));
+	};
+
 	/* Volta pra etapa 1 (só na criação), limpando o tipo e a origem escolhida. */
 	const backToTypeStep = () => {
 		setOriginType(null);
@@ -183,12 +294,13 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const is_submit_disabled = (
 		is_pending ||
 		!values.value ||
-		!values.description ||
+		(!is_transfer && !values.description.trim()) ||
 		!values.transaction_date ||
 		!isValidTime(values.transaction_time) ||
 		(Boolean(values.settled_date) && !isValidTime(values.settled_time)) ||
 		(!is_editing && !values.origin) ||
-		(is_credit && !values.credit_card_id)
+		(is_credit && !values.credit_card_id) ||
+		(is_transfer && !values.destination_account_id)
 	);
 
 	const handleSave = () => {
@@ -206,6 +318,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		 */
 		const account_settled_date = values.settled_date ? combineToISO(values.settled_date, values.settled_time) : null;
 		const settled_date = is_credit ? transaction_date : account_settled_date;
+		/* Em transferência pode ir em branco: o backend gera "Transferência <origem> -> <destino>". */
+		const description = values.description.trim();
 		/*
 		 * Fatura: só faz sentido em cartão. `AUTO_INVOICE_MONTH` vira string vazia no UPDATE (é assim que o
 		 * backend devolve o campo pro default calculado pelo ciclo) e some no CREATE (ausente = default).
@@ -213,16 +327,22 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		const chosen_invoice_month = values.invoice_month === AUTO_INVOICE_MONTH ? '' : values.invoice_month;
 
 		if (transaction) {
+			/* Saindo de um crédito pra uma conta, '' desvincula o cartão antigo. */
+			const unlinked_card_id = origin_changed ? '' : undefined;
+
 			updateTransactionMutation({
 				body: {
 					kind: effective_kind,
-					description: values.description,
+					description,
 					value,
 					transaction_date,
 					settled_date,
-					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					credit_card_id: is_credit ? values.credit_card_id : unlinked_card_id,
+					/* Mudar o kind pra entrada/saída zera o destino no backend — só mandamos em transferência. */
+					destination_account_id: is_transfer ? values.destination_account_id : undefined,
 					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
+					...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
 				},
 				id: transaction.id,
 				onSuccess: () => {
@@ -238,7 +358,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 		createTransactionMutation({
 			body: {
-				description: values.description,
+				description,
 				value,
 				kind: effective_kind,
 				transaction_date,
@@ -246,6 +366,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				source_type: source_type as TTransactionSourceType,
 				source_id,
 				credit_card_id: is_credit ? values.credit_card_id : undefined,
+				destination_account_id: is_transfer ? values.destination_account_id : undefined,
 				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
 			},
@@ -280,8 +401,9 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				settled_time: paid ? paid.time : '',
 				origin: `${ transaction.source_type }:${ transaction.source_id }`,
 				credit_card_id: transaction.credit_card_id || '',
-				invoice_month: transaction.invoice_month || AUTO_INVOICE_MONTH,
+				invoice_month: transaction.invoice_month || monthKey(planned.date),
 				draft: transaction.draft,
+				destination_account_id: transaction.destination_account_id || '',
 			});
 		} else {
 			/* Passou de edição pra criação: volta pra etapa 1 (escolha do tipo). */
@@ -347,7 +469,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const renderOriginTypeStep = () => (
 		<>
 			<ThemedText style={styles.title}>Nova Transação</ThemedText>
-			<ThemedText style={styles.originQuestion}>De onde sai essa transação?</ThemedText>
+			<ThemedText style={styles.originQuestion}>Que tipo de transação?</ThemedText>
 			<ThemedView style={styles.originTypeGrid}>
 				<TouchableOpacity
 					style={[ styles.originTypeButton, { borderColor: theme.colors.border }, !accounts.length && styles.originTypeButtonDisabled ]}
@@ -369,6 +491,16 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					<ThemedText style={styles.originTypeLabel}>Cartão</ThemedText>
 					{!credit_balances.length && <ThemedText style={styles.originTypeHint}>nenhum cartão</ThemedText>}
 				</TouchableOpacity>
+				<TouchableOpacity
+					style={[ styles.originTypeButton, { borderColor: theme.colors.border }, !can_transfer && styles.originTypeButtonDisabled ]}
+					disabled={!can_transfer}
+					onPress={() => chooseOriginType('Account', 'transfer')}
+					activeOpacity={0.7}
+				>
+					<Icon name='swap-horiz' size={28} color={colors['feedback-info-default']} />
+					<ThemedText style={styles.originTypeLabel} numberOfLines={1} adjustsFontSizeToFit>Transferência</ThemedText>
+					{!can_transfer && <ThemedText style={styles.originTypeHint}>precisa de 2 contas</ThemedText>}
+				</TouchableOpacity>
 			</ThemedView>
 			<TouchableOpacity style={styles.linkButton} onPress={handleClose}>
 				<ThemedText style={styles.linkText}>Cancelar</ThemedText>
@@ -376,9 +508,14 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		</>
 	);
 
+	const origin_label = (() => {
+		if (is_credit) return 'Crédito *';
+		return is_transfer ? 'Da conta *' : 'Conta *';
+	})();
+
 	const renderForm = () => (
 		<>
-			<ThemedText style={styles.title}>{transaction ? `Editar ${ transaction.kind === 'deposit' ? 'Entrada' : 'Saída' }` : 'Nova Transação'}</ThemedText>
+			<ThemedText style={styles.title}>{transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova Transação'}</ThemedText>
 
 			<ScrollView style={styles.scroll} keyboardShouldPersistTaps='handled'>
 				{/*
@@ -388,25 +525,42 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				<ThemedView style={[ styles.formGroup, styles.originRow ]}>
 					<ThemedView style={styles.originCol}>
 						<SelectInput
-							label={is_credit ? 'Crédito *' : 'Conta *'}
+							label={is_editing ? 'Origem *' : origin_label}
 							options={origin_options}
 							value={values.origin}
-							disabled={is_editing}
-							onChange={(origin) => setValues({ ...values, origin, credit_card_id: '' })}
+							disabled={is_origin_locked}
+							onChange={setOrigin}
 						/>
 					</ThemedView>
 
-					{!is_credit && (
+					{show_kind_select && (
 						<ThemedView style={styles.originCol}>
 							<SelectInput
 								label='Tipo *'
-								options={KIND_OPTIONS}
+								options={kind_options}
 								value={values.kind}
 								onChange={(value) => setValues({ ...values, kind: value as TTransactionKind })}
 							/>
 						</ThemedView>
 					)}
 				</ThemedView>
+
+				{is_origin_locked && (
+					<ThemedText style={styles.lockedHint}>Pagamento de fatura não pode trocar de origem.</ThemedText>
+				)}
+
+				{/* Destino da transferência: contas da carteira (menos a origem) + o destino atual, se for de outra */}
+				{is_transfer && (
+					<ThemedView style={styles.formGroup}>
+						<SelectInput
+							label='Para a conta *'
+							options={destination_options}
+							value={values.destination_account_id}
+							/* '' é o placeholder — nunca "desescolhe" o destino (evita zerar na edição enquanto a lista carrega). */
+							onChange={(destination_account_id) => destination_account_id && setValues((prev) => ({ ...prev, destination_account_id }))}
+						/>
+					</ThemedView>
+				)}
 
 				{/* Bloco do cartão só depois de um crédito específico selecionado (source_id) — senão o aviso apareceria à toa */}
 				{is_credit && source_id && (
@@ -428,10 +582,10 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={styles.formGroup}>
 					<ThemedTextInput
-						label='Descrição *'
+						label={is_transfer ? 'Descrição (opcional)' : 'Descrição *'}
 						value={values.description}
 						onChangeText={(text) => setValues({ ...values, description: text })}
-						placeholder='Digite a descrição'
+						placeholder={is_transfer ? default_transfer_description : 'Digite a descrição'}
 					/>
 				</ThemedView>
 
@@ -469,21 +623,28 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				 */}
 				{is_credit && (
 					<ThemedView style={styles.formGroup}>
-						<TouchableOpacity
-							style={styles.toggleRow}
-							onPress={() => setValues((prev) => ({
-								...prev,
-								invoice_month: is_invoice_auto ? monthKey(prev.transaction_date) : AUTO_INVOICE_MONTH,
-							}))}
-							activeOpacity={0.7}
-						>
-							<Icon
-								name={is_invoice_auto ? 'check-box' : 'check-box-outline-blank'}
-								size={22}
-								color={colors['brand-secondary']}
-							/>
-							<ThemedText>Fatura automática <ThemedText style={styles.toggleHint}>— pelo ciclo do cartão</ThemedText></ThemedText>
-						</TouchableOpacity>
+						{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
+						    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
+						    direto com ela. */}
+						{is_editing && !origin_changed ? (
+							<ThemedText>Fatura</ThemedText>
+						) : (
+							<TouchableOpacity
+								style={styles.toggleRow}
+								onPress={() => setValues((prev) => ({
+									...prev,
+									invoice_month: is_invoice_auto ? monthKey(prev.transaction_date) : AUTO_INVOICE_MONTH,
+								}))}
+								activeOpacity={0.7}
+							>
+								<Icon
+									name={is_invoice_auto ? 'check-box' : 'check-box-outline-blank'}
+									size={22}
+									color={colors['brand-secondary']}
+								/>
+								<ThemedText>Fatura automática <ThemedText style={styles.toggleHint}>— pelo ciclo do cartão</ThemedText></ThemedText>
+							</TouchableOpacity>
+						)}
 
 						{!is_invoice_auto && (
 							<ThemedView style={styles.originRow}>
@@ -725,7 +886,7 @@ const styles = StyleSheet.create({
 	},
 	originTypeGrid: {
 		flexDirection: 'row',
-		gap: 12,
+		gap: 8,
 		backgroundColor: 'transparent',
 	},
 	originTypeButton: {
@@ -735,17 +896,20 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderRadius: 10,
 		paddingVertical: 24,
-		paddingHorizontal: 8,
+		paddingHorizontal: 4,
 	},
 	originTypeButtonDisabled: {
 		opacity: 0.5,
 	},
 	originTypeLabel: {
-		fontSize: 16,
+		fontSize: 14,
+		lineHeight: 20,
 		fontWeight: '600',
 	},
 	originTypeHint: {
 		fontSize: 11,
+		lineHeight: 14,
+		textAlign: 'center',
 		color: '#888',
 	},
 	originRow: {
@@ -789,6 +953,13 @@ const styles = StyleSheet.create({
 		marginTop: 5,
 	},
 	markPaidText: {
+		color: '#888',
+	},
+	lockedHint: {
+		marginTop: -8,
+		marginBottom: 15,
+		fontSize: 12,
+		lineHeight: 16,
 		color: '#888',
 	},
 	cardWarning: {

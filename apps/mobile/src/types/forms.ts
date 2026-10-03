@@ -17,6 +17,8 @@ export type TNewTransactionForm = {
 	credit_card_id: string;
 	/* `draft`: planejamento, fora dos totais. */
 	draft: boolean;
+	/* Só em transferência (`kind === 'transfer'`): a conta que recebe. */
+	destination_account_id: string;
 };
 
 export const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''; source_id: string } => {
