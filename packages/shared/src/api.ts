@@ -103,9 +103,10 @@ export type TCreateTransactionBody = {
 	draft?: boolean;
 	/* Obrigatório quando `kind === 'transfer'`: conta que recebe (≠ origem, que precisa ser `Account`). */
 	destination_account_id?: string;
+	/* Autor da transação — um dos `listWalletMembers` da carteira. Ausente = usuário autenticado. */
+	user_id?: string;
 }
 
-/* O backend não aceita mudar a origem no update (`source_type`/`source_id` fora do permit). */
 export type TUpdateTransactionBody = Partial<{
 	description: string;
 	value: number;
@@ -126,6 +127,8 @@ export type TUpdateTransactionBody = Partial<{
 	source_id: string;
 	/* Troca o destino de uma transferência. Mudar o `kind` pra deposit/withdraw zera o destino sozinho. */
 	destination_account_id: string;
+	/* Troca o autor (precisa ser participante da carteira). String vazia mantém o atual. */
+	user_id: string;
 }>
 
 /* `settled_date` opcional (ISO); ausente = efetiva no momento atual (backend usa `Time.current`). */

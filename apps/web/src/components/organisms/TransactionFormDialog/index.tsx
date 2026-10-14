@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { DateUtils, getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
-import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, Wallet, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, UserRound, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
@@ -10,8 +10,10 @@ import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCred
 import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
+import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
 import useToast from '@/hooks/useToast';
 
+import { useCurrentUserContext } from '@/context/current_user';
 import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
 
@@ -49,12 +51,14 @@ type TFormValues = {
 	draft: boolean;
 	/* Só em transferência (`kind === 'transfer'`): a conta que recebe. */
 	destination_account_id: string;
+	/* Autor ("Responsável"): um dos participantes da carteira. Vazio = o backend usa o usuário logado. */
+	user_id: string;
 };
 
 /* Sentinela do "deixa o backend decidir" — o Select do Radix não aceita item com value vazio. */
 const AUTO_INVOICE_MONTH = 'auto';
 
-const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => ({
+const buildDefaultValues = (suggestedDate?: Date, origin = '', user_id = ''): TFormValues => ({
 	origin,
 	credit_card_id: '',
 	kind: 'withdraw',
@@ -65,6 +69,7 @@ const buildDefaultValues = (suggestedDate?: Date, origin = ''): TFormValues => (
 	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
 	destination_account_id: '',
+	user_id,
 });
 
 /* "YYYY-MM" de um Date, no fuso local — o formato do `invoice_month`. */
@@ -102,7 +107,10 @@ const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''
 const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId }: IProps) => {
 	const navigate = useNavigate();
 	const { user_wallet } = useWallet();
+	const { current_user } = useCurrentUserContext();
 	const { toast } = useToast();
+
+	const current_user_id = current_user.data?.id || '';
 
 	const wallet_id = user_wallet.data?.id;
 	const is_editing = Boolean(transaction);
@@ -112,7 +120,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
 	const { data: kind_options } = useEnumOptions({ entity: 'transaction', type: 'kind' });
 
-	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate, default_origin));
+	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate, default_origin, current_user_id));
 	/*
 	 * Etapa 1 da CRIAÇÃO: tipo de origem escolhido (Conta/Cartão). `null` = ainda na tela de escolha —
 	 * evita criar uma transação de cartão sem querer. Na edição vem do próprio transaction (pula a etapa 1).
@@ -146,6 +154,14 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		enabled: open && is_credit && Boolean(source_id),
 		params: { credit_balance_id: source_id },
 	});
+
+	/*
+	 * Participantes da carteira em que a transação vai ficar: a atual na criação ou quando a origem muda
+	 * (as origens listadas são desta carteira); senão, a da própria transação.
+	 */
+	const members_wallet_id = transaction && !origin_changed ? transaction.wallet_id : wallet_id;
+	const { data: members_data } = useListWalletMembers({ enabled: open, wallet_id: members_wallet_id });
+	const members = members_data || [];
 
 	const accounts = accounts_data?.data || [];
 	const credit_balances = credit_balances_data?.data || [];
@@ -197,12 +213,24 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				invoice_month: transaction.invoice_month || monthKey(new Date(transaction.transaction_date)),
 				draft: transaction.draft,
 				destination_account_id: transaction.destination_account_id || '',
+				user_id: transaction.user_id,
 			});
 		} else {
 			setOriginType(defaultSourceType ?? null);
-			setValues(buildDefaultValues(suggestedDate, default_origin));
+			setValues(buildDefaultValues(suggestedDate, default_origin, current_user_id));
 		}
-	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType ]);
+	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id ]);
+
+	/*
+	 * O autor precisa ser participante da carteira (o backend valida). Se a carteira mudou (troca de origem)
+	 * e ele não está nela, volta pro usuário logado — ou pro primeiro participante, se nem ele estiver.
+	 */
+	useEffect(() => {
+		if (!members.length || members.some((member) => member.id === values.user_id)) return;
+
+		const fallback = members.find((member) => member.id === current_user_id) ?? members[0];
+		setValues((prev) => ({ ...prev, user_id: fallback.id }));
+	}, [ members, values.user_id, current_user_id ]);
 
 	/*
 	 * Auto-seleciona o único cartão do crédito escolhido, sem sobrescrever uma escolha que já
@@ -293,6 +321,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		if (destination_account_id) setValues((prev) => ({ ...prev, destination_account_id }));
 	};
 
+	/* Mesmo guarda do `setOrigin` contra o '' espúrio do Radix. */
+	const setAuthor = (user_id: string) => {
+		if (user_id) setValues((prev) => ({ ...prev, user_id }));
+	};
+
 	const setCreditCard = (credit_card_id: string) => {
 		if (credit_card_id) setValues((prev) => ({ ...prev, credit_card_id }));
 	};
@@ -347,6 +380,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					destination_account_id: is_transfer ? values.destination_account_id : undefined,
 					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
+					user_id: values.user_id !== transaction.user_id ? values.user_id : undefined,
 					...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
 				},
 				id: transaction.id,
@@ -369,6 +403,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				destination_account_id: is_transfer ? values.destination_account_id : undefined,
 				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
+				user_id: values.user_id || undefined,
 			},
 			onSuccess: () => finalize('Transação criada!'),
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
@@ -728,6 +763,29 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 										Marcar como pago
 									</Button>
 								)}
+							</div>
+						)}
+
+						{/* Só aparece quando há mais de um participante — com um só não há o que escolher. */}
+						{members.length > 1 && (
+							<div className='flex flex-col gap-1.5'>
+								<label className='text-sm font-medium'>Responsável</label>
+								<Select value={values.user_id} disabled={is_pending} onValueChange={setAuthor}>
+									<SelectTrigger>
+										<SelectValue placeholder='Escolha o responsável' />
+									</SelectTrigger>
+									<SelectContent>
+										{members.map((member) => (
+											<SelectItem key={member.id} value={member.id}>
+												<span className='flex items-center gap-2'>
+													<UserRound className='h-3.5 w-3.5' />
+													{member.name}
+													{member.id === current_user_id && <span className='text-xs text-muted-foreground'>você</span>}
+												</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 						)}
 
