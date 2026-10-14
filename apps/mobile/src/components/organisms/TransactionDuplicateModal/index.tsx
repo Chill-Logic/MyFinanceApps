@@ -7,6 +7,7 @@ import Icon from '@expo/vector-icons/MaterialIcons';
 import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
 
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
+import { useListWalletMembers } from '../../../hooks/api/wallets/useListWalletMembers';
 
 import { useTheme } from '../../../context/theme';
 import { DateUtils } from '../../../utils/date';
@@ -43,6 +44,10 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 	const { theme } = useTheme();
 
 	const { mutate: createTransactionMutation, isPending: is_pending } = useCreateTransactions();
+	const { data: members, isLoading: is_members_loading } = useListWalletMembers({
+		enabled: visible,
+		params: { wallet_id: transaction?.wallet_id || '' },
+	});
 
 	const [ description, setDescription ] = useState('');
 	const [ transaction_date, setTransactionDate ] = useState('');
@@ -89,6 +94,7 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 
 	const is_submit_disabled = (
 		is_pending ||
+		is_members_loading ||
 		(!is_transfer && !description.trim()) ||
 		!transaction_date ||
 		!isValidTime(transaction_time) ||
@@ -114,6 +120,8 @@ export const TransactionDuplicateModal = (props: TransactionDuplicateModalProps)
 				credit_card_id: is_credit ? (transaction.credit_card_id || undefined) : undefined,
 				destination_account_id: is_transfer ? (transaction.destination_account_id || undefined) : undefined,
 				draft: transaction.draft,
+				/* Mantém o autor original; se ele saiu da carteira, ausente = o backend usa o usuário logado. */
+				user_id: members?.some((member) => member.id === transaction.user_id) ? transaction.user_id : undefined,
 			},
 			onSuccess: () => {
 				Toast.show({ type: 'success', text1: 'Transação duplicada!' });
