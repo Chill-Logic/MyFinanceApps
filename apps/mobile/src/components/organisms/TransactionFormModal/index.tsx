@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
@@ -12,7 +12,9 @@ import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIn
 import { useIndexCreditCards } from '../../../hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
+import { useListWalletMembers } from '../../../hooks/api/wallets/useListWalletMembers';
 
+import { useCurrentUserContext } from '../../../context/current_user';
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 import { combineToISO, formatTimeInput, isoToParts, isValidTime, nowParts, toDisplayDate, toISODate } from '../../../utils/datetime';
@@ -52,6 +54,7 @@ const DEFAULT_VALUES: TNewTransactionForm = {
 	invoice_month: AUTO_INVOICE_MONTH,
 	draft: false,
 	destination_account_id: '',
+	user_id: '',
 };
 
 const KIND_OPTIONS = [
@@ -99,6 +102,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const { visible, onClose, transaction, suggested_date } = props;
 	const { theme } = useTheme();
 	const { user_wallet } = useWallet();
+	const { current_user } = useCurrentUserContext();
 	const navigation = useNavigation<{ navigate(route: string): void }>();
 
 	const wallet_id = user_wallet.data?.id;
@@ -142,6 +146,19 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		enabled: visible && is_credit && Boolean(source_id),
 		params: { credit_balance_id: source_id },
 	});
+
+	/*
+	 * Autor (`user_id`): só participantes da carteira da transação podem ser escolhidos (o backend valida).
+	 * As origens listadas são todas desta carteira, então na criação — ou numa edição que trocou a origem —
+	 * a carteira é a atual; numa edição sem troca, é a da própria transação.
+	 */
+	const members_wallet_id = transaction && !origin_changed ? transaction.wallet_id : wallet_id;
+	const { data: members_data } = useListWalletMembers({
+		enabled: visible,
+		params: { wallet_id: members_wallet_id || '' },
+	});
+	const members = useMemo(() => members_data || [], [ members_data ]);
+	const current_user_id = current_user.data?.id || '';
 
 	const accounts = accounts_data?.data || [];
 	const credit_balances = credit_balances_data?.data || [];
@@ -207,6 +224,13 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	const destination_name = accounts.find((item) => item.id === values.destination_account_id)?.name;
 	const source_name = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ].find((item) => item.id === source_id)?.name;
 	const default_transfer_description = is_transfer ? TransactionUtils.transferDescription(source_name, destination_name) : '';
+
+	const author_options = members.map((member) => ({
+		label: member.id === current_user_id ? `${ member.name } (você)` : member.name,
+		value: member.id,
+	}));
+	/* Com um participante só não há o que escolher: o campo some e o autor fica nele. */
+	const show_author_select = members.length > 1;
 
 	const card_options = [
 		{ label: cards.length ? 'Escolha o cartão' : 'Nenhum cartão neste crédito', value: '' },
@@ -342,6 +366,8 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					destination_account_id: is_transfer ? values.destination_account_id : undefined,
 					invoice_month: is_credit ? chosen_invoice_month : undefined,
 					draft: values.draft,
+					/* Só quando muda — string vazia/ausente mantém o autor atual no backend. */
+					user_id: values.user_id && values.user_id !== transaction.user_id ? values.user_id : undefined,
 					...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
 				},
 				id: transaction.id,
@@ -369,6 +395,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				destination_account_id: is_transfer ? values.destination_account_id : undefined,
 				invoice_month: is_credit ? chosen_invoice_month || undefined : undefined,
 				draft: values.draft,
+				user_id: values.user_id || undefined,
 			},
 			onSuccess: () => {
 				Toast.show({ type: 'success', text1: 'Transação criada!' });
@@ -404,6 +431,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				invoice_month: transaction.invoice_month || monthKey(planned.date),
 				draft: transaction.draft,
 				destination_account_id: transaction.destination_account_id || '',
+				user_id: transaction.user_id,
 			});
 		} else {
 			/* Passou de edição pra criação: volta pra etapa 1 (escolha do tipo). */
@@ -433,6 +461,21 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			setValues((prev) => (prev.credit_card_id ? prev : { ...prev, credit_card_id: single_card_id }));
 		}
 	}, [ is_credit, single_card_id ]);
+
+	/*
+	 * Mantém o autor válido pra carteira: na criação começa no usuário logado; se o escolhido não participa
+	 * da carteira (ex.: a origem mudou de carteira), cai no usuário logado ou, se nem ele estiver, no primeiro.
+	 */
+	useEffect(() => {
+		if (!members.length) return;
+
+		setValues((prev) => {
+			if (prev.user_id && members.some((member) => member.id === prev.user_id)) return prev;
+
+			const fallback = members.some((member) => member.id === current_user_id) ? current_user_id : members[0].id;
+			return { ...prev, user_id: fallback };
+		});
+	}, [ members, current_user_id ]);
 
 	const renderEmptyState = () => (
 		<>
@@ -714,6 +757,17 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 								<ThemedText style={styles.markPaidText}>Marcar como pago</ThemedText>
 							</TouchableOpacity>
 						)}
+					</ThemedView>
+				)}
+
+				{show_author_select && (
+					<ThemedView style={styles.formGroup}>
+						<SelectInput
+							label='Responsável *'
+							options={author_options}
+							value={values.user_id}
+							onChange={(user_id) => user_id && setValues((prev) => ({ ...prev, user_id }))}
+						/>
 					</ThemedView>
 				)}
 

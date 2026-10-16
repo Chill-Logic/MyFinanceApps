@@ -4,6 +4,7 @@ import { DateUtils, getApiErrorMessage, MoneyUtils, TransactionUtils, type TTran
 import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight, CalendarIcon, CreditCard, Wallet, X } from 'lucide-react';
 
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
+import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
 import useToast from '@/hooks/useToast';
 
 import { cn } from '@/lib/utils';
@@ -32,6 +33,7 @@ interface IProps {
 const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceName }: IProps) => {
 	const { toast } = useToast();
 	const { mutate: createTransactionMutation, isPending: is_pending } = useCreateTransactions();
+	const { data: members, isLoading: is_members_loading } = useListWalletMembers({ enabled: open, wallet_id: transaction?.wallet_id });
 
 	const [ description, setDescription ] = useState('');
 	const [ transaction_date, setTransactionDate ] = useState<Date>(new Date());
@@ -83,6 +85,8 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 				credit_card_id: is_credit ? (transaction.credit_card_id || undefined) : undefined,
 				destination_account_id: is_transfer ? (transaction.destination_account_id || undefined) : undefined,
 				draft: transaction.draft,
+				/* Mantém o autor original; se ele saiu da carteira, ausente = o backend usa o usuário logado. */
+				user_id: members?.some((member) => member.id === transaction.user_id) ? transaction.user_id : undefined,
 			},
 			onSuccess: () => {
 				toast.success('Transação duplicada!');
@@ -92,7 +96,7 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		});
 	};
 
-	const is_submit_disabled = is_pending || (!is_transfer && !description.trim());
+	const is_submit_disabled = is_pending || is_members_loading || (!is_transfer && !description.trim());
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

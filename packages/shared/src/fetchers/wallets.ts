@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 
 import { TGetMainWalletResponse, TIndexWalletsResponse, TMessageResponse, TWalletBody } from '../api';
-import { TWallet } from '../models';
+import { TUser, TWallet } from '../models';
 import { API_ROUTES } from '../routes';
 
 export type TIndexWalletsParams = {
@@ -33,4 +33,10 @@ export const updateWallet = async(axios: AxiosInstance, id: string | number, bod
 export const deleteWallet = async(axios: AxiosInstance, id: string | number) => {
 	const response = await axios.delete<TMessageResponse>(API_ROUTES.wallets.delete(id));
 	return response.data;
+};
+
+/* Participantes com convite aceito (ordenados por nome) — os autores possíveis (`user_id`) de uma transação da carteira. */
+export const listWalletMembers = async(axios: AxiosInstance, id: string | number) => {
+	const response = await axios.get<{ data: TUser[] }>(API_ROUTES.wallets.members(id));
+	return response.data.data;
 };

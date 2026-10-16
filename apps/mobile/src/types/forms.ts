@@ -19,6 +19,8 @@ export type TNewTransactionForm = {
 	draft: boolean;
 	/* Só em transferência (`kind === 'transfer'`): a conta que recebe. */
 	destination_account_id: string;
+	/* Autor da transação — um dos participantes da carteira. Vazio = ainda não resolvido (usa o usuário logado). */
+	user_id: string;
 };
 
 export const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''; source_id: string } => {
