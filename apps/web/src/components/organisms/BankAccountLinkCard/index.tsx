@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { BANK_AUTO_SYNC_HELP, BankConnectionUtils, DateUtils, getApiErrorMessage, type TBankAccountLink } from '@myfinance/shared';
-import { CreditCard, Download, History, Landmark } from 'lucide-react';
+import { BANK_AUTO_SYNC_HELP, BANK_BEST_PURCHASE_DAY_HELP, BankConnectionUtils, DateUtils, getApiErrorMessage, type TBankAccountLink } from '@myfinance/shared';
+import { AlertTriangle, CreditCard, Download, History, Landmark } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useUpdateBankAccountLink } from '@/hooks/api/bank-account-links/useUpdateBankAccountLink';
@@ -11,6 +11,7 @@ import useToast from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
+import TextInput from '@/components/atoms/TextInput';
 import BankImportDialog from '@/components/organisms/BankImportDialog';
 import BankImportHistoryDialog from '@/components/organisms/BankImportHistoryDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,12 +46,20 @@ const BankAccountLinkCard = ({ link, walletId }: IProps) => {
 
 	const [ is_import_open, setIsImportOpen ] = useState(false);
 	const [ is_history_open, setIsHistoryOpen ] = useState(false);
+	const [ best_purchase_day, setBestPurchaseDay ] = useState(String(link.suggested_best_purchase_day ?? ''));
+
+	useEffect(() => {
+		setBestPurchaseDay(String(link.suggested_best_purchase_day ?? ''));
+	}, [ link.suggested_best_purchase_day ]);
 
 	const targets = (is_credit ? credit_balances_data?.data : accounts_data?.data) || [];
 	const status = BankConnectionUtils.linkStatus(link.status);
 	const amount_label = BankConnectionUtils.linkAmountLabel(link);
 	const is_linked = link.status === 'linked';
 	const Icon = is_credit ? CreditCard : Landmark;
+	const needs_best_purchase_day = is_credit && is_linked && link.best_purchase_day_status === 'pending';
+	const best_purchase_day_number = Number(best_purchase_day);
+	const is_best_purchase_day_valid = Number.isInteger(best_purchase_day_number) && best_purchase_day_number >= 1 && best_purchase_day_number <= 31;
 
 	const updateLink = (body: Parameters<typeof updateLinkMutation>[0]['body'], success_message: string) => {
 		updateLinkMutation({
@@ -107,6 +116,35 @@ const BankAccountLinkCard = ({ link, walletId }: IProps) => {
 					</SelectContent>
 				</Select>
 			</div>
+
+			{needs_best_purchase_day && (
+				<div className='flex flex-col gap-2 rounded-lg border border-feedback-warning-default/50 bg-feedback-warning-light/40 p-3'>
+					<p className='flex items-start gap-2 text-sm text-foreground'>
+						<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0 text-feedback-warning-default' />
+						{BANK_BEST_PURCHASE_DAY_HELP(link.suggested_best_purchase_day)}
+					</p>
+					<div className='flex items-end gap-2'>
+						<TextInput
+							type='number'
+							label='Melhor dia de compra'
+							min={1}
+							max={31}
+							value={best_purchase_day}
+							onChange={(event) => setBestPurchaseDay(event.target.value)}
+							className='w-28'
+						/>
+						<Button
+							type='button'
+							size='sm'
+							isLoading={isPending}
+							disabled={!is_best_purchase_day_valid}
+							onClick={() => updateLink({ best_purchase_day: best_purchase_day_number }, 'Melhor dia de compra confirmado')}
+						>
+							Confirmar
+						</Button>
+					</div>
+				</div>
+			)}
 
 			{is_linked && (
 				<div className='flex items-start justify-between gap-3'>

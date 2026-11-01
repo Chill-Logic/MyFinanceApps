@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, PROJECTED_INSTALLMENT_HELP, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import DateTimeField from '@/components/molecules/DateTimeField';
+import InstallmentReviewDialog from '@/components/organisms/InstallmentReviewDialog';
 import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
 import TransactionDuplicateDialog from '@/components/organisms/TransactionDuplicateDialog';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
@@ -166,6 +167,7 @@ const TransactionList = () => {
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ deleting_transaction, setDeletingTransaction ] = useState<TTransaction | null>(null);
 	const [ reviewing_source, setReviewingSource ] = useState<{ id: string; name: string } | null>(null);
+	const [ reviewing_installments_source, setReviewingInstallmentsSource ] = useState<{ id: string; name: string } | null>(null);
 	/* Transação sendo efetivada no modal de "Efetivar pagamento" + a data/hora escolhida. */
 	const [ settling_transaction, setSettlingTransaction ] = useState<TTransaction | null>(null);
 	const [ settle_date, setSettleDate ] = useState<Date>(new Date());
@@ -398,6 +400,26 @@ const TransactionList = () => {
 					>
 						Fatura a confirmar
 					</button>
+				)}
+				{is_credit && transaction_item.installment_review === 'pending' && (
+					<button
+						type='button'
+						onClick={(event) => {
+							event.stopPropagation();
+							setReviewingInstallmentsSource({ id: transaction_item.source_id, name: source_label || 'Crédito' });
+						}}
+						className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark hover:opacity-80'
+					>
+						Parcela a confirmar
+					</button>
+				)}
+				{transaction_item.projected_installment && (
+					<span
+						title={PROJECTED_INSTALLMENT_HELP}
+						className='cursor-help rounded border border-dashed border-muted-foreground/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'
+					>
+						Parcela prevista
+					</span>
 				)}
 
 				<span className='inline-flex items-center gap-1 text-[11px] text-muted-foreground'>
@@ -744,6 +766,11 @@ const TransactionList = () => {
 				)}
 			</div>
 
+			<InstallmentReviewDialog
+				open={Boolean(reviewing_installments_source)}
+				onOpenChange={(open) => !open && setReviewingInstallmentsSource(null)}
+				creditBalance={reviewing_installments_source}
+			/>
 			<InvoiceReviewDialog
 				open={Boolean(reviewing_source)}
 				onOpenChange={(open) => !open && setReviewingSource(null)}

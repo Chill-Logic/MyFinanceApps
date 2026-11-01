@@ -18,7 +18,7 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage, TransactionUtils, type TTransactionDirection } from '@myfinance/shared';
+import { colors, getApiErrorMessage, PROJECTED_INSTALLMENT_HELP, TransactionUtils, type TTransactionDirection } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
@@ -45,6 +45,7 @@ import { ThemedTextInput } from '../../atoms/ThemedTextInput';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { QUERY_KEYS } from '../../../constants/QueryKeys';
+import { InstallmentReviewModal } from '../InstallmentReviewModal';
 import { InvoiceReviewModal } from '../InvoiceReviewModal';
 import { TransactionDuplicateModal } from '../TransactionDuplicateModal';
 import { TransactionFormModal } from '../TransactionFormModal';
@@ -258,6 +259,7 @@ const TransactionsList = () => {
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
 	const [ reviewing_source, setReviewingSource ] = useState<{ id: string; name: string } | null>(null);
+	const [ reviewing_installments_source, setReviewingInstallmentsSource ] = useState<{ id: string; name: string } | null>(null);
 	const [ is_totals_detail_open, setIsTotalsDetailOpen ] = useState(false);
 	/* IDs de cartão expandidos (fora do Set = fechado — accordions nascem fechados). */
 	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
@@ -523,6 +525,22 @@ const TransactionsList = () => {
 						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Fatura a confirmar</ThemedText>
 					</TouchableOpacity>
 				)}
+				{is_credit && transaction_item.installment_review === 'pending' && (
+					<TouchableOpacity
+						onPress={() => setReviewingInstallmentsSource({ id: transaction_item.source_id, name: raw_source_label })}
+						hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+					>
+						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Parcela a confirmar</ThemedText>
+					</TouchableOpacity>
+				)}
+				{transaction_item.projected_installment && (
+					<TouchableOpacity
+						onPress={() => Toast.show({ type: 'info', text1: 'Parcela prevista', text2: PROJECTED_INSTALLMENT_HELP })}
+						hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+					>
+						<ThemedText style={[ styles.stateBadge, styles.draftBadge ]}>Parcela prevista</ThemedText>
+					</TouchableOpacity>
+				)}
 				<View style={styles.userChip}>
 					<Icon name='person' size={11} color={theme.colors.placeholder} />
 					<ThemedText style={styles.userChipText} numberOfLines={1}>{transaction_item.user_name}</ThemedText>
@@ -767,6 +785,11 @@ const TransactionsList = () => {
 				</Animated.View>
 			</ThemedView>
 
+			<InstallmentReviewModal
+				visible={Boolean(reviewing_installments_source)}
+				onClose={() => setReviewingInstallmentsSource(null)}
+				creditBalance={reviewing_installments_source}
+			/>
 			<InvoiceReviewModal
 				visible={Boolean(reviewing_source)}
 				onClose={() => setReviewingSource(null)}

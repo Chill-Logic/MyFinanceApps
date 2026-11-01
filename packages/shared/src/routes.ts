@@ -49,6 +49,8 @@ export const API_ROUTES = {
 		unsettle: (id: string | number) => `/transactions/${ id }/unsettle`,
 		pendingReviews: '/transactions/pending_reviews',
 		resolveReview: (id: string | number) => `/transactions/${ id }/resolve_review`,
+		pendingInstallmentReviews: '/transactions/pending_installment_reviews',
+		resolveInstallmentReview: (id: string | number) => `/transactions/${ id }/resolve_installment_review`,
 	},
 	bankConnections: {
 		index: '/bank_connections',

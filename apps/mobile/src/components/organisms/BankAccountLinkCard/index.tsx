@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { BANK_AUTO_SYNC_HELP, BankConnectionUtils, colors, DateUtils, getApiErrorMessage } from '@myfinance/shared';
+import { BANK_AUTO_SYNC_HELP, BANK_BEST_PURCHASE_DAY_HELP, BankConnectionUtils, colors, DateUtils, getApiErrorMessage } from '@myfinance/shared';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 import { useUpdateBankAccountLink } from '../../../hooks/api/bank-account-links/useUpdateBankAccountLink';
@@ -16,6 +16,7 @@ import { TBankAccountLink } from '../../../types/models';
 
 import SelectInput from '../../atoms/SelectInput';
 import { ThemedText } from '../../atoms/ThemedText';
+import { ThemedTextInput } from '../../atoms/ThemedTextInput';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { BankImportHistoryModal } from '../BankImportHistoryModal';
@@ -51,11 +52,19 @@ export const BankAccountLinkCard = ({ link, walletId }: BankAccountLinkCardProps
 
 	const [ is_import_open, setIsImportOpen ] = useState(false);
 	const [ is_history_open, setIsHistoryOpen ] = useState(false);
+	const [ best_purchase_day, setBestPurchaseDay ] = useState(String(link.suggested_best_purchase_day ?? ''));
+
+	useEffect(() => {
+		setBestPurchaseDay(String(link.suggested_best_purchase_day ?? ''));
+	}, [ link.suggested_best_purchase_day ]);
 
 	const targets = (is_credit ? credit_balances_data?.data : accounts_data?.data) || [];
 	const status = BankConnectionUtils.linkStatus(link.status);
 	const amount_label = BankConnectionUtils.linkAmountLabel(link);
 	const is_linked = link.status === 'linked';
+	const needs_best_purchase_day = is_credit && is_linked && link.best_purchase_day_status === 'pending';
+	const best_purchase_day_number = Number(best_purchase_day);
+	const is_best_purchase_day_valid = Number.isInteger(best_purchase_day_number) && best_purchase_day_number >= 1 && best_purchase_day_number <= 31;
 	const current_value = targetValue(link);
 
 	const options = [
@@ -110,6 +119,33 @@ export const BankAccountLinkCard = ({ link, walletId }: BankAccountLinkCardProps
 			</View>
 
 			<SelectInput label='Importar para' options={options} value={current_value} onChange={handleTargetChange} disabled={isPending} />
+
+			{needs_best_purchase_day && (
+				<View style={styles.bestDayBox}>
+					<View style={styles.bestDayMessage}>
+						<Icon name='warning' size={16} color={colors['feedback-warning-default']} />
+						<ThemedText style={styles.bestDayText}>{BANK_BEST_PURCHASE_DAY_HELP(link.suggested_best_purchase_day)}</ThemedText>
+					</View>
+					<View style={styles.bestDayRow}>
+						<View style={styles.bestDayInput}>
+							<ThemedTextInput
+								label='Melhor dia de compra'
+								value={best_purchase_day}
+								onChangeText={(text) => setBestPurchaseDay(text.replace(/\D/g, '').slice(0, 2))}
+								keyboardType='number-pad'
+								maxLength={2}
+							/>
+						</View>
+						<TouchableOpacity
+							style={[ styles.confirmButton, (!is_best_purchase_day_valid || isPending) && styles.disabled ]}
+							disabled={!is_best_purchase_day_valid || isPending}
+							onPress={() => updateLink({ best_purchase_day: best_purchase_day_number }, 'Melhor dia de compra confirmado')}
+						>
+							{isPending ? <ActivityIndicator color='#fff' size='small' /> : <ThemedText style={styles.confirmText}>Confirmar</ThemedText>}
+						</TouchableOpacity>
+					</View>
+				</View>
+			)}
 
 			{is_linked && (
 				<View style={styles.autoSyncRow}>
@@ -224,6 +260,46 @@ const styles = StyleSheet.create({
 		borderRadius: 8,
 		paddingVertical: 8,
 		paddingHorizontal: 14,
+	},
+	bestDayBox: {
+		gap: 8,
+		borderWidth: 1,
+		borderColor: colors['feedback-warning-default'],
+		borderRadius: 8,
+		padding: 10,
+		backgroundColor: 'rgba(239, 176, 3, 0.10)',
+	},
+	bestDayMessage: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 6,
+	},
+	bestDayText: {
+		flex: 1,
+		fontSize: 13,
+	},
+	bestDayRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-end',
+		gap: 10,
+	},
+	bestDayInput: {
+		width: 160,
+	},
+	confirmButton: {
+		backgroundColor: colors['brand-secondary'],
+		borderRadius: 8,
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		minWidth: 110,
+		alignItems: 'center',
+	},
+	confirmText: {
+		color: '#fff',
+		fontWeight: 'bold',
+	},
+	disabled: {
+		opacity: 0.6,
 	},
 	importButtonText: {
 		color: '#fff',

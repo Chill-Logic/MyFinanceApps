@@ -1,5 +1,6 @@
 import type {
 	TBankAccountLink,
+	TInstallmentCandidate,
 	TBankAccountLinkStatus,
 	TBankConnection,
 	TBankImport,
@@ -9,6 +10,7 @@ import type {
 } from '../models';
 
 import { DateUtils } from './date';
+import { MONTH_NAMES_PT } from './invoice';
 import { MoneyUtils } from './money';
 
 type TStatusTone = 'success' | 'warning' | 'error' | 'neutral';
@@ -64,6 +66,12 @@ export const BANK_IMPORT_MODE_OPTIONS: { value: TBankImportMode; label: string; 
 ];
 
 export const BANK_AUTO_SYNC_HELP = 'A rotina traz o que é novo e atualiza o que você não editou; o que você editou ou excluiu fica como está.';
+
+export const PROJECTED_INSTALLMENT_HELP = 'O banco ainda não lançou; será substituída quando chegar.';
+
+export const BANK_BEST_PURCHASE_DAY_HELP = (suggested: number | null) => (suggested
+	? `O banco não informa o fechamento deste cartão. Pela última fatura, o melhor dia de compra é o dia ${ suggested }.`
+	: 'O banco não informa o fechamento deste cartão. Informe o melhor dia de compra.');
 
 export const BANK_IMPORT_RETENTION_HELP = 'A Pluggy guarda até 12 meses de histórico.';
 
@@ -145,6 +153,19 @@ export const BankConnectionUtils = {
 			plural(total.skipped, 'ignorada', 'ignoradas'),
 		].join(', ');
 	},
+
+	/* "Loja · compra em agosto de 2026 · parcelas já recebidas: 1, 2" (opção da revisão de parcela). */
+	installmentCandidateLabel: (candidate: Pick<TInstallmentCandidate, 'description' | 'purchase_month' | 'known_installments'>) => {
+		const [ year, month ] = candidate.purchase_month.split('-').map(Number);
+		const month_name = MONTH_NAMES_PT[month - 1]?.toLowerCase();
+		const purchase = month_name ? ` · compra em ${ month_name } de ${ year }` : '';
+		const known = candidate.known_installments.length > 0 ? candidate.known_installments.join(', ') : 'nenhuma';
+		return `${ candidate.description }${ purchase } · parcelas já recebidas: ${ known }`;
+	},
+
+	/* "3/10" de uma transação parcelada; `null` se não for parcela. */
+	installmentLabel: (transaction: { installment_number: number | null; installment_total: number | null }) =>
+		(transaction.installment_number && transaction.installment_total ? `${ transaction.installment_number }/${ transaction.installment_total }` : null),
 
 	/* Período default do "Importar período": últimos 12 meses até hoje (YYYY-MM-DD). */
 	defaultImportPeriod: (today: Date = new Date()) => ({
