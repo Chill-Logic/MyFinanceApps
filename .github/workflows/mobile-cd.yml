@@ -67,6 +67,10 @@ jobs:
   publish:
     needs: decide
     runs-on: ubuntu-latest
+    # O GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 (submit pra Play Store no build nativo) é secret do
+    # environment `production` — sem essa linha ele chega vazio. O environment não tem mais
+    # "Required reviewers", então o publish segue automático.
+    environment: production
     steps:
       - name: Checkout commit
         uses: actions/checkout@v4
