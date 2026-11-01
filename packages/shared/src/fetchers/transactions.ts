@@ -2,9 +2,11 @@ import type { AxiosInstance } from 'axios';
 
 import {
 	TCreateTransactionBody,
+	TIndexPendingInstallmentReviewsResponse,
 	TIndexPendingInvoiceReviewsResponse,
 	TListTransactionsResponse,
 	TMessageResponse,
+	TResolveInstallmentReviewBody,
 	TResolveInvoiceReviewBody,
 	TSettleTransactionBody,
 	TUpdateTransactionBody,
@@ -32,6 +34,8 @@ export type TIndexPendingInvoiceReviewsParams = {
 	page?: number;
 	per_page?: number;
 };
+
+export type TIndexPendingInstallmentReviewsParams = TIndexPendingInvoiceReviewsParams;
 
 /*
  * O backend não devolve mais o booleano `settled` (só a data, nulo = pendente). Derivamos aqui, no
@@ -87,5 +91,15 @@ export const indexPendingInvoiceReviews = async(axios: AxiosInstance, params?: T
 
 export const resolveInvoiceReview = async(axios: AxiosInstance, id: string | number, body: TResolveInvoiceReviewBody) => {
 	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.resolveReview(id), body);
+	return withSettled(response.data.data);
+};
+
+export const indexPendingInstallmentReviews = async(axios: AxiosInstance, params?: TIndexPendingInstallmentReviewsParams) => {
+	const response = await axios.get<TIndexPendingInstallmentReviewsResponse>(API_ROUTES.transactions.pendingInstallmentReviews, { params });
+	return { ...response.data, data: response.data.data.map((review) => ({ ...review, ...withSettled(review) })) };
+};
+
+export const resolveInstallmentReview = async(axios: AxiosInstance, id: string | number, body: TResolveInstallmentReviewBody) => {
+	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.resolveInstallmentReview(id), body);
 	return withSettled(response.data.data);
 };

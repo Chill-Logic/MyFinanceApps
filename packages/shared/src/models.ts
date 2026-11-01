@@ -73,7 +73,46 @@ export type TTransaction = WithModelFields<{
 	 * não sobrescreve transações editadas.
 	 */
 	user_edited_at: string | null;
+	/* Descrição original do banco (a `description` pode ter sido editada). `null` = lançada à mão. */
+	external_description: string | null;
+	/* Parcelamento: "n/total". `null` em compra à vista ou lançada à mão sem parcela. */
+	installment_number: number | null;
+	installment_total: number | null;
+	/* Identifica a compra parcelada (todas as parcelas de uma mesma compra compartilham o grupo). */
+	installment_group: string | null;
+	/*
+	 * `pending` = o sync não soube a qual compra parcelada esta parcela pertence e escolheu uma sugestão (o
+	 * usuário confirma em `resolveInstallmentReview`); `resolved` = confirmado; `null` = sem revisão.
+	 */
+	installment_review: TInstallmentReview | null;
+	/*
+	 * "Parcela prevista": criada pela integração porque o banco ainda não lançou essa parcela; é substituída
+	 * quando a real chegar. A descrição já vem com o sufixo "(n/total)".
+	 */
+	projected_installment: boolean;
+	/* Crédito sincronizado que é pagamento de fatura; estornos e outros créditos vêm `false`. */
+	bill_payment: boolean;
 }>;
+
+export type TInstallmentReview = 'pending' | 'resolved';
+
+/* Compra parcelada candidata para uma parcela pendente de revisão. `value` em centavos. */
+export type TInstallmentCandidate = {
+	/* O valor a mandar em `resolveInstallmentReview`. */
+	installment_group: string;
+	description: string;
+	installment_total: number;
+	/* Números das parcelas dessa compra que já chegaram do banco. */
+	known_installments: number[];
+	value: number;
+	/* "YYYY-MM" do mês da compra. */
+	purchase_month: string;
+	suggested: boolean;
+};
+
+export type TPendingInstallmentReview = TTransaction & {
+	installment_candidates: TInstallmentCandidate[];
+};
 
 export type TInvoiceReview = 'pending' | 'resolved';
 
@@ -155,6 +194,8 @@ export type TCreditBalance = WithModelFields<{
 	current_invoice: TCurrentInvoice;
 	/* Pagamentos/estornos sincronizados aguardando o usuário confirmar a fatura (`TTransaction.invoice_review`). */
 	pending_invoice_reviews_count: number;
+	/* Parcelas sincronizadas aguardando o usuário confirmar a compra (`TTransaction.installment_review`). */
+	pending_installment_reviews_count: number;
 	/* `true` = há um cartão de banco (Pluggy) vinculado a este crédito (`TBankAccountLink` com status `linked`). */
 	bank_linked: boolean;
 }>;
@@ -260,6 +301,13 @@ export type TBankAccountLink = WithModelFields<{
 	adjust_balance: boolean;
 	last_imported_at: string | null;
 	last_import: TBankImport | null;
+	/*
+	 * Só em cartão (`CREDIT`): o banco nem sempre informa o fechamento. `suggested_best_purchase_day` é o
+	 * melhor dia de compra deduzido da última fatura; `pending` = o usuário ainda precisa confirmar (PATCH
+	 * com `best_purchase_day`), `confirmed` = confirmado, `null` = não se aplica.
+	 */
+	suggested_best_purchase_day: number | null;
+	best_purchase_day_status: 'pending' | 'confirmed' | null;
 }>;
 
 export type TInvite = WithModelFields<{

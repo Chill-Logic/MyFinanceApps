@@ -15,6 +15,7 @@ export const QUERY_KEYS = {
 	[MODELS.transaction]: {
 		get_all: 'get-all-transactions',
 		get_pending_reviews: 'get-pending-invoice-reviews',
+		get_pending_installment_reviews: 'get-pending-installment-reviews',
 	},
 	[MODELS.USER]: {
 		get_current: 'get-current-user',

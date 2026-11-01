@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInstallmentReview, TPendingInvoiceReview, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -186,6 +186,13 @@ export type TResolveInvoiceReviewBody = {
 	invoice_month: string;
 };
 
+export type TIndexPendingInstallmentReviewsResponse = TPaginatedResponse<TPendingInstallmentReview>;
+
+export type TResolveInstallmentReviewBody = {
+	/* `installment_group` de uma das `installment_candidates`, ou `'new'` = "é uma compra nova". */
+	installment_group: 'new' | (string & {});
+};
+
 export type TIndexBankConnectionsResponse = TPaginatedResponse<TBankConnection>;
 
 export type TConnectTokenBody = {
@@ -224,6 +231,8 @@ export type TBankAccountLinkBody = {
 	target?: 'new' | 'none' | (string & {});
 	/* Exige destino; a rotina só vale daqui pra frente. */
 	auto_sync?: boolean;
+	/* Só em vínculo `linked` de cartão (`CREDIT`): confirma/altera o melhor dia de compra do crédito de destino. */
+	best_purchase_day?: number;
 };
 
 export type TIndexBankImportsResponse = TPaginatedResponse<TBankImport>;
