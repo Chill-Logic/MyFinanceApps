@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { getApiErrorMessage, InvoiceUtils, MoneyUtils, type TCreditBalance, type TCreditCard } from '@myfinance/shared';
-import { AlertTriangle, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, ChevronRight, CreditCard as CreditCardIcon, Link2, MoreVertical, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import { useDeleteCreditBalance } from '@/hooks/api/credit-balances/useDeleteCreditBalance';
 import { useGetInvoice } from '@/hooks/api/credit-balances/useGetInvoice';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import Button from '@/components/atoms/Button';
 import CreditBalanceFormDialog from '@/components/organisms/CreditBalanceFormDialog';
 import CreditCardFormDialog from '@/components/organisms/CreditCardFormDialog';
+import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
 import NewCardDialog from '@/components/organisms/NewCardDialog';
 import PayInvoiceDialog from '@/components/organisms/PayInvoiceDialog';
 import {
@@ -53,6 +54,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 	const [ is_edit_open, setIsEditOpen ] = useState(false);
 	const [ is_delete_open, setIsDeleteOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
+	const [ is_review_open, setIsReviewOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	const [ deleting_card, setDeletingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
@@ -133,10 +135,26 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 						<CreditCardIcon className='h-5 w-5' />
 					</div>
 					<div>
-						<p className='font-semibold text-foreground'>{creditBalance.name}</p>
+						<p className='flex items-center gap-1.5 font-semibold text-foreground'>
+							{creditBalance.name}
+							{creditBalance.bank_linked && (
+								<Link2 className='h-3.5 w-3.5 shrink-0 text-muted-foreground' aria-label='Sincronizado com o banco' />
+							)}
+						</p>
 						<p className='text-xs text-muted-foreground'>
 							{cards.length} {cards.length === 1 ? 'cartão' : 'cartões'}
 						</p>
+						{creditBalance.pending_invoice_reviews_count > 0 && (
+							<button
+								type='button'
+								onClick={() => setIsReviewOpen(true)}
+								className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
+							>
+								<AlertTriangle className='h-3 w-3' />
+								{creditBalance.pending_invoice_reviews_count}{' '}
+								{creditBalance.pending_invoice_reviews_count === 1 ? 'pendência' : 'pendências'} de fatura
+							</button>
+						)}
 					</div>
 				</div>
 
@@ -276,6 +294,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 				invoice={invoice}
 				reference={invoice_month}
 			/>
+			<InvoiceReviewDialog open={is_review_open} onOpenChange={setIsReviewOpen} creditBalance={creditBalance} />
 			<CreditCardFormDialog
 				open={Boolean(editing_card)}
 				onOpenChange={(open) => !open && setEditingCard(null)}

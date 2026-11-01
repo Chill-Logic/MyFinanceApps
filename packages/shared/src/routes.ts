@@ -47,6 +47,27 @@ export const API_ROUTES = {
 		delete: (id: string | number) => `/transactions/${ id }`,
 		settle: (id: string | number) => `/transactions/${ id }/settle`,
 		unsettle: (id: string | number) => `/transactions/${ id }/unsettle`,
+		pendingReviews: '/transactions/pending_reviews',
+		resolveReview: (id: string | number) => `/transactions/${ id }/resolve_review`,
+	},
+	bankConnections: {
+		index: '/bank_connections',
+		create: '/bank_connections',
+		connectToken: '/bank_connections/connect_token',
+		show: (id: string | number) => `/bank_connections/${ id }`,
+		sync: (id: string | number) => `/bank_connections/${ id }/sync`,
+		refresh: (id: string | number) => `/bank_connections/${ id }/refresh`,
+		delete: (id: string | number) => `/bank_connections/${ id }`,
+	},
+	bankAccountLinks: {
+		index: '/bank_account_links',
+		show: (id: string | number) => `/bank_account_links/${ id }`,
+		update: (id: string | number) => `/bank_account_links/${ id }`,
+	},
+	bankImports: {
+		index: '/bank_imports',
+		create: '/bank_imports',
+		undo: (id: string | number) => `/bank_imports/${ id }/undo`,
 	},
 	userWallets: {
 		listInvites: '/user_wallets',

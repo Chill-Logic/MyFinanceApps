@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -178,6 +178,65 @@ export type TCreditCardBody = {
 	name: string;
 	last_digits?: string;
 }
+
+export type TIndexPendingInvoiceReviewsResponse = TPaginatedResponse<TPendingInvoiceReview>;
+
+export type TResolveInvoiceReviewBody = {
+	/* "YYYY-MM" de uma das `invoice_candidates`. */
+	invoice_month: string;
+};
+
+export type TIndexBankConnectionsResponse = TPaginatedResponse<TBankConnection>;
+
+export type TConnectTokenBody = {
+	/* Conexão existente a reconectar/atualizar (modo atualização do widget). Ausente = conexão nova. */
+	bank_connection_id?: string;
+};
+
+export type TConnectTokenResponse = {
+	/* Connect token da Pluggy (vale ~30 min) — é o único dado da Pluggy que o front recebe. */
+	access_token: string;
+};
+
+export type TBankConnectionBody = {
+	wallet_id: string;
+	/* `item.id` devolvido pelo `onSuccess` do widget da Pluggy. */
+	item_id: string;
+};
+
+/* Conectar só cria a conexão e os vínculos (nada é importado ainda). */
+export type TCreateBankConnectionResponse = {
+	data: TBankConnection;
+	links: TBankAccountLink[];
+};
+
+/* "Rodar a rotina agora": devolve os lotes criados pela rotina (pode vir vazio). */
+export type TSyncBankConnectionResponse = {
+	data: TBankConnection;
+	links: TBankAccountLink[];
+	imports: TBankImport[];
+};
+
+export type TIndexBankAccountLinksResponse = TPaginatedResponse<TBankAccountLink>;
+
+export type TBankAccountLinkBody = {
+	/* `'new'` cria conta/crédito novo; `'none'` = não importar; uuid = conta/crédito existente da mesma carteira. */
+	target?: 'new' | 'none' | (string & {});
+	/* Exige destino; a rotina só vale daqui pra frente. */
+	auto_sync?: boolean;
+};
+
+export type TIndexBankImportsResponse = TPaginatedResponse<TBankImport>;
+
+export type TBankImportBody = {
+	bank_account_link_id: string;
+	mode: TBankImportMode;
+	/* YYYY-MM-DD. */
+	date_from: string;
+	date_to: string;
+	/* Só faz sentido em conta (BANK). */
+	adjust_balance: boolean;
+};
 
 export type TWalletBody = {
 	name: string;

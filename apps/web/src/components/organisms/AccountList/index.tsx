@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TAccount } from '@myfinance/shared';
-import { Banknote, Landmark, MoreVertical, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react';
+import { Banknote, Landmark, Link2, MoreVertical, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react';
 
 import { useDeleteAccount } from '@/hooks/api/accounts/useDeleteAccount';
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
@@ -109,7 +109,14 @@ const AccountList = () => {
 
 								<div className='min-w-0 flex-1'>
 									<p className='truncate font-medium text-foreground'>{account.name}</p>
-									<p className='text-xs uppercase tracking-wide text-muted-foreground'>{account.translated_kind}</p>
+									<p className='flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground'>
+										{account.translated_kind}
+										{account.bank_linked && (
+											<span className='inline-flex items-center gap-1 normal-case tracking-normal' title='Sincronizada com o banco'>
+												· <Link2 className='h-3 w-3' /> Sincronizada
+											</span>
+										)}
+									</p>
 								</div>
 
 								<span className={cn('shrink-0 font-semibold', account.balance >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>

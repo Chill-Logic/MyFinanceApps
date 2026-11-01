@@ -45,6 +45,7 @@ import { ThemedTextInput } from '../../atoms/ThemedTextInput';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { QUERY_KEYS } from '../../../constants/QueryKeys';
+import { InvoiceReviewModal } from '../InvoiceReviewModal';
 import { TransactionDuplicateModal } from '../TransactionDuplicateModal';
 import { TransactionFormModal } from '../TransactionFormModal';
 
@@ -256,6 +257,7 @@ const TransactionsList = () => {
 	const [ transaction, setTransaction ] = useState<TTransaction | null>(null);
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
+	const [ reviewing_source, setReviewingSource ] = useState<{ id: string; name: string } | null>(null);
 	const [ is_totals_detail_open, setIsTotalsDetailOpen ] = useState(false);
 	/* IDs de cartão expandidos (fora do Set = fechado — accordions nascem fechados). */
 	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
@@ -513,6 +515,14 @@ const TransactionsList = () => {
 				)}
 				{transaction_item.draft && <ThemedText style={[ styles.stateBadge, styles.draftBadge ]}>Rascunho</ThemedText>}
 				{is_pending && <ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Pendente</ThemedText>}
+				{is_credit && transaction_item.invoice_review === 'pending' && (
+					<TouchableOpacity
+						onPress={() => setReviewingSource({ id: transaction_item.source_id, name: raw_source_label })}
+						hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+					>
+						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Fatura a confirmar</ThemedText>
+					</TouchableOpacity>
+				)}
 				<View style={styles.userChip}>
 					<Icon name='person' size={11} color={theme.colors.placeholder} />
 					<ThemedText style={styles.userChipText} numberOfLines={1}>{transaction_item.user_name}</ThemedText>
@@ -757,6 +767,11 @@ const TransactionsList = () => {
 				</Animated.View>
 			</ThemedView>
 
+			<InvoiceReviewModal
+				visible={Boolean(reviewing_source)}
+				onClose={() => setReviewingSource(null)}
+				creditBalance={reviewing_source}
+			/>
 			<TransactionFormModal
 				visible={isFormOpen}
 				transaction={transaction}
