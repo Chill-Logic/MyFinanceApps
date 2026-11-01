@@ -23,6 +23,7 @@ import { ThemedView } from '../../atoms/ThemedView';
 
 import { CreditBalanceFormModal } from '../CreditBalanceFormModal';
 import { CreditCardFormModal } from '../CreditCardFormModal';
+import { InvoiceReviewModal } from '../InvoiceReviewModal';
 import { NewCardModal } from '../NewCardModal';
 import { PayInvoiceModal } from '../PayInvoiceModal';
 
@@ -46,6 +47,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const [ actions_card, setActionsCard ] = useState<TCreditCard | null>(null);
 	const [ is_edit_open, setIsEditOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
+	const [ is_review_open, setIsReviewOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
 	const [ cycle_offset, setCycleOffset ] = useState(0);
@@ -137,7 +139,19 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				</View>
 				<View style={styles.info}>
 					<ThemedText style={styles.name}>{credit_balance.name}</ThemedText>
-					<ThemedText style={styles.subtle}>{cards.length} {cards.length === 1 ? 'cartão' : 'cartões'}</ThemedText>
+					<ThemedText style={styles.subtle}>
+						{cards.length} {cards.length === 1 ? 'cartão' : 'cartões'}
+						{credit_balance.bank_linked ? ' · Sincronizado' : ''}
+					</ThemedText>
+					{credit_balance.pending_invoice_reviews_count > 0 && (
+						<TouchableOpacity style={styles.reviewBadge} onPress={() => setIsReviewOpen(true)}>
+							<Icon name='warning' size={14} color={colors['feedback-warning-dark']} />
+							<ThemedText style={styles.reviewBadgeText}>
+								{credit_balance.pending_invoice_reviews_count}{' '}
+								{credit_balance.pending_invoice_reviews_count === 1 ? 'pendência' : 'pendências'} de fatura
+							</ThemedText>
+						</TouchableOpacity>
+					)}
 				</View>
 				<View style={styles.limitBox}>
 					<ThemedText style={styles.limitLabel}>Limite</ThemedText>
@@ -265,6 +279,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				invoice={invoice}
 				reference={invoice_month}
 			/>
+			<InvoiceReviewModal visible={is_review_open} onClose={() => setIsReviewOpen(false)} creditBalance={credit_balance} />
 			<CreditCardFormModal visible={Boolean(editing_card)} card={editing_card} onClose={() => setEditingCard(null)} />
 		</ThemedView>
 	);
@@ -322,6 +337,22 @@ export const CreditBalanceList = () => {
 };
 
 const styles = StyleSheet.create({
+	reviewBadge: {
+		alignSelf: 'flex-start',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+		marginTop: 4,
+		paddingVertical: 2,
+		paddingHorizontal: 8,
+		borderRadius: 999,
+		backgroundColor: colors['feedback-warning-light'],
+	},
+	reviewBadgeText: {
+		fontSize: 12,
+		fontWeight: '600',
+		color: colors['feedback-warning-dark'],
+	},
 	container: {
 		flex: 1,
 	},

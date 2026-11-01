@@ -1,6 +1,14 @@
 import type { AxiosInstance } from 'axios';
 
-import { TCreateTransactionBody, TListTransactionsResponse, TMessageResponse, TSettleTransactionBody, TUpdateTransactionBody } from '../api';
+import {
+	TCreateTransactionBody,
+	TIndexPendingInvoiceReviewsResponse,
+	TListTransactionsResponse,
+	TMessageResponse,
+	TResolveInvoiceReviewBody,
+	TSettleTransactionBody,
+	TUpdateTransactionBody,
+} from '../api';
 import { TTransaction, TTransactionSourceType } from '../models';
 import { API_ROUTES } from '../routes';
 
@@ -14,6 +22,15 @@ export type TListTransactionsParams = {
 	source_type?: TTransactionSourceType;
 	source_id?: string;
 	terms?: string;
+};
+
+export type TIndexPendingInvoiceReviewsParams = {
+	wallet_id: string;
+	/* Opcionais: sem eles, lista as pendências da carteira toda. */
+	source_type?: TTransactionSourceType;
+	source_id?: string;
+	page?: number;
+	per_page?: number;
 };
 
 /*
@@ -60,5 +77,15 @@ export const settleTransaction = async(axios: AxiosInstance, id: string | number
 
 export const unsettleTransaction = async(axios: AxiosInstance, id: string | number) => {
 	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.unsettle(id));
+	return withSettled(response.data.data);
+};
+
+export const indexPendingInvoiceReviews = async(axios: AxiosInstance, params?: TIndexPendingInvoiceReviewsParams) => {
+	const response = await axios.get<TIndexPendingInvoiceReviewsResponse>(API_ROUTES.transactions.pendingReviews, { params });
+	return { ...response.data, data: response.data.data.map((review) => ({ ...review, ...withSettled(review) })) };
+};
+
+export const resolveInvoiceReview = async(axios: AxiosInstance, id: string | number, body: TResolveInvoiceReviewBody) => {
+	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.resolveReview(id), body);
 	return withSettled(response.data.data);
 };

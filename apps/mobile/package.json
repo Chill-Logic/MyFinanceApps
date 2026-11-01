@@ -30,14 +30,17 @@
     "expo-system-ui": "~57.0.0",
     "expo-updates": "~57.0.6",
     "npm": "^10.9.2",
+    "pluggy-js": "^0.19.3",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-calendars": "^1.1314.0",
     "react-native-gesture-handler": "^2.27.2",
+    "react-native-pluggy-connect": "^1.6.0",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-toast-message": "^2.3.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {

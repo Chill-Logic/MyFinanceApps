@@ -83,7 +83,10 @@ export const AccountList = () => {
 
 				<View style={styles.info}>
 					<ThemedText>{item.name}</ThemedText>
-					<ThemedText style={styles.subtle}>{item.translated_kind}</ThemedText>
+					<ThemedText style={styles.subtle}>
+						{item.translated_kind}
+						{item.bank_linked ? ' · Sincronizada' : ''}
+					</ThemedText>
 				</View>
 
 				<ThemedText style={balance_color}>{MoneyUtils.formatMoney(Number(item.balance))}</ThemedText>

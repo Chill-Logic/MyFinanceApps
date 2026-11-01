@@ -21,6 +21,8 @@ export type TUser = WithModelFields<{
 	name: string;
 	email: string;
 	main_user_wallet_id: string | null;
+	/* Liberação da integração bancária (Pluggy). Toda UI de conexão bancária só aparece com `true`. */
+	pluggy_enabled: boolean;
 }>;
 
 export type TTransaction = WithModelFields<{
@@ -58,7 +60,39 @@ export type TTransaction = WithModelFields<{
 	settled: boolean;
 	/* Rascunho/planejamento: aparece na lista, mas fica fora dos dois totais. */
 	draft: boolean;
+	/* Id da transação na Pluggy quando importada por uma conexão bancária; `null` = lançada à mão. */
+	external_id: string | null;
+	/*
+	 * Só em pagamentos/estornos de cartão sincronizados: `pending` = o sync não soube de qual fatura é e
+	 * alocou numa sugestão (o usuário confirma em `resolveInvoiceReview`); `resolved` = confirmado, o sync
+	 * não realoca mais; `null` = não precisa de revisão.
+	 */
+	invoice_review: TInvoiceReview | null;
+	/*
+	 * Última edição feita pelo usuário numa transação importada; `null` = nunca editada. A rotina ("Atualizar")
+	 * não sobrescreve transações editadas.
+	 */
+	user_edited_at: string | null;
 }>;
+
+export type TInvoiceReview = 'pending' | 'resolved';
+
+/* Fatura candidata para um pagamento pendente de revisão. Valores em centavos. */
+export type TInvoiceCandidate = {
+	/* "YYYY-MM" — o valor a mandar em `resolveInvoiceReview`. */
+	invoice_month: string;
+	due_date: string;
+	/* Compras da fatura. */
+	amount: number;
+	/* Em aberto, sem contar este pagamento. */
+	open_amount: number;
+	/* Onde o pagamento está alocado hoje (a sugestão do sync). */
+	suggested: boolean;
+};
+
+export type TPendingInvoiceReview = TTransaction & {
+	invoice_candidates: TInvoiceCandidate[];
+};
 
 export type TWallet = WithModelFields<{
 	name: string;
@@ -77,6 +111,8 @@ export type TAccount = WithModelFields<{
 	 * virou uma transação "Saldo inicial" efetivada no create (ver `initial_balance` em `TAccountBody`).
 	 */
 	balance: number;
+	/* `true` = há uma conta de banco (Pluggy) vinculada a esta conta (`TBankAccountLink` com status `linked`). */
+	bank_linked: boolean;
 }>;
 
 /*
@@ -117,12 +153,113 @@ export type TCreditBalance = WithModelFields<{
 	/* Limite disponível = `credit_limit` - `used`. */
 	available: number;
 	current_invoice: TCurrentInvoice;
+	/* Pagamentos/estornos sincronizados aguardando o usuário confirmar a fatura (`TTransaction.invoice_review`). */
+	pending_invoice_reviews_count: number;
+	/* `true` = há um cartão de banco (Pluggy) vinculado a este crédito (`TBankAccountLink` com status `linked`). */
+	bank_linked: boolean;
 }>;
 
 export type TCreditCard = WithModelFields<{
 	name: string;
 	last_digits: string | null;
 	credit_balance_id: string;
+	external_id: string | null;
+}>;
+
+/*
+ * Status do item na Pluggy. Lista não exaustiva — a Pluggy pode mandar outros valores, por isso o
+ * `string` no final.
+ */
+export type TBankConnectionStatus = 'UPDATED' | 'UPDATING' | 'LOGIN_ERROR' | 'OUTDATED' | 'WAITING_USER_INPUT' | (string & {});
+
+/*
+ * Conexão bancária (item da Pluggy) vinculada a uma carteira. Contas, créditos, cartões e transações
+ * importados por ela carregam o id da Pluggy em `external_id`. O client secret da Pluggy só existe na
+ * API — o front só recebe um connect token de curta duração (`connectBankToken`).
+ */
+export type TBankConnection = WithModelFields<{
+	wallet_id: string;
+	user_id: string;
+	/* Id do item na Pluggy. */
+	external_id: string;
+	connector_name: string | null;
+	connector_image_url: string | null;
+	/* Cor primária da instituição, hex sem `#` (como a Pluggy manda) ou com — trate os dois. */
+	connector_primary_color: string | null;
+	status: TBankConnectionStatus | null;
+	execution_status: string | null;
+	last_synced_at: string | null;
+}>;
+
+export type TBankAccountType = 'BANK' | 'CREDIT';
+
+export type TBankAccountLinkStatus = 'pending' | 'linked' | 'ignored';
+
+export type TBankImportMode = 'preserve' | 'overwrite' | 'update';
+
+export type TBankImportTrigger = 'manual' | 'routine';
+
+export type TBankImportStatus = 'completed' | 'failed' | 'undone';
+
+/*
+ * Lote de importação de transações de uma conta do banco para o destino do vínculo. Pode ser desfeito
+ * enquanto `undoable` (senão `undo_blocker` diz o motivo).
+ */
+export type TBankImport = WithModelFields<{
+	bank_account_link_id: string;
+	user_id: string | null;
+	mode: TBankImportMode;
+	trigger: TBankImportTrigger;
+	status: TBankImportStatus;
+	/* YYYY-MM-DD. */
+	date_from: string | null;
+	date_to: string | null;
+	adjust_balance: boolean;
+	created_count: number;
+	updated_count: number;
+	discarded_count: number;
+	skipped_count: number;
+	error_message: string | null;
+	undone_at: string | null;
+	undoable: boolean;
+	undo_blocker: string | null;
+}>;
+
+/* Dados da conta como vieram da Pluggy. ATENÇÃO: valores em REAIS (float), não em centavos. */
+export type TBankAccountExternalData = {
+	balance?: number;
+	currencyCode?: string;
+	creditData?: {
+		creditLimit?: number;
+		availableCreditLimit?: number;
+		balanceCloseDate?: string;
+		balanceDueDate?: string;
+	};
+};
+
+/*
+ * Vínculo entre uma conta do banco (Pluggy) e um destino da carteira: `BANK` → `Account`, `CREDIT` →
+ * `CreditBalance`. Nada é importado só por conectar: o usuário escolhe o destino, importa períodos
+ * (`TBankImport`) e liga a rotina diária (`auto_sync`, só daqui pra frente).
+ */
+export type TBankAccountLink = WithModelFields<{
+	bank_connection_id: string;
+	external_id: string;
+	external_type: TBankAccountType;
+	external_subtype: string | null;
+	name: string;
+	number: string | null;
+	external_data: TBankAccountExternalData;
+	status: TBankAccountLinkStatus;
+	target_type: 'Account' | 'CreditBalance' | null;
+	target_id: string | null;
+	target_name: string | null;
+	auto_sync: boolean;
+	/* YYYY-MM-DD — a rotina só traz transações a partir dessa data. */
+	auto_sync_since: string | null;
+	adjust_balance: boolean;
+	last_imported_at: string | null;
+	last_import: TBankImport | null;
 }>;
 
 export type TInvite = WithModelFields<{
