@@ -1,6 +1,6 @@
 import type {
 	TBankAccountLink,
-	TInstallmentCandidate,
+	TMatchCandidate,
 	TBankAccountLinkStatus,
 	TBankConnection,
 	TBankImport,
@@ -65,9 +65,9 @@ export const BANK_IMPORT_MODE_OPTIONS: { value: TBankImportMode; label: string; 
 	},
 ];
 
-export const BANK_AUTO_SYNC_HELP = 'A rotina traz o que é novo e atualiza o que você não editou; o que você editou ou excluiu fica como está.';
+export const BANK_AUTO_SYNC_HELP = 'A rotina traz o que é novo e atualiza o que mudou no banco, sem mexer nos campos que você editou; o que você excluiu fica excluído.';
 
-export const PROJECTED_INSTALLMENT_HELP = 'O banco ainda não lançou; será substituída quando chegar.';
+export const PROJECTED_HELP = 'Prevista: ainda não aconteceu. É confirmada quando você efetivar ou quando o banco trouxer a transação.';
 
 export const BANK_BEST_PURCHASE_DAY_HELP = (suggested: number | null) => (suggested
 	? `O banco não informa o fechamento deste cartão. Pela última fatura, o melhor dia de compra é o dia ${ suggested }.`
@@ -135,32 +135,46 @@ export const BankConnectionUtils = {
 	},
 
 	/* "X criadas, Y atualizadas, Z removidas, W ignoradas" de um ou mais lotes. */
-	importSummaryMessage: (imports: Pick<TBankImport, 'created_count' | 'updated_count' | 'discarded_count' | 'skipped_count'>[]) => {
+	importSummaryMessage: (imports: (Pick<TBankImport, 'created_count' | 'updated_count' | 'discarded_count' | 'skipped_count'> & Partial<Pick<TBankImport, 'matched_count'>>)[]) => {
 		const total = imports.reduce(
 			(acc, item) => ({
 				created: acc.created + item.created_count,
+				matched: acc.matched + (item.matched_count ?? 0),
 				updated: acc.updated + item.updated_count,
 				discarded: acc.discarded + item.discarded_count,
 				skipped: acc.skipped + item.skipped_count,
 			}),
-			{ created: 0, updated: 0, discarded: 0, skipped: 0 },
+			{ created: 0, matched: 0, updated: 0, discarded: 0, skipped: 0 },
 		);
 
 		return [
 			plural(total.created, 'criada', 'criadas'),
+			...(total.matched > 0 ? [ plural(total.matched, 'conciliada', 'conciliadas') ] : []),
 			plural(total.updated, 'atualizada', 'atualizadas'),
 			plural(total.discarded, 'removida', 'removidas'),
 			plural(total.skipped, 'ignorada', 'ignoradas'),
 		].join(', ');
 	},
 
-	/* "Loja · compra em agosto de 2026 · parcelas já recebidas: 1, 2" (opção da revisão de parcela). */
-	installmentCandidateLabel: (candidate: Pick<TInstallmentCandidate, 'description' | 'purchase_month' | 'known_installments'>) => {
-		const [ year, month ] = candidate.purchase_month.split('-').map(Number);
-		const month_name = MONTH_NAMES_PT[month - 1]?.toLowerCase();
-		const purchase = month_name ? ` · compra em ${ month_name } de ${ year }` : '';
-		const known = candidate.known_installments.length > 0 ? candidate.known_installments.join(', ') : 'nenhuma';
-		return `${ candidate.description }${ purchase } · parcelas já recebidas: ${ known }`;
+	/*
+	 * Rótulo de um candidato da revisão de conciliação:
+	 * - compra parcelada: "Loja · compra em agosto de 2026 · parcelas já recebidas: 1, 2";
+	 * - transação: "Netflix · 05/10/2026 · prevista" (ou "lançada à mão" / "do banco").
+	 */
+	matchCandidateLabel: (candidate: TMatchCandidate) => {
+		if (candidate.type === 'recurrence') {
+			const [ year, month ] = (candidate.purchase_month || '').split('-').map(Number);
+			const month_name = MONTH_NAMES_PT[month - 1]?.toLowerCase();
+			const purchase = month_name ? ` · compra em ${ month_name } de ${ year }` : '';
+			const known = candidate.known_installments?.length ? candidate.known_installments.join(', ') : 'nenhuma';
+			return `${ candidate.description }${ purchase } · parcelas já recebidas: ${ known }`;
+		}
+
+		const date = candidate.transaction_date ? ` · ${ DateUtils.formatDate(candidate.transaction_date) }` : '';
+		let origin = 'lançada à mão';
+		if (candidate.projected) origin = 'prevista';
+		else if (candidate.bank_synced) origin = 'do banco';
+		return `${ candidate.description }${ date } · ${ origin }`;
 	},
 
 	/* "3/10" de uma transação parcelada; `null` se não for parcela. */

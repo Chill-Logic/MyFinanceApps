@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, PROJECTED_INSTALLMENT_HELP, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -23,12 +23,15 @@ import {
 	MoreVertical,
 	Plus,
 	Receipt,
+	Repeat,
 	User,
 	Wallet,
 } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
+import { useDeleteRecurrence } from '@/hooks/api/recurrences/useDeleteRecurrence';
+import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
 import { useDeleteTransactions } from '@/hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '@/hooks/api/transactions/useListTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
@@ -41,8 +44,8 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import DateTimeField from '@/components/molecules/DateTimeField';
-import InstallmentReviewDialog from '@/components/organisms/InstallmentReviewDialog';
 import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
+import MatchReviewDialog, { type TMatchReviewSource } from '@/components/organisms/MatchReviewDialog';
 import TransactionDuplicateDialog from '@/components/organisms/TransactionDuplicateDialog';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
 import {
@@ -167,7 +170,7 @@ const TransactionList = () => {
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ deleting_transaction, setDeletingTransaction ] = useState<TTransaction | null>(null);
 	const [ reviewing_source, setReviewingSource ] = useState<{ id: string; name: string } | null>(null);
-	const [ reviewing_installments_source, setReviewingInstallmentsSource ] = useState<{ id: string; name: string } | null>(null);
+	const [ reviewing_match_source, setReviewingMatchSource ] = useState<TMatchReviewSource | null>(null);
 	/* Transação sendo efetivada no modal de "Efetivar pagamento" + a data/hora escolhida. */
 	const [ settling_transaction, setSettlingTransaction ] = useState<TTransaction | null>(null);
 	const [ settle_date, setSettleDate ] = useState<Date>(new Date());
@@ -285,13 +288,38 @@ const TransactionList = () => {
 		}
 	};
 
-	const handleConfirmDelete = () => {
+	const { mutate: updateRecurrenceMutation, isPending: is_update_recurrence_pending } = useUpdateRecurrence();
+	const { mutate: deleteRecurrenceMutation, isPending: is_delete_recurrence_pending } = useDeleteRecurrence();
+	const is_deleting = is_delete_pending || is_update_recurrence_pending || is_delete_recurrence_pending;
+	const deleting_is_recurring = Boolean(deleting_transaction && RecurrenceUtils.isRecurringOccurrence(deleting_transaction));
+
+	/*
+	 * Encerra a recorrência antes desta ocorrência ("esta e as próximas"): na 1ª ocorrência não há o que
+	 * manter, então a recorrência inteira para de gerar; nas outras, o `end_date` vira a véspera dela.
+	 */
+	const endRecurrenceAt = (transaction_item: TTransaction) => {
+		const onError = (error?: Error) => toast.error(getApiErrorMessage(error, 'Não foi possível encerrar a recorrência'));
+		if (transaction_item.recurrence_index === 1) {
+			deleteRecurrenceMutation({ id: transaction_item.recurrence_id!, onError });
+			return;
+		}
+
+		updateRecurrenceMutation({
+			id: transaction_item.recurrence_id!,
+			body: { end_date: RecurrenceUtils.dayBefore(RecurrenceUtils.occurrenceDate(transaction_item)) },
+			onError,
+		});
+	};
+
+	const handleConfirmDelete = (scope: 'this' | 'following' = 'this') => {
 		if (!deleting_transaction) return;
 
+		const transaction_item = deleting_transaction;
 		deleteTransactionMutation({
-			id: deleting_transaction.id,
+			id: transaction_item.id,
 			onSuccess: () => {
-				toast.success('Transação excluída com sucesso');
+				if (scope === 'following') endRecurrenceAt(transaction_item);
+				toast.success(scope === 'following' ? 'Esta e as próximas excluídas' : 'Transação excluída com sucesso');
 				setDeletingTransaction(null);
 			},
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Não foi possível excluir a transação')),
@@ -350,6 +378,13 @@ const TransactionList = () => {
 		return <span className={cn(className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
 	};
 
+	/* Ícone de repetição: só em recorrência comum — parcela já tem o "n/N" na descrição. */
+	const renderRecurrenceIcon = (transaction_item: TTransaction) => (
+		RecurrenceUtils.isRecurringOccurrence(transaction_item)
+			? <Repeat className='h-3 w-3 shrink-0 text-muted-foreground' aria-label='Recorrente' />
+			: null
+	);
+
 	/*
 	 * Chip do NOME da origem (omitido dentro de uma seção de cartão via `hide_source` — o header já diz),
 	 * badges de estado (pendente/rascunho) e QUEM fez a transação (`user_name`, sempre visível).
@@ -401,24 +436,28 @@ const TransactionList = () => {
 						Fatura a confirmar
 					</button>
 				)}
-				{is_credit && transaction_item.installment_review === 'pending' && (
+				{transaction_item.match_review === 'pending' && (
 					<button
 						type='button'
 						onClick={(event) => {
 							event.stopPropagation();
-							setReviewingInstallmentsSource({ id: transaction_item.source_id, name: source_label || 'Crédito' });
+							setReviewingMatchSource({
+								type: transaction_item.source_type,
+								id: transaction_item.source_id,
+								name: source_label || (is_credit ? 'Crédito' : 'Conta'),
+							});
 						}}
 						className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark hover:opacity-80'
 					>
-						Parcela a confirmar
+						Conferir
 					</button>
 				)}
-				{transaction_item.projected_installment && (
+				{transaction_item.projected && (
 					<span
-						title={PROJECTED_INSTALLMENT_HELP}
+						title={PROJECTED_HELP}
 						className='cursor-help rounded border border-dashed border-muted-foreground/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'
 					>
-						Parcela prevista
+						Prevista
 					</span>
 				)}
 
@@ -542,7 +581,10 @@ const TransactionList = () => {
 			</TableCell>
 			<TableCell>
 				<div className='flex flex-col'>
-					<span className='font-medium'>{transaction_item.description}</span>
+					<span className='flex items-center gap-1.5 font-medium'>
+						{transaction_item.description}
+						{renderRecurrenceIcon(transaction_item)}
+					</span>
 					{renderMeta(transaction_item, hide_source)}
 				</div>
 			</TableCell>
@@ -606,7 +648,10 @@ const TransactionList = () => {
 			{renderKindIcon(transaction_item)}
 
 			<div className='flex flex-1 flex-col overflow-hidden'>
-				<span className='truncate text-sm font-medium'>{transaction_item.description}</span>
+				<span className='flex min-w-0 items-center gap-1.5 text-sm font-medium'>
+					<span className='truncate'>{transaction_item.description}</span>
+					{renderRecurrenceIcon(transaction_item)}
+				</span>
 				{renderMeta(transaction_item, hide_source)}
 				{renderDates(transaction_item)}
 			</div>
@@ -766,10 +811,10 @@ const TransactionList = () => {
 				)}
 			</div>
 
-			<InstallmentReviewDialog
-				open={Boolean(reviewing_installments_source)}
-				onOpenChange={(open) => !open && setReviewingInstallmentsSource(null)}
-				creditBalance={reviewing_installments_source}
+			<MatchReviewDialog
+				open={Boolean(reviewing_match_source)}
+				onOpenChange={(open) => !open && setReviewingMatchSource(null)}
+				source={reviewing_match_source}
 			/>
 			<InvoiceReviewDialog
 				open={Boolean(reviewing_source)}
@@ -795,14 +840,22 @@ const TransactionList = () => {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Excluir transação</AlertDialogTitle>
 						<AlertDialogDescription>
-							Deseja excluir "{deleting_transaction?.description}"? Essa ação não pode ser desfeita.
+							{deleting_is_recurring
+								? `"${ deleting_transaction?.description }" é uma recorrência. Excluir só esta ou esta e as próximas?`
+								: `Deseja excluir "${ deleting_transaction?.description }"? Essa ação não pode ser desfeita.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel disabled={is_delete_pending}>Cancelar</AlertDialogCancel>
-						<AlertDialogAction onClick={handleConfirmDelete} disabled={is_delete_pending} className='gap-2'>
-							{is_delete_pending && <Loader2 className='h-4 w-4 animate-spin' />}
-							Excluir
+						<AlertDialogCancel disabled={is_deleting}>Cancelar</AlertDialogCancel>
+						{deleting_is_recurring && (
+							<AlertDialogAction onClick={() => handleConfirmDelete('following')} disabled={is_deleting} className='gap-2'>
+								{is_deleting && <Loader2 className='h-4 w-4 animate-spin' />}
+								Esta e as próximas
+							</AlertDialogAction>
+						)}
+						<AlertDialogAction onClick={() => handleConfirmDelete('this')} disabled={is_deleting} className='gap-2'>
+							{is_deleting && <Loader2 className='h-4 w-4 animate-spin' />}
+							{deleting_is_recurring ? 'Só esta' : 'Excluir'}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

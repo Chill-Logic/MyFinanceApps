@@ -19,6 +19,7 @@ import { ThemedText } from '../../atoms/ThemedText';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { AccountFormModal } from '../AccountFormModal';
+import { MatchReviewModal, TMatchReviewSource } from '../MatchReviewModal';
 
 const KIND_ICON: Record<TAccountKind, string> = {
 	checking: 'account-balance',
@@ -42,6 +43,7 @@ export const AccountList = () => {
 	const [ actions_account, setActionsAccount ] = useState<TAccount | null>(null);
 	const [ editing_account, setEditingAccount ] = useState<TAccount | null>(null);
 	const [ is_creating, setIsCreating ] = useState(false);
+	const [ reviewing_source, setReviewingSource ] = useState<TMatchReviewSource | null>(null);
 
 	const accounts = data?.data || [];
 
@@ -87,6 +89,15 @@ export const AccountList = () => {
 						{item.translated_kind}
 						{item.bank_linked ? ' · Sincronizada' : ''}
 					</ThemedText>
+					{item.pending_match_reviews_count > 0 && (
+						<TouchableOpacity
+							style={styles.reviewBadge}
+							onPress={() => setReviewingSource({ type: 'Account', id: item.id, name: item.name })}
+						>
+							<Icon name='warning' size={14} color={colors['feedback-warning-dark']} />
+							<ThemedText style={styles.reviewBadgeText}>{item.pending_match_reviews_count} para conferir</ThemedText>
+						</TouchableOpacity>
+					)}
 				</View>
 
 				<ThemedText style={balance_color}>{MoneyUtils.formatMoney(Number(item.balance))}</ThemedText>
@@ -159,6 +170,7 @@ export const AccountList = () => {
 			</Modal>
 
 			<AccountFormModal visible={is_creating} onClose={() => setIsCreating(false)} />
+			<MatchReviewModal visible={Boolean(reviewing_source)} onClose={() => setReviewingSource(null)} source={reviewing_source} />
 			<AccountFormModal visible={Boolean(editing_account)} account={editing_account} onClose={() => setEditingAccount(null)} />
 		</ThemedView>
 	);
@@ -221,6 +233,23 @@ const styles = StyleSheet.create({
 	subtle: {
 		color: '#888',
 		fontSize: 13,
+	},
+	reviewBadge: {
+		alignSelf: 'flex-start',
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+		marginTop: 4,
+		paddingVertical: 2,
+		paddingHorizontal: 8,
+		borderRadius: 999,
+		backgroundColor: colors['feedback-warning-light'],
+	},
+	reviewBadgeText: {
+		fontSize: 12,
+		lineHeight: 16,
+		fontWeight: '600',
+		color: colors['feedback-warning-dark'],
 	},
 	textGreen: {
 		color: 'green',

@@ -1079,3 +1079,36 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
 - Mensagens de commit são escritas em português.
 - Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os
   dois antes de considerar uma tela pronta, não só o layout desktop.
+
+**Recorrências e conciliação com o banco (2026-11-07, web + mobile; backend `feature/recorrencias`):** o
+backend unificou compras parceladas e lançamentos recorrentes num modelo só (`Recurrence`) e passou a
+conciliar a transação que chega do banco com o que já estava lançado. *Breaking* no contrato:
+- **Saíram** `installment_group`, `installment_review`, `projected_installment`,
+  `pending_installment_reviews_count`, `GET /transactions/pending_installment_reviews` e
+  `POST /transactions/:id/resolve_installment_review`. **Entraram** em `TTransaction`: `recurrence_id`,
+  `recurrence_index`, `recurrence_type`, `projected` (ocorrência PREVISTA — gerada pela recorrência ou parcela
+  que o banco ainda não lançou), `match_review` e `user_edited_fields` (o banco não sobrescreve esses campos,
+  mas segue atualizando os outros); `pending_match_reviews_count` em `TAccount` e `TCreditBalance`;
+  `matched_count` em `TBankImport` (o `importSummaryMessage` já mostra "N conciliadas").
+- **Shared:** `TRecurrence`/`TMatchCandidate`/`TPendingMatchReview`, fetchers `fetchers/recurrences.ts` e
+  `indexPendingMatches`/`resolveMatch`, `QUERY_KEYS.recurrence.get_all` e `transaction.get_pending_matches`,
+  `RecurrenceUtils` (`utils/recurrence.ts`: rótulos de regra, `occurrenceDate`/`dayBefore` em string
+  `YYYY-MM-DD` sem passar por UTC), `BankConnectionUtils.matchCandidateLabel`, `PROJECTED_HELP`.
+- **Conciliação** (`MatchReviewDialog` no web / `MatchReviewModal` no mobile — substituíram a revisão de
+  parcelas): genérico pra conta OU cartão. Abre pelo badge "N para conferir" no card da conta/cartão e pelo selo
+  "Conferir" na linha. Candidatos são `transaction` (já lançado: escolher JUNTA as duas) ou `recurrence`
+  (compra parcelada da parcela); a última opção é `'none'` ("É uma compra nova" em parcela, "É outra
+  transação" no resto).
+- **Formulário de transação, criação:** seção "Repetir" (`SegmentedControl`: Não repete / Recorrente /
+  Parcelado — este só em cartão). Com repetição o submit chama `createRecurrence` em vez de criar transação, e
+  somem "Pago em", Rascunho e fatura manual (as ocorrências futuras são previstas; fatura pelo ciclo).
+  Parcelado: o valor digitado é o DA PARCELA.
+- **"Só esta / Esta e as próximas":** editar descrição/valor de uma ocorrência de recorrência comum
+  (`RecurrenceUtils.isRecurringOccurrence`) pergunta o escopo; "próximas" = `updateRecurrence(id, body,
+  effective_from = data da ocorrência)` (o backend divide a regra) + update da própria transação se ela já não
+  é prevista. Excluir pergunta o mesmo; "próximas" = exclui esta + `end_date = véspera` (ou `deleteRecurrence`
+  se for a 1ª ocorrência). Parcela não pergunta (só esta).
+- **Aba "Recorrências"** em Contas & Cartões (web `RecurrenceList`/`RecurrenceFormDialog`, mobile
+  `RecurrenceList`/`RecurrenceFormModal`): filtro Recorrentes/Parceladas, editar a regra inteira, excluir (para
+  de gerar; as previstas de hoje em diante saem). Não há "nova recorrência" ali — nasce no formulário.
+- Mutações de transação invalidam também `recurrence.get_all` (a "próxima ocorrência" muda).

@@ -23,8 +23,8 @@ import { ThemedView } from '../../atoms/ThemedView';
 
 import { CreditBalanceFormModal } from '../CreditBalanceFormModal';
 import { CreditCardFormModal } from '../CreditCardFormModal';
-import { InstallmentReviewModal } from '../InstallmentReviewModal';
 import { InvoiceReviewModal } from '../InvoiceReviewModal';
+import { MatchReviewModal } from '../MatchReviewModal';
 import { NewCardModal } from '../NewCardModal';
 import { PayInvoiceModal } from '../PayInvoiceModal';
 
@@ -49,7 +49,7 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 	const [ is_edit_open, setIsEditOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
 	const [ is_review_open, setIsReviewOpen ] = useState(false);
-	const [ is_installment_review_open, setIsInstallmentReviewOpen ] = useState(false);
+	const [ is_match_review_open, setIsMatchReviewOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
 	const [ cycle_offset, setCycleOffset ] = useState(0);
@@ -154,12 +154,11 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 							</ThemedText>
 						</TouchableOpacity>
 					)}
-					{credit_balance.pending_installment_reviews_count > 0 && (
-						<TouchableOpacity style={styles.reviewBadge} onPress={() => setIsInstallmentReviewOpen(true)}>
+					{credit_balance.pending_match_reviews_count > 0 && (
+						<TouchableOpacity style={styles.reviewBadge} onPress={() => setIsMatchReviewOpen(true)}>
 							<Icon name='warning' size={14} color={colors['feedback-warning-dark']} />
 							<ThemedText style={styles.reviewBadgeText}>
-								{credit_balance.pending_installment_reviews_count}{' '}
-								{credit_balance.pending_installment_reviews_count === 1 ? 'parcela' : 'parcelas'} para revisar
+								{credit_balance.pending_match_reviews_count} para conferir
 							</ThemedText>
 						</TouchableOpacity>
 					)}
@@ -291,10 +290,10 @@ const CreditBalanceCard = ({ credit_balance }: { credit_balance: TCreditBalance 
 				reference={invoice_month}
 			/>
 			<InvoiceReviewModal visible={is_review_open} onClose={() => setIsReviewOpen(false)} creditBalance={credit_balance} />
-			<InstallmentReviewModal
-				visible={is_installment_review_open}
-				onClose={() => setIsInstallmentReviewOpen(false)}
-				creditBalance={credit_balance}
+			<MatchReviewModal
+				visible={is_match_review_open}
+				onClose={() => setIsMatchReviewOpen(false)}
+				source={{ type: 'CreditBalance', id: credit_balance.id, name: credit_balance.name }}
 			/>
 			<CreditCardFormModal visible={Boolean(editing_card)} card={editing_card} onClose={() => setEditingCard(null)} />
 		</ThemedView>
@@ -366,6 +365,7 @@ const styles = StyleSheet.create({
 	},
 	reviewBadgeText: {
 		fontSize: 12,
+		lineHeight: 16,
 		fontWeight: '600',
 		color: colors['feedback-warning-dark'],
 	},

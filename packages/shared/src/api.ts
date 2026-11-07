@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInstallmentReview, TPendingInvoiceReview, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -186,12 +186,41 @@ export type TResolveInvoiceReviewBody = {
 	invoice_month: string;
 };
 
-export type TIndexPendingInstallmentReviewsResponse = TPaginatedResponse<TPendingInstallmentReview>;
+export type TIndexPendingMatchesResponse = TPaginatedResponse<TPendingMatchReview>;
 
-export type TResolveInstallmentReviewBody = {
-	/* `installment_group` de uma das `installment_candidates`, ou `'new'` = "é uma compra nova". */
-	installment_group: 'new' | (string & {});
+export type TResolveMatchBody = {
+	/* `id` de um dos `match_candidates`, ou `'none'` = "é uma transação nova" (em parcela, uma compra própria). */
+	candidate_id: 'none' | (string & {});
 };
+
+export type TIndexRecurrencesResponse = TPaginatedResponse<TRecurrence>;
+
+export type TRecurrenceBody = {
+	recurrence_type: TRecurrenceType;
+	kind: TTransactionKind;
+	description: string;
+	/* Valor de cada ocorrência (em parcelada, de cada parcela), em centavos. */
+	value: number;
+	value_mode?: TRecurrenceValueMode;
+	frequency?: TRecurrenceFrequency;
+	interval?: number;
+	/* YYYY-MM-DD da primeira ocorrência. */
+	start_date: string;
+	/* YYYY-MM-DD; vazio = sem fim. */
+	end_date?: string | null;
+	/* Obrigatório em parcelada (número de parcelas). */
+	occurrences_total?: number | null;
+	credit_card_id?: string;
+	destination_account_id?: string;
+	user_id?: string;
+};
+
+export type TCreateRecurrenceBody = TRecurrenceBody & {
+	source_type: TTransactionSourceType;
+	source_id: string;
+};
+
+export type TUpdateRecurrenceBody = Partial<TRecurrenceBody>;
 
 export type TIndexBankConnectionsResponse = TPaginatedResponse<TBankConnection>;
 

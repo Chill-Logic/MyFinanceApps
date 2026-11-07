@@ -16,8 +16,8 @@ import { cn } from '@/lib/utils';
 import Button from '@/components/atoms/Button';
 import CreditBalanceFormDialog from '@/components/organisms/CreditBalanceFormDialog';
 import CreditCardFormDialog from '@/components/organisms/CreditCardFormDialog';
-import InstallmentReviewDialog from '@/components/organisms/InstallmentReviewDialog';
 import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
+import MatchReviewDialog from '@/components/organisms/MatchReviewDialog';
 import NewCardDialog from '@/components/organisms/NewCardDialog';
 import PayInvoiceDialog from '@/components/organisms/PayInvoiceDialog';
 import {
@@ -56,7 +56,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 	const [ is_delete_open, setIsDeleteOpen ] = useState(false);
 	const [ is_pay_open, setIsPayOpen ] = useState(false);
 	const [ is_review_open, setIsReviewOpen ] = useState(false);
-	const [ is_installment_review_open, setIsInstallmentReviewOpen ] = useState(false);
+	const [ is_match_review_open, setIsMatchReviewOpen ] = useState(false);
 	const [ editing_card, setEditingCard ] = useState<TCreditCard | null>(null);
 	const [ deleting_card, setDeletingCard ] = useState<TCreditCard | null>(null);
 	/* 0 = ciclo atual (usa a fatura embutida no index, sem request); ±N navega ciclos vizinhos. */
@@ -157,15 +157,14 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 								{creditBalance.pending_invoice_reviews_count === 1 ? 'pendência' : 'pendências'} de fatura
 							</button>
 						)}
-						{creditBalance.pending_installment_reviews_count > 0 && (
+						{creditBalance.pending_match_reviews_count > 0 && (
 							<button
 								type='button'
-								onClick={() => setIsInstallmentReviewOpen(true)}
+								onClick={() => setIsMatchReviewOpen(true)}
 								className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
 							>
 								<AlertTriangle className='h-3 w-3' />
-								{creditBalance.pending_installment_reviews_count}{' '}
-								{creditBalance.pending_installment_reviews_count === 1 ? 'parcela' : 'parcelas'} para revisar
+								{creditBalance.pending_match_reviews_count} para conferir
 							</button>
 						)}
 					</div>
@@ -308,7 +307,11 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 				reference={invoice_month}
 			/>
 			<InvoiceReviewDialog open={is_review_open} onOpenChange={setIsReviewOpen} creditBalance={creditBalance} />
-			<InstallmentReviewDialog open={is_installment_review_open} onOpenChange={setIsInstallmentReviewOpen} creditBalance={creditBalance} />
+			<MatchReviewDialog
+				open={is_match_review_open}
+				onOpenChange={setIsMatchReviewOpen}
+				source={{ type: 'CreditBalance', id: creditBalance.id, name: creditBalance.name }}
+			/>
 			<CreditCardFormDialog
 				open={Boolean(editing_card)}
 				onOpenChange={(open) => !open && setEditingCard(null)}

@@ -9,13 +9,17 @@ enum MODELS {
 	bank_connection = 'bank_connection',
 	bank_account_link = 'bank_account_link',
 	bank_import = 'bank_import',
+	recurrence = 'recurrence',
 }
 
 export const QUERY_KEYS = {
 	[MODELS.transaction]: {
 		get_all: 'get-all-transactions',
 		get_pending_reviews: 'get-pending-invoice-reviews',
-		get_pending_installment_reviews: 'get-pending-installment-reviews',
+		get_pending_matches: 'get-pending-match-reviews',
+	},
+	[MODELS.recurrence]: {
+		get_all: 'get-all-recurrences',
 	},
 	[MODELS.USER]: {
 		get_current: 'get-current-user',

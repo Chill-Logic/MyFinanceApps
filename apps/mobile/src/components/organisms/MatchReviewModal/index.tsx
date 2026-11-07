@@ -5,45 +5,48 @@ import Toast from 'react-native-toast-message';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import { BankConnectionUtils, colors, DateUtils, getApiErrorMessage, MoneyUtils } from '@myfinance/shared';
 
-import { useIndexPendingInstallmentReviews } from '../../../hooks/api/transactions/useIndexPendingInstallmentReviews';
-import { useResolveInstallmentReview } from '../../../hooks/api/transactions/useResolveInstallmentReview';
+import { useIndexPendingMatches } from '../../../hooks/api/transactions/useIndexPendingMatches';
+import { useResolveMatch } from '../../../hooks/api/transactions/useResolveMatch';
 
 import { useTheme } from '../../../context/theme';
 import { useWallet } from '../../../context/wallet';
 
-import { TPendingInstallmentReview } from '../../../types/models';
+import { TPendingMatchReview, TTransactionSourceType } from '../../../types/models';
 
 import { Loader } from '../../atoms/Loader';
 import { ThemedText } from '../../atoms/ThemedText';
 import { ThemedView } from '../../atoms/ThemedView';
 
-interface InstallmentReviewModalProps {
+export type TMatchReviewSource = { type: TTransactionSourceType; id: string; name: string };
+
+interface MatchReviewModalProps {
 	visible: boolean;
 	onClose: ()=> void;
-	/* Crédito cujas parcelas pendentes serão revisadas. */
-	creditBalance: { id: string; name: string } | null;
+	/* Conta ou cartão cujas transações do banco aguardam conferência. */
+	source: TMatchReviewSource | null;
 }
 
-const NEW_PURCHASE = 'new';
+const NONE = 'none';
 
-const suggestedGroup = (review: TPendingInstallmentReview) =>
-	review.installment_candidates.find((candidate) => candidate.suggested)?.installment_group ?? review.installment_candidates[0]?.installment_group ?? NEW_PURCHASE;
+const suggestedCandidate = (review: TPendingMatchReview) =>
+	review.match_candidates.find((candidate) => candidate.suggested)?.id ?? review.match_candidates[0]?.id ?? NONE;
 
-const ReviewItem = ({ review }: { review: TPendingInstallmentReview }) => {
+const ReviewItem = ({ review }: { review: TPendingMatchReview }) => {
 	const { theme } = useTheme();
-	const { mutate: resolveMutation, isPending } = useResolveInstallmentReview();
-	const [ selected_group, setSelectedGroup ] = useState(() => suggestedGroup(review));
+	const { mutate: resolveMutation, isPending } = useResolveMatch();
+	const [ selected, setSelected ] = useState(() => suggestedCandidate(review));
 
 	const installment_label = BankConnectionUtils.installmentLabel(review);
+	const none_label = review.installment_total ? 'É uma compra nova' : 'É outra transação (manter as duas)';
 
 	const handleConfirm = () => {
 		resolveMutation({
 			id: review.id,
-			body: { installment_group: selected_group },
-			onSuccess: () => Toast.show({ type: 'success', text1: selected_group === NEW_PURCHASE ? 'Parcela registrada como compra nova' : 'Parcela confirmada' }),
+			body: { candidate_id: selected },
+			onSuccess: () => Toast.show({ type: 'success', text1: selected === NONE ? 'Mantida como transação nova' : 'Transações juntadas' }),
 			onError: (error) => Toast.show({
 				type: 'error',
-				text1: 'Erro ao confirmar a parcela',
+				text1: 'Erro ao conferir a transação',
 				text2: getApiErrorMessage(error, 'Tente novamente'),
 			}),
 		});
@@ -79,23 +82,24 @@ const ReviewItem = ({ review }: { review: TPendingInstallmentReview }) => {
 				<ThemedText style={styles.value}>{MoneyUtils.formatMoney(review.value)}</ThemedText>
 			</View>
 
-			{review.installment_candidates.map((candidate) => renderOption(
-				candidate.installment_group,
-				candidate.installment_group === selected_group,
-				() => setSelectedGroup(candidate.installment_group),
+			{review.match_candidates.map((candidate) => renderOption(
+				candidate.id,
+				candidate.id === selected,
+				() => setSelected(candidate.id),
 				<>
-					<ThemedText>
-						{BankConnectionUtils.installmentCandidateLabel(candidate)}
+					<ThemedText style={styles.optionText}>
+						{BankConnectionUtils.matchCandidateLabel(candidate)}
 						{candidate.suggested ? <ThemedText style={styles.subtle}> (sugerida)</ThemedText> : null}
 					</ThemedText>
 					<ThemedText style={styles.subtle}>
-						{MoneyUtils.formatMoney(candidate.value)} · {candidate.installment_total}x
+						{MoneyUtils.formatMoney(candidate.value)}
+						{candidate.installment_total ? ` · ${ candidate.installment_total }x` : ''}
 					</ThemedText>
 				</>,
 			))}
 
-			{renderOption(NEW_PURCHASE, selected_group === NEW_PURCHASE, () => setSelectedGroup(NEW_PURCHASE), (
-				<ThemedText>É uma compra nova</ThemedText>
+			{renderOption(NONE, selected === NONE, () => setSelected(NONE), (
+				<ThemedText style={styles.optionText}>{none_label}</ThemedText>
 			))}
 
 			<TouchableOpacity
@@ -109,17 +113,17 @@ const ReviewItem = ({ review }: { review: TPendingInstallmentReview }) => {
 	);
 };
 
-export const InstallmentReviewModal = ({ visible, onClose, creditBalance }: InstallmentReviewModalProps) => {
+export const MatchReviewModal = ({ visible, onClose, source }: MatchReviewModalProps) => {
 	const { theme } = useTheme();
 	const { user_wallet } = useWallet();
 	const wallet_id = user_wallet.data?.id;
 
-	const { data, isLoading } = useIndexPendingInstallmentReviews({
-		enabled: visible && Boolean(wallet_id) && Boolean(creditBalance),
+	const { data, isLoading } = useIndexPendingMatches({
+		enabled: visible && Boolean(wallet_id) && Boolean(source),
 		params: {
 			wallet_id: wallet_id || '',
-			source_type: 'CreditBalance',
-			source_id: creditBalance?.id,
+			source_type: source?.type,
+			source_id: source?.id,
 			per_page: 50,
 		},
 	});
@@ -131,14 +135,14 @@ export const InstallmentReviewModal = ({ visible, onClose, creditBalance }: Inst
 			<ThemedView style={styles.modalOverlay}>
 				<ThemedView style={styles.modalContent}>
 					<View style={styles.header}>
-						<ThemedText style={styles.title} numberOfLines={1}>Parcelas para revisar</ThemedText>
+						<ThemedText style={styles.title} numberOfLines={1}>Para conferir</ThemedText>
 						<TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
 							<Icon name='close' size={22} color={theme.colors.text} />
 						</TouchableOpacity>
 					</View>
 					<ThemedText style={styles.subtle}>
-						{creditBalance?.name ? `${ creditBalance.name } · ` : ''}
-						Não deu para saber a qual compra parcelada estas parcelas pertencem. Confira a sugestão e confirme.
+						{source?.name ? `${ source.name } · ` : ''}
+						O banco trouxe transações parecidas com algo que já estava lançado. Diga se é a mesma coisa para não duplicar.
 					</ThemedText>
 
 					{isLoading && (
@@ -196,6 +200,11 @@ const styles = StyleSheet.create({
 	subtle: {
 		color: '#888',
 		fontSize: 13,
+		lineHeight: 18,
+	},
+	optionText: {
+		fontSize: 14,
+		lineHeight: 20,
 	},
 	centered: {
 		alignItems: 'center',
@@ -258,4 +267,4 @@ const styles = StyleSheet.create({
 	},
 });
 
-export default InstallmentReviewModal;
+export default MatchReviewModal;

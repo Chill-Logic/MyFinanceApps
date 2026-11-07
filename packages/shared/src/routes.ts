@@ -49,8 +49,15 @@ export const API_ROUTES = {
 		unsettle: (id: string | number) => `/transactions/${ id }/unsettle`,
 		pendingReviews: '/transactions/pending_reviews',
 		resolveReview: (id: string | number) => `/transactions/${ id }/resolve_review`,
-		pendingInstallmentReviews: '/transactions/pending_installment_reviews',
-		resolveInstallmentReview: (id: string | number) => `/transactions/${ id }/resolve_installment_review`,
+		pendingMatches: '/transactions/pending_matches',
+		resolveMatch: (id: string | number) => `/transactions/${ id }/resolve_match`,
+	},
+	recurrences: {
+		index: '/recurrences',
+		create: '/recurrences',
+		show: (id: string | number) => `/recurrences/${ id }`,
+		update: (id: string | number) => `/recurrences/${ id }`,
+		delete: (id: string | number) => `/recurrences/${ id }`,
 	},
 	bankConnections: {
 		index: '/bank_connections',

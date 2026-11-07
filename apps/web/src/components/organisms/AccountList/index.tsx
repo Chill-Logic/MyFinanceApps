@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TAccount } from '@myfinance/shared';
-import { Banknote, Landmark, Link2, MoreVertical, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react';
+import { AlertTriangle, Banknote, Landmark, Link2, MoreVertical, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react';
 
 import { useDeleteAccount } from '@/hooks/api/accounts/useDeleteAccount';
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import AccountFormDialog from '@/components/organisms/AccountFormDialog';
+import MatchReviewDialog, { type TMatchReviewSource } from '@/components/organisms/MatchReviewDialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -45,6 +46,7 @@ const AccountList = () => {
 	const [ is_create_open, setIsCreateOpen ] = useState(false);
 	const [ editing_account, setEditingAccount ] = useState<TAccount | null>(null);
 	const [ deleting_account, setDeletingAccount ] = useState<TAccount | null>(null);
+	const [ reviewing_source, setReviewingSource ] = useState<TMatchReviewSource | null>(null);
 
 	const accounts = accounts_data?.data || [];
 	const is_loading = is_wallet_loading || is_accounts_loading;
@@ -117,6 +119,16 @@ const AccountList = () => {
 											</span>
 										)}
 									</p>
+									{account.pending_match_reviews_count > 0 && (
+										<button
+											type='button'
+											onClick={() => setReviewingSource({ type: 'Account', id: account.id, name: account.name })}
+											className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
+										>
+											<AlertTriangle className='h-3 w-3' />
+											{account.pending_match_reviews_count} para conferir
+										</button>
+									)}
 								</div>
 
 								<span className={cn('shrink-0 font-semibold', account.balance >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
@@ -151,6 +163,12 @@ const AccountList = () => {
 				open={Boolean(editing_account)}
 				onOpenChange={(open) => !open && setEditingAccount(null)}
 				account={editing_account}
+			/>
+
+			<MatchReviewDialog
+				open={Boolean(reviewing_source)}
+				onOpenChange={(open) => !open && setReviewingSource(null)}
+				source={reviewing_source}
 			/>
 
 			<AlertDialog open={Boolean(deleting_account)} onOpenChange={(open) => !open && setDeletingAccount(null)}>

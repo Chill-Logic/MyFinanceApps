@@ -15,6 +15,7 @@ export const useCreateTransactions = () => {
 		},
 		onSuccess: (data, { onSuccess }) => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
 			onSuccess?.(data);
 		},
 		onError: (error, { onError }) => {

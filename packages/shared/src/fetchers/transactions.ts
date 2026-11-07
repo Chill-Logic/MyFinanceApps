@@ -2,12 +2,12 @@ import type { AxiosInstance } from 'axios';
 
 import {
 	TCreateTransactionBody,
-	TIndexPendingInstallmentReviewsResponse,
 	TIndexPendingInvoiceReviewsResponse,
+	TIndexPendingMatchesResponse,
 	TListTransactionsResponse,
 	TMessageResponse,
-	TResolveInstallmentReviewBody,
 	TResolveInvoiceReviewBody,
+	TResolveMatchBody,
 	TSettleTransactionBody,
 	TUpdateTransactionBody,
 } from '../api';
@@ -35,7 +35,7 @@ export type TIndexPendingInvoiceReviewsParams = {
 	per_page?: number;
 };
 
-export type TIndexPendingInstallmentReviewsParams = TIndexPendingInvoiceReviewsParams;
+export type TIndexPendingMatchesParams = TIndexPendingInvoiceReviewsParams;
 
 /*
  * O backend não devolve mais o booleano `settled` (só a data, nulo = pendente). Derivamos aqui, no
@@ -94,12 +94,12 @@ export const resolveInvoiceReview = async(axios: AxiosInstance, id: string | num
 	return withSettled(response.data.data);
 };
 
-export const indexPendingInstallmentReviews = async(axios: AxiosInstance, params?: TIndexPendingInstallmentReviewsParams) => {
-	const response = await axios.get<TIndexPendingInstallmentReviewsResponse>(API_ROUTES.transactions.pendingInstallmentReviews, { params });
+export const indexPendingMatches = async(axios: AxiosInstance, params?: TIndexPendingMatchesParams) => {
+	const response = await axios.get<TIndexPendingMatchesResponse>(API_ROUTES.transactions.pendingMatches, { params });
 	return { ...response.data, data: response.data.data.map((review) => ({ ...review, ...withSettled(review) })) };
 };
 
-export const resolveInstallmentReview = async(axios: AxiosInstance, id: string | number, body: TResolveInstallmentReviewBody) => {
-	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.resolveInstallmentReview(id), body);
+export const resolveMatch = async(axios: AxiosInstance, id: string | number, body: TResolveMatchBody) => {
+	const response = await axios.post<{ data: TTransaction }>(API_ROUTES.transactions.resolveMatch(id), body);
 	return withSettled(response.data.data);
 };
