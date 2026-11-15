@@ -304,6 +304,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const is_repeating = repeat_mode !== 'none';
 	const repeat_count = Number(values.repeat_count);
 	const installments = Number(values.installments);
+	const installment_total_value = Number(MoneyUtils.unformatMoney(values.value));
+	const installment_split = repeat_mode === 'installment' && installments >= 2 && installment_total_value > 0
+		? RecurrenceUtils.splitInstallments(installment_total_value, installments)
+		: null;
 	const is_repeat_invalid = (repeat_mode === 'recurring' && values.repeat_ends === 'count' && !(repeat_count >= 2))
 		|| (repeat_mode === 'installment' && !(installments >= 2 && installments <= MAX_INSTALLMENTS));
 
@@ -474,7 +478,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					recurrence_type: repeat_mode === 'installment' ? 'installment' : 'recurring',
 					kind: effective_kind,
 					description,
-					value,
+					...(repeat_mode === 'installment' ? { total_value: value } : { value }),
 					start_date: RecurrenceUtils.toYmd(values.transaction_date),
 					frequency: values.frequency,
 					value_mode: values.value_varies ? 'estimated' : 'fixed',
@@ -678,7 +682,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						onChange={(e) => setValues((prev) => ({ ...prev, installments: e.target.value }))}
 						disabled={is_pending}
 					/>
-					<span className='text-xs text-muted-foreground'>Gera todas as parcelas, uma por fatura.</span>
+					<span className='text-xs text-muted-foreground'>
+						{installment_split
+							? `${ installments }x de ${ MoneyUtils.formatMoney(installment_split.installment) }${ installment_split.first !== installment_split.installment ? ` (1ª de ${ MoneyUtils.formatMoney(installment_split.first) })` : '' }, uma por fatura.`
+							: 'Gera todas as parcelas, uma por fatura.'}
+					</span>
 				</div>
 			)}
 		</div>
@@ -889,7 +897,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 						<TextInput
 							type='text'
-							label={repeat_mode === 'installment' ? 'Valor da parcela' : 'Valor'}
+							label={repeat_mode === 'installment' ? 'Valor total da compra' : 'Valor'}
 							name='value'
 							placeholder='R$ 0,00'
 							value={values.value}

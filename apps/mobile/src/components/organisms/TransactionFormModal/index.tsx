@@ -362,6 +362,10 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 	];
 	const repeat_count = Number(repeat.count);
 	const installments_count = Number(repeat.installments);
+	const installment_total_value = Number(MoneyUtils.unformatMoney(values.value));
+	const installment_split = repeat_mode === 'installment' && installments_count >= 2 && installment_total_value > 0
+		? RecurrenceUtils.splitInstallments(installment_total_value, installments_count)
+		: null;
 	const is_repeat_invalid = (
 		(repeat_mode === 'recurring' && repeat.ends === 'count' && !(repeat_count >= 2)) ||
 		(repeat_mode === 'installment' && !(installments_count >= 2 && installments_count <= 48))
@@ -483,7 +487,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					recurrence_type: is_installment ? 'installment' : 'recurring',
 					kind: effective_kind,
 					description,
-					value,
+					...(is_installment ? { total_value: value } : { value }),
 					start_date: toISODate(values.transaction_date),
 					frequency: is_installment ? 'monthly' : repeat.frequency,
 					occurrences_total: is_installment ? installments_count : recurring_total,
@@ -749,7 +753,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 							keyboardType='numeric'
 						/>
 					</ThemedView>
-					<ThemedText style={styles.repeatHint}>Gera todas as parcelas, uma por fatura.</ThemedText>
+					<ThemedText style={styles.repeatHint}>
+						{installment_split
+							? `${ installments_count }x de ${ MoneyUtils.formatMoney(installment_split.installment) }${ installment_split.first !== installment_split.installment ? ` (1ª de ${ MoneyUtils.formatMoney(installment_split.first) })` : '' }, uma por fatura.`
+							: 'Gera todas as parcelas, uma por fatura.'}
+					</ThemedText>
 				</>
 			)}
 		</ThemedView>
@@ -833,7 +841,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={styles.formGroup}>
 					<ThemedTextInput
-						label={repeat_mode === 'installment' && !is_editing ? 'Valor da parcela *' : 'Valor *'}
+						label={repeat_mode === 'installment' && !is_editing ? 'Valor total da compra *' : 'Valor *'}
 						value={values.value}
 						onChangeText={(text) => setValues({ ...values, value: MoneyUtils.formatMoney(text) })}
 						placeholder='R$ 0,00'

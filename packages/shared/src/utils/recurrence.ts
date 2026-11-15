@@ -60,4 +60,11 @@ export const RecurrenceUtils = {
 
 	isInstallmentOccurrence: (transaction: Pick<TTransaction, 'recurrence_id' | 'recurrence_type'>) =>
 		Boolean(transaction.recurrence_id) && transaction.recurrence_type === 'installment',
+
+	/* Divisão de uma compra parcelada como nos bancos (espelha o backend): parcela = total ÷ nº de parcelas
+	 * arredondado para baixo; os centavos que sobram vão na 1ª. R$ 3.707,93 em 10x = 370,82 + 9 × 370,79. */
+	splitInstallments: (total: number, count: number) => {
+		const installment = Math.floor(total / count);
+		return { first: installment + (total - (installment * count)), installment };
+	},
 };

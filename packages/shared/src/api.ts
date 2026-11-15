@@ -200,7 +200,10 @@ export type TRecurrenceBody = {
 	kind: TTransactionKind;
 	description: string;
 	/* Valor de cada ocorrência (em parcelada, de cada parcela), em centavos. */
-	value: number;
+	value?: number;
+	/* Só em parcelada: valor total da compra, em centavos. O backend divide pelo nº de parcelas e põe a sobra
+	 * dos centavos na 1ª, como os bancos. Alterar só `value` depois descarta o total. */
+	total_value?: number | null;
 	value_mode?: TRecurrenceValueMode;
 	frequency?: TRecurrenceFrequency;
 	interval?: number;
