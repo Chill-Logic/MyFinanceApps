@@ -386,3 +386,40 @@ export type TInvite = WithModelFields<{
 	wallet_name: string;
 	owner_name: string;
 }>;
+
+export type TClaudeSessionScope = 'read' | 'read_write';
+
+/* `pending` = autorizada na tela de consentimento, mas o Claude ainda não trocou o código por token. */
+export type TClaudeSessionStatus = 'pending' | 'active' | 'expired' | 'revoked';
+
+/* Conexão do Claude (conector MCP) do usuário. Não tem `updated_at`/`discarded_at`: revogar é `revoked_at`. */
+export type TClaudeSession = {
+	id: string;
+	name: string;
+	scope: TClaudeSessionScope;
+	status: TClaudeSessionStatus;
+	token_hint: string | null;
+	client_name: string | null;
+	expires_at: string;
+	last_used_at: string | null;
+	last_used_ip: string | null;
+	revoked_at: string | null;
+	created_at: string;
+};
+
+export type TClaudeToolCallStatus = 'success' | 'denied' | 'not_found' | 'invalid' | 'error';
+
+/* Uma ferramenta executada pelo Claude numa conexão (auditoria). */
+export type TClaudeToolCall = {
+	id: string;
+	tool: string;
+	tool_title: string;
+	kind: 'read' | 'write';
+	arguments: Record<string, unknown>;
+	status: TClaudeToolCallStatus;
+	http_status: number | null;
+	error_message: string | null;
+	record_id: string | null;
+	duration_ms: number | null;
+	created_at: string;
+};

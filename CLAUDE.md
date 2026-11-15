@@ -1112,3 +1112,18 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
   `RecurrenceList`/`RecurrenceFormModal`): filtro Recorrentes/Parceladas, editar a regra inteira, excluir (para
   de gerar; as previstas de hoje em diante saem). Não há "nova recorrência" ali — nasce no formulário.
 - Mutações de transação invalidam também `recurrence.get_all` (a "próxima ocorrência" muda).
+
+## Conexões com o Claude (MCP)
+
+O backend expõe um servidor MCP (`<API>/mcp`, OAuth 2.1 com tela de consentimento servida pela própria API —
+ver o `CLAUDE.md` do my-finance-api). Os apps só **gerenciam** as conexões, via `GET /v1/claude_sessions`
+(lista + `mcp_url`), `GET /v1/claude_sessions/:id/tool_calls` (auditoria) e `DELETE /v1/claude_sessions/:id`
+(revoga). Contrato em `packages/shared` (`TClaudeSession`/`TClaudeToolCall`, fetchers `claudeSessions.ts`,
+`QUERY_KEYS.claude_session`) e rótulos/regras em `ClaudeSessionUtils` (status, acesso, "último uso",
+validade; `isRevocable` = `active`/`pending`).
+- **Web**: folha "Conexões com o Claude" nas Configurações (`organisms/ClaudeConnections`) — endereço do MCP
+  com copiar, conexões atuais e "Revogadas e expiradas", diálogo de Atividade e `AlertDialog` para revogar.
+- **Mobile**: seção "Integrações" nas Configurações (`WalletsSettingsScreen`) abre o
+  `ClaudeConnectionsModal` (lista, sub-visão de Atividade dentro do modal, revogar por `Alert.alert`). O
+  endereço é `selectable` + botão de compartilhar (`Share` do RN) — **sem `expo-clipboard`** de propósito,
+  para não introduzir dependência nativa (exigiria build novo e bump de `version`, não só OTA).

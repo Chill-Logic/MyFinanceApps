@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -298,6 +298,17 @@ export type TVersionResponse = {
 	hash: string;
 	date: string;
 	branch: string;
+};
+
+/* `mcp_url` = URL do servidor MCP para colar no Claude (Conectores → Adicionar conector personalizado). */
+export type TIndexClaudeSessionsResponse = TPaginatedResponse<TClaudeSession> & {
+	mcp_url: string;
+};
+
+export type TIndexClaudeToolCallsResponse = TPaginatedResponse<TClaudeToolCall>;
+
+export type TRevokeClaudeSessionResponse = TMessageResponse & {
+	data: TClaudeSession;
 };
 
 export type TMutationParams<TResponse, TBody, TComplements = {}> = {

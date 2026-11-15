@@ -9,3 +9,4 @@ export * from './creditCards';
 export * from './core';
 export * from './bankConnections';
 export * from './recurrences';
+export * from './claudeSessions';

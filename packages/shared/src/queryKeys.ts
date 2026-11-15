@@ -10,6 +10,7 @@ enum MODELS {
 	bank_account_link = 'bank_account_link',
 	bank_import = 'bank_import',
 	recurrence = 'recurrence',
+	claude_session = 'claude_session',
 }
 
 export const QUERY_KEYS = {
@@ -51,5 +52,9 @@ export const QUERY_KEYS = {
 	},
 	[MODELS.bank_import]: {
 		get_all: 'get-all-bank-imports',
+	},
+	[MODELS.claude_session]: {
+		get_all: 'get-all-claude-sessions',
+		get_tool_calls: 'get-claude-session-tool-calls',
 	},
 };

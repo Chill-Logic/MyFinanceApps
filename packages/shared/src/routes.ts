@@ -84,6 +84,11 @@ export const API_ROUTES = {
 		acceptInvite: (id: string | number) => `/user_wallets/${ id }/accept`,
 		rejectInvite: (id: string | number) => `/user_wallets/${ id }/reject`,
 	},
+	claudeSessions: {
+		index: '/claude_sessions',
+		toolCalls: (id: string | number) => `/claude_sessions/${ id }/tool_calls`,
+		revoke: (id: string | number) => `/claude_sessions/${ id }`,
+	},
 	core: {
 		enumOptions: (entity: string, type: string) => `/core/enums/options/${ entity }/${ type }`,
 		version: '/core/version',
