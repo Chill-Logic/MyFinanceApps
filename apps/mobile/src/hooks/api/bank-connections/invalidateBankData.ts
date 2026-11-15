@@ -15,7 +15,8 @@ export const invalidateBankData = () => {
 		QUERY_KEYS.credit_card.get_all,
 		QUERY_KEYS.transaction.get_all,
 		QUERY_KEYS.transaction.get_pending_reviews,
-		QUERY_KEYS.transaction.get_pending_installment_reviews,
+		QUERY_KEYS.recurrence.get_all,
+		QUERY_KEYS.transaction.get_pending_matches,
 		QUERY_KEYS.wallet.get_main,
 		QUERY_KEYS.wallet.get_all,
 	].forEach((key) => queryClient.invalidateQueries({ queryKey: [ key ] }));

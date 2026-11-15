@@ -68,51 +68,116 @@ export type TTransaction = WithModelFields<{
 	 * não realoca mais; `null` = não precisa de revisão.
 	 */
 	invoice_review: TInvoiceReview | null;
-	/*
-	 * Última edição feita pelo usuário numa transação importada; `null` = nunca editada. A rotina ("Atualizar")
-	 * não sobrescreve transações editadas.
-	 */
+	/* Último toque do usuário (edição, efetivação, exclusão); `null` = nunca mexeu. */
 	user_edited_at: string | null;
+	/*
+	 * Campos que o usuário editou (ou herdados do lançamento manual que a transação do banco substituiu). A
+	 * sincronização bancária e a regra da recorrência continuam atualizando os outros, nunca estes.
+	 */
+	user_edited_fields: string[];
 	/* Descrição original do banco (a `description` pode ter sido editada). `null` = lançada à mão. */
 	external_description: string | null;
 	/* Parcelamento: "n/total". `null` em compra à vista ou lançada à mão sem parcela. */
 	installment_number: number | null;
 	installment_total: number | null;
-	/* Identifica a compra parcelada (todas as parcelas de uma mesma compra compartilham o grupo). */
-	installment_group: string | null;
 	/*
-	 * `pending` = o sync não soube a qual compra parcelada esta parcela pertence e escolheu uma sugestão (o
-	 * usuário confirma em `resolveInstallmentReview`); `resolved` = confirmado; `null` = sem revisão.
+	 * Recorrência (assinatura, salário...) ou compra parcelada de que esta transação é uma ocorrência, e o
+	 * número dela (em parcelas, o número da parcela). `null` = avulsa.
 	 */
-	installment_review: TInstallmentReview | null;
+	recurrence_id: string | null;
+	recurrence_index: number | null;
+	recurrence_type: TRecurrenceType | null;
 	/*
-	 * "Parcela prevista": criada pela integração porque o banco ainda não lançou essa parcela; é substituída
-	 * quando a real chegar. A descrição já vem com o sufixo "(n/total)".
+	 * Ocorrência PREVISTA: gerada pela recorrência (ou parcela que o banco ainda não lançou). Entra no
+	 * previsto; vira `false` ao efetivar, e é substituída quando a transação do banco chega.
 	 */
-	projected_installment: boolean;
+	projected: boolean;
+	/*
+	 * Só em transações do banco: `pending` = o sync achou algo parecido já lançado (manual, prevista ou outra
+	 * compra parcelada) mas não teve certeza de juntar — o usuário decide em `resolveMatch`.
+	 */
+	match_review: TMatchReview | null;
 	/* Crédito sincronizado que é pagamento de fatura; estornos e outros créditos vêm `false`. */
 	bill_payment: boolean;
 }>;
 
-export type TInstallmentReview = 'pending' | 'resolved';
+export type TMatchReview = 'pending' | 'resolved';
 
-/* Compra parcelada candidata para uma parcela pendente de revisão. `value` em centavos. */
-export type TInstallmentCandidate = {
-	/* O valor a mandar em `resolveInstallmentReview`. */
-	installment_group: string;
+/*
+ * Candidato de uma pendência de conciliação. `transaction` = algo já lançado (manual, prevista de recorrência
+ * ou sincronizada com id antigo) — escolher junta as duas; `recurrence` = compra parcelada a que a parcela
+ * pode pertencer. `id` é o que vai em `resolveMatch`. Valores em centavos.
+ */
+export type TMatchCandidate = {
+	id: string;
+	type: 'transaction' | 'recurrence';
 	description: string;
-	installment_total: number;
-	/* Números das parcelas dessa compra que já chegaram do banco. */
-	known_installments: number[];
 	value: number;
-	/* "YYYY-MM" do mês da compra. */
-	purchase_month: string;
 	suggested: boolean;
+	/* Só em `transaction`. */
+	transaction_date?: string;
+	settled_date?: string | null;
+	projected?: boolean;
+	recurrence_id?: string | null;
+	bank_synced?: boolean;
+	/* Só em `recurrence`. */
+	installment_total?: number;
+	known_installments?: number[];
+	/* "YYYY-MM" do mês da compra. */
+	purchase_month?: string;
+	same_description?: boolean;
 };
 
-export type TPendingInstallmentReview = TTransaction & {
-	installment_candidates: TInstallmentCandidate[];
+export type TPendingMatchReview = TTransaction & {
+	match_candidates: TMatchCandidate[];
 };
+
+export type TRecurrenceType = 'recurring' | 'installment';
+
+export type TRecurrenceFrequency = 'weekly' | 'monthly' | 'yearly';
+
+export type TRecurrenceValueMode = 'fixed' | 'estimated';
+
+/*
+ * Lançamento que se repete (assinatura, salário, aluguel) ou compra parcelada no cartão. Gera ocorrências
+ * PREVISTAS (`TTransaction.projected`) — 12 meses à frente nas recorrências, até a última nas parcelas.
+ */
+export type TRecurrence = WithModelFields<{
+	recurrence_type: TRecurrenceType;
+	translated_recurrence_type: string;
+	/* `bank` = compra parcelada criada pela sincronização bancária. */
+	origin: 'manual' | 'bank';
+	kind: TTransactionKind;
+	translated_kind: string;
+	description: string;
+	/* Descrição que o banco usa para esta recorrência (aprendida na primeira conciliação). */
+	external_description: string | null;
+	/* Valor de cada ocorrência, em centavos. */
+	value: number;
+	/* `estimated` = varia (conta de luz, salário variável): as próximas seguem o último valor real. */
+	value_mode: TRecurrenceValueMode;
+	frequency: TRecurrenceFrequency;
+	translated_frequency: string;
+	/* A cada quantas frequências (2 + weekly = quinzenal). */
+	interval: number;
+	/* YYYY-MM-DD da primeira ocorrência. */
+	start_date: string;
+	end_date: string | null;
+	/* Quantidade de ocorrências (em parcelada, o número de parcelas). */
+	occurrences_total: number | null;
+	source_type: TTransactionSourceType;
+	source_id: string;
+	source_name: string;
+	credit_card_id: string | null;
+	destination_account_id: string | null;
+	user_id: string;
+	wallet_id: string;
+	/* Última ocorrência confirmada (em parcelas, a última lançada pelo banco). */
+	anchor_index: number | null;
+	anchor_date: string | null;
+	/* Próxima ocorrência prevista, de hoje em diante. */
+	next_occurrence: { id: string; transaction_date: string; value: number } | null;
+}>;
 
 export type TInvoiceReview = 'pending' | 'resolved';
 
@@ -152,6 +217,8 @@ export type TAccount = WithModelFields<{
 	balance: number;
 	/* `true` = há uma conta de banco (Pluggy) vinculada a esta conta (`TBankAccountLink` com status `linked`). */
 	bank_linked: boolean;
+	/* Transações do banco aguardando o usuário decidir se são algo já lançado (`TTransaction.match_review`). */
+	pending_match_reviews_count: number;
 }>;
 
 /*
@@ -194,8 +261,8 @@ export type TCreditBalance = WithModelFields<{
 	current_invoice: TCurrentInvoice;
 	/* Pagamentos/estornos sincronizados aguardando o usuário confirmar a fatura (`TTransaction.invoice_review`). */
 	pending_invoice_reviews_count: number;
-	/* Parcelas sincronizadas aguardando o usuário confirmar a compra (`TTransaction.installment_review`). */
-	pending_installment_reviews_count: number;
+	/* Transações do banco aguardando o usuário decidir se são algo já lançado (`TTransaction.match_review`). */
+	pending_match_reviews_count: number;
 	/* `true` = há um cartão de banco (Pluggy) vinculado a este crédito (`TBankAccountLink` com status `linked`). */
 	bank_linked: boolean;
 }>;
@@ -260,6 +327,8 @@ export type TBankImport = WithModelFields<{
 	updated_count: number;
 	discarded_count: number;
 	skipped_count: number;
+	/* Transações do banco que substituíram algo já lançado (prevista de recorrência ou lançamento manual). */
+	matched_count: number;
 	error_message: string | null;
 	undone_at: string | null;
 	undoable: boolean;
@@ -317,3 +386,40 @@ export type TInvite = WithModelFields<{
 	wallet_name: string;
 	owner_name: string;
 }>;
+
+export type TClaudeSessionScope = 'read' | 'read_write';
+
+/* `pending` = autorizada na tela de consentimento, mas o Claude ainda não trocou o código por token. */
+export type TClaudeSessionStatus = 'pending' | 'active' | 'expired' | 'revoked';
+
+/* Conexão do Claude (conector MCP) do usuário. Não tem `updated_at`/`discarded_at`: revogar é `revoked_at`. */
+export type TClaudeSession = {
+	id: string;
+	name: string;
+	scope: TClaudeSessionScope;
+	status: TClaudeSessionStatus;
+	token_hint: string | null;
+	client_name: string | null;
+	expires_at: string;
+	last_used_at: string | null;
+	last_used_ip: string | null;
+	revoked_at: string | null;
+	created_at: string;
+};
+
+export type TClaudeToolCallStatus = 'success' | 'denied' | 'not_found' | 'invalid' | 'error';
+
+/* Uma ferramenta executada pelo Claude numa conexão (auditoria). */
+export type TClaudeToolCall = {
+	id: string;
+	tool: string;
+	tool_title: string;
+	kind: 'read' | 'write';
+	arguments: Record<string, unknown>;
+	status: TClaudeToolCallStatus;
+	http_status: number | null;
+	error_message: string | null;
+	record_id: string | null;
+	duration_ms: number | null;
+	created_at: string;
+};

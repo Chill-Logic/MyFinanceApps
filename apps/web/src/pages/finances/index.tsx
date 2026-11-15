@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { CreditCard, Link2, Wallet } from 'lucide-react';
+import { CreditCard, Link2, Repeat, Wallet } from 'lucide-react';
 
 import { useCurrentUserContext } from '@/context/current_user';
 
@@ -10,8 +10,9 @@ import SegmentedControl from '@/components/molecules/SegmentedControl';
 import AccountList from '@/components/organisms/AccountList';
 import BankConnectionList from '@/components/organisms/BankConnectionList';
 import CreditBalanceList from '@/components/organisms/CreditBalanceList';
+import RecurrenceList from '@/components/organisms/RecurrenceList';
 
-const TAB_VALUES = [ 'accounts', 'cards', 'connections' ] as const;
+const TAB_VALUES = [ 'accounts', 'cards', 'recurrences', 'connections' ] as const;
 
 type TTab = typeof TAB_VALUES[number];
 
@@ -20,6 +21,7 @@ const initialTab = (value: string | null): TTab => (TAB_VALUES.includes(value as
 const TABS = [
 	{ value: 'accounts', label: 'Contas', icon: Wallet },
 	{ value: 'cards', label: 'Cartões', icon: CreditCard },
+	{ value: 'recurrences', label: 'Recorrências', icon: Repeat },
 ];
 
 /* Só para usuários liberados na integração bancária (Pluggy em período de testes). */
@@ -45,6 +47,7 @@ const FinancesPage = () => {
 
 			{active_tab === 'accounts' && <AccountList />}
 			{active_tab === 'cards' && <CreditBalanceList />}
+			{active_tab === 'recurrences' && <RecurrenceList />}
 			{active_tab === 'connections' && <BankConnectionList />}
 		</div>
 	);

@@ -1,13 +1,29 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { DateUtils, getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, TransactionUtils, type TTransaction, type TTransactionKind, type TTransactionSourceType } from '@myfinance/shared';
-import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, UserRound, Wallet, X } from 'lucide-react';
+import {
+	DateUtils,
+	getApiErrorMessage,
+	MONTH_NAMES_PT,
+	MoneyUtils,
+	RECURRENCE_FREQUENCY_OPTIONS,
+	RecurrenceUtils,
+	TransactionUtils,
+	type TRecurrenceFrequency,
+	type TRepeatMode,
+	type TTransaction,
+	type TTransactionKind,
+	type TTransactionSourceType,
+	type TUpdateTransactionBody,
+} from '@myfinance/shared';
+import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, Repeat, UserRound, Wallet, X } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
+import { useCreateRecurrence } from '@/hooks/api/recurrences/useCreateRecurrence';
+import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
 import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
@@ -20,6 +36,18 @@ import { cn } from '@/lib/utils';
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
 import DateTimeField from '@/components/molecules/DateTimeField';
+import SegmentedControl from '@/components/molecules/SegmentedControl';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import Checkbox from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FIELD_METRICS } from '@/components/ui/field';
@@ -53,6 +81,16 @@ type TFormValues = {
 	destination_account_id: string;
 	/* Autor ("Responsável"): um dos participantes da carteira. Vazio = o backend usa o usuário logado. */
 	user_id: string;
+	/* "Repetir" (só na criação): `none` = transação avulsa; senão vira uma recorrência/compra parcelada. */
+	repeat_mode: TRepeatMode;
+	frequency: TRecurrenceFrequency;
+	/* Recorrente: termina nunca ou após `repeat_count` vezes. */
+	repeat_ends: 'never' | 'count';
+	repeat_count: string;
+	/* "Valor varia" (conta de luz, salário) → `value_mode: 'estimated'`. */
+	value_varies: boolean;
+	/* Parcelado: número de parcelas. */
+	installments: string;
 };
 
 /* Sentinela do "deixa o backend decidir" — o Select do Radix não aceita item com value vazio. */
@@ -70,7 +108,15 @@ const buildDefaultValues = (suggestedDate?: Date, origin = '', user_id = ''): TF
 	draft: false,
 	destination_account_id: '',
 	user_id,
+	repeat_mode: 'none',
+	frequency: 'monthly',
+	repeat_ends: 'never',
+	repeat_count: '12',
+	value_varies: false,
+	installments: '2',
 });
+
+const MAX_INSTALLMENTS = 48;
 
 /* "YYYY-MM" de um Date, no fuso local — o formato do `invoice_month`. */
 const monthKey = (date: Date): string =>
@@ -118,6 +164,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
+	const { mutate: createRecurrenceMutation, isPending: is_create_recurrence_pending } = useCreateRecurrence();
+	const { mutate: updateRecurrenceMutation, isPending: is_update_recurrence_pending } = useUpdateRecurrence();
+	/* Edição de ocorrência de recorrência que mudou descrição/valor: guarda o body até o usuário escolher o escopo. */
+	const [ pending_scope_body, setPendingScopeBody ] = useState<TUpdateTransactionBody | null>(null);
 	const { data: kind_options } = useEnumOptions({ entity: 'transaction', type: 'kind' });
 
 	const [ values, setValues ] = useState<TFormValues>(buildDefaultValues(suggestedDate, default_origin, current_user_id));
@@ -214,6 +264,12 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				draft: transaction.draft,
 				destination_account_id: transaction.destination_account_id || '',
 				user_id: transaction.user_id,
+				repeat_mode: 'none',
+				frequency: 'monthly',
+				repeat_ends: 'never',
+				repeat_count: '12',
+				value_varies: false,
+				installments: '2',
 			});
 		} else {
 			setOriginType(defaultSourceType ?? null);
@@ -243,13 +299,28 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		}
 	}, [ is_credit, single_card_id ]);
 
-	const is_pending = is_create_pending || is_update_pending;
+	/* Parcelado só existe em cartão: se a origem deixou de ser cartão, volta pra "Não repete". */
+	const repeat_mode: TRepeatMode = is_editing || (!is_credit && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
+	const is_repeating = repeat_mode !== 'none';
+	const repeat_count = Number(values.repeat_count);
+	const installments = Number(values.installments);
+	const is_repeat_invalid = (repeat_mode === 'recurring' && values.repeat_ends === 'count' && !(repeat_count >= 2))
+		|| (repeat_mode === 'installment' && !(installments >= 2 && installments <= MAX_INSTALLMENTS));
+
+	const is_pending = is_create_pending || is_update_pending || is_create_recurrence_pending || is_update_recurrence_pending;
 	const is_submit_disabled = is_pending
 		|| !values.value
 		|| (!is_transfer && !values.description.trim())
 		|| (!is_editing && !values.origin)
 		|| (is_credit && !values.credit_card_id)
-		|| (is_transfer && !values.destination_account_id);
+		|| (is_transfer && !values.destination_account_id)
+		|| is_repeat_invalid;
+
+	const repeat_segments = [
+		{ value: 'none', label: 'Não repete' },
+		{ value: 'recurring', label: 'Recorrente' },
+		...(is_credit ? [ { value: 'installment', label: 'Parcelado' } ] : []),
+	];
 
 	/*
 	 * Etapa 1 → 2: escolhe o tipo e, se só houver uma origem daquele tipo, já a pré-seleciona. Transferência
@@ -368,24 +439,52 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			/* Saindo de um crédito pra uma conta, '' desvincula o cartão antigo. */
 			const unlinked_card_id = origin_changed ? '' : undefined;
 
-			updateTransactionMutation({
+			const body: TUpdateTransactionBody = {
+				kind: effective_kind,
+				description,
+				value,
+				transaction_date,
+				settled_date,
+				credit_card_id: is_credit ? values.credit_card_id : unlinked_card_id,
+				/* Mudar o kind pra entrada/saída zera o destino no backend — só mandamos em transferência. */
+				destination_account_id: is_transfer ? values.destination_account_id : undefined,
+				invoice_month: is_credit ? chosen_invoice_month : undefined,
+				draft: values.draft,
+				user_id: values.user_id !== transaction.user_id ? values.user_id : undefined,
+				...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
+			};
+
+			/* Ocorrência de recorrência com descrição/valor novos: pergunta se vale só pra ela ou pras próximas. */
+			const rule_changed = description !== transaction.description || value !== transaction.value;
+			if (RecurrenceUtils.isRecurringOccurrence(transaction) && rule_changed) {
+				setPendingScopeBody(body);
+				return;
+			}
+
+			updateOnlyThis(body);
+			return;
+		}
+
+		if (is_repeating) {
+			const recurring_total = values.repeat_ends === 'count' ? repeat_count : null;
+			createRecurrenceMutation({
 				body: {
+					source_type: source_type as TTransactionSourceType,
+					source_id,
+					recurrence_type: repeat_mode === 'installment' ? 'installment' : 'recurring',
 					kind: effective_kind,
 					description,
 					value,
-					transaction_date,
-					settled_date,
-					credit_card_id: is_credit ? values.credit_card_id : unlinked_card_id,
-					/* Mudar o kind pra entrada/saída zera o destino no backend — só mandamos em transferência. */
+					start_date: RecurrenceUtils.toYmd(values.transaction_date),
+					frequency: values.frequency,
+					value_mode: values.value_varies ? 'estimated' : 'fixed',
+					occurrences_total: repeat_mode === 'installment' ? installments : recurring_total,
+					credit_card_id: is_credit ? values.credit_card_id : undefined,
 					destination_account_id: is_transfer ? values.destination_account_id : undefined,
-					invoice_month: is_credit ? chosen_invoice_month : undefined,
-					draft: values.draft,
-					user_id: values.user_id !== transaction.user_id ? values.user_id : undefined,
-					...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
+					user_id: values.user_id || undefined,
 				},
-				id: transaction.id,
-				onSuccess: () => finalize('Transação atualizada!'),
-				onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar transação')),
+				onSuccess: () => finalize(repeat_mode === 'installment' ? 'Compra parcelada criada!' : 'Recorrência criada!'),
+				onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar a recorrência')),
 			});
 			return;
 		}
@@ -408,6 +507,54 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			onSuccess: () => finalize('Transação criada!'),
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
 		});
+	};
+
+	const updateOnlyThis = (body: TUpdateTransactionBody) => {
+		if (!transaction) return;
+
+		updateTransactionMutation({
+			body,
+			id: transaction.id,
+			onSuccess: () => finalize('Transação atualizada!'),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar transação')),
+		});
+	};
+
+	/*
+	 * "Esta e as próximas": a regra passa a valer desta ocorrência em diante (o backend divide a recorrência).
+	 * Prevista é regerada pela regra nova; já confirmada recebe também o update dela própria.
+	 */
+	const updateThisAndFollowing = (body: TUpdateTransactionBody) => {
+		if (!transaction?.recurrence_id) return;
+
+		const updateRule = () => updateRecurrenceMutation({
+			id: transaction.recurrence_id!,
+			body: { description: body.description, value: body.value },
+			effective_from: RecurrenceUtils.occurrenceDate(transaction),
+			onSuccess: () => finalize('Esta e as próximas atualizadas!'),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar a recorrência')),
+		});
+
+		if (transaction.projected) {
+			updateRule();
+			return;
+		}
+
+		updateTransactionMutation({
+			body,
+			id: transaction.id,
+			onSuccess: updateRule,
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar transação')),
+		});
+	};
+
+	const chooseScope = (scope: 'this' | 'following') => {
+		const body = pending_scope_body;
+		setPendingScopeBody(null);
+		if (!body) return;
+
+		if (scope === 'this') updateOnlyThis(body);
+		else updateThisAndFollowing(body);
 	};
 
 	const origin_label = (() => {
@@ -443,6 +590,98 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				{renderAmountHint(type, origin_item.id)}
 			</span>
 		</SelectItem>
+	);
+
+	/*
+	 * "Repetir" (só na criação). Recorrente: frequência, término e "valor varia"; parcelado (só cartão):
+	 * número de parcelas — o valor digitado passa a ser o da parcela. Com repetição o lançamento vira uma
+	 * recorrência: as ocorrências futuras entram como PREVISTAS e somem "Pago em", rascunho e fatura manual.
+	 */
+	const renderRepeat = () => (
+		<div className='flex flex-col gap-2'>
+			<label className='flex items-center gap-1.5 text-sm font-medium'>
+				<Repeat className='h-3.5 w-3.5' />
+				Repetir
+			</label>
+			<SegmentedControl
+				segments={repeat_segments}
+				value={repeat_mode}
+				onChange={(next) => setValues((prev) => ({ ...prev, repeat_mode: next as TRepeatMode }))}
+			/>
+
+			{repeat_mode === 'recurring' && (
+				<div className='flex flex-col gap-3'>
+					<div className='flex gap-4'>
+						<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+							<label className='text-sm font-medium'>Frequência</label>
+							<Select value={values.frequency} disabled={is_pending} onValueChange={(next) => next && setValues((prev) => ({ ...prev, frequency: next as TRecurrenceFrequency }))}>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{RECURRENCE_FREQUENCY_OPTIONS.map((option) => (
+										<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
+							<label className='text-sm font-medium'>Termina</label>
+							<Select value={values.repeat_ends} disabled={is_pending} onValueChange={(next) => next && setValues((prev) => ({ ...prev, repeat_ends: next as 'never' | 'count' }))}>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value='never'>Nunca</SelectItem>
+									<SelectItem value='count'>Após N vezes</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+
+					{values.repeat_ends === 'count' && (
+						<TextInput
+							type='number'
+							label='Quantas vezes'
+							name='repeat_count'
+							min={2}
+							value={values.repeat_count}
+							onChange={(e) => setValues((prev) => ({ ...prev, repeat_count: e.target.value }))}
+							disabled={is_pending}
+						/>
+					)}
+
+					<label className='flex items-center gap-2 text-sm'>
+						<Checkbox
+							checked={values.value_varies}
+							disabled={is_pending}
+							onCheckedChange={(checked) => setValues((prev) => ({ ...prev, value_varies: checked === true }))}
+						/>
+						<span>Valor varia <span className='text-muted-foreground'>— ex.: conta de luz, salário</span></span>
+					</label>
+
+					<span className='text-xs text-muted-foreground'>
+						As próximas ocorrências entram como previstas e são confirmadas sozinhas quando o banco trouxer a transação.
+					</span>
+				</div>
+			)}
+
+			{repeat_mode === 'installment' && (
+				<div className='flex flex-col gap-1.5'>
+					<TextInput
+						type='number'
+						label='Número de parcelas'
+						name='installments'
+						min={2}
+						max={MAX_INSTALLMENTS}
+						value={values.installments}
+						onChange={(e) => setValues((prev) => ({ ...prev, installments: e.target.value }))}
+						disabled={is_pending}
+					/>
+					<span className='text-xs text-muted-foreground'>Gera todas as parcelas, uma por fatura.</span>
+				</div>
+			)}
+		</div>
 	);
 
 	const dialog_title = transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova transação';
@@ -650,7 +889,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 						<TextInput
 							type='text'
-							label='Valor'
+							label={repeat_mode === 'installment' ? 'Valor da parcela' : 'Valor'}
 							name='value'
 							placeholder='R$ 0,00'
 							value={values.value}
@@ -672,7 +911,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra
 						 * outra fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 						 */}
-						{is_credit && (
+						{!is_editing && renderRepeat()}
+
+						{is_credit && !is_repeating && (
 							<div className='flex flex-col gap-2'>
 								{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
 								    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
@@ -726,7 +967,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						)}
 
 						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
-						{!is_credit && (
+						{!is_credit && !is_repeating && (
 							<div className='flex flex-col gap-1.5'>
 								<label className='text-sm font-medium'>
 									Pago em <span className='font-normal text-muted-foreground'>— vazio = pendente</span>
@@ -789,15 +1030,17 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							</div>
 						)}
 
-						<div className='flex flex-col gap-2'>
-							<label className='flex items-center gap-2 text-sm'>
-								<Checkbox
-									checked={values.draft}
-									onCheckedChange={(checked) => setValues((prev) => ({ ...prev, draft: checked === true }))}
-								/>
-								<span>Rascunho <span className='text-muted-foreground'>— planejamento, fora dos totais</span></span>
-							</label>
-						</div>
+						{!is_repeating && (
+							<div className='flex flex-col gap-2'>
+								<label className='flex items-center gap-2 text-sm'>
+									<Checkbox
+										checked={values.draft}
+										onCheckedChange={(checked) => setValues((prev) => ({ ...prev, draft: checked === true }))}
+									/>
+									<span>Rascunho <span className='text-muted-foreground'>— planejamento, fora dos totais</span></span>
+								</label>
+							</div>
+						)}
 
 						<DialogFooter>
 							{/* Ação secundária: fica à esquerda no desktop (`mr-auto`) e por último no mobile, onde o rodapé empilha. */}
@@ -816,6 +1059,23 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					</form>
 				)}
 			</DialogContent>
+
+			<AlertDialog open={Boolean(pending_scope_body)} onOpenChange={(open) => !open && setPendingScopeBody(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Aplicar a…</AlertDialogTitle>
+						<AlertDialogDescription>
+							Esta transação é uma recorrência. A mudança de descrição/valor vale só para esta ou para esta e as próximas?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancelar</AlertDialogCancel>
+						{/* A ação padrão do AlertDialog é destrutiva (vermelha); aqui é uma edição, então usa os estilos normais. */}
+						<AlertDialogAction className={buttonVariants({ variant: 'outline' })} onClick={() => chooseScope('following')}>Esta e as próximas</AlertDialogAction>
+						<AlertDialogAction className={buttonVariants({ variant: 'default' })} onClick={() => chooseScope('this')}>Só esta</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</Dialog>
 	);
 };

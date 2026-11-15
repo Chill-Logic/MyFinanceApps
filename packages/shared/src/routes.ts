@@ -49,8 +49,15 @@ export const API_ROUTES = {
 		unsettle: (id: string | number) => `/transactions/${ id }/unsettle`,
 		pendingReviews: '/transactions/pending_reviews',
 		resolveReview: (id: string | number) => `/transactions/${ id }/resolve_review`,
-		pendingInstallmentReviews: '/transactions/pending_installment_reviews',
-		resolveInstallmentReview: (id: string | number) => `/transactions/${ id }/resolve_installment_review`,
+		pendingMatches: '/transactions/pending_matches',
+		resolveMatch: (id: string | number) => `/transactions/${ id }/resolve_match`,
+	},
+	recurrences: {
+		index: '/recurrences',
+		create: '/recurrences',
+		show: (id: string | number) => `/recurrences/${ id }`,
+		update: (id: string | number) => `/recurrences/${ id }`,
+		delete: (id: string | number) => `/recurrences/${ id }`,
 	},
 	bankConnections: {
 		index: '/bank_connections',
@@ -76,6 +83,11 @@ export const API_ROUTES = {
 		createInvite: '/user_wallets',
 		acceptInvite: (id: string | number) => `/user_wallets/${ id }/accept`,
 		rejectInvite: (id: string | number) => `/user_wallets/${ id }/reject`,
+	},
+	claudeSessions: {
+		index: '/claude_sessions',
+		toolCalls: (id: string | number) => `/claude_sessions/${ id }/tool_calls`,
+		revoke: (id: string | number) => `/claude_sessions/${ id }`,
 	},
 	core: {
 		enumOptions: (entity: string, type: string) => `/core/enums/options/${ entity }/${ type }`,

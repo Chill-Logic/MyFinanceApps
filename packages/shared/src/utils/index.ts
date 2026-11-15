@@ -5,3 +5,5 @@ export * from './money';
 export * from './text';
 export * from './transaction';
 export * from './bankConnection';
+export * from './recurrence';
+export * from './claudeSession';

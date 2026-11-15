@@ -18,11 +18,13 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { Toast } from 'react-native-toast-message/lib/src/Toast';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage, PROJECTED_INSTALLMENT_HELP, TransactionUtils, type TTransactionDirection } from '@myfinance/shared';
+import { colors, getApiErrorMessage, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TTransactionDirection } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIndexCreditBalances';
+import { useDeleteRecurrence } from '../../../hooks/api/recurrences/useDeleteRecurrence';
+import { useUpdateRecurrence } from '../../../hooks/api/recurrences/useUpdateRecurrence';
 import { useDeleteTransactions } from '../../../hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '../../../hooks/api/transactions/useListTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
@@ -45,8 +47,8 @@ import { ThemedTextInput } from '../../atoms/ThemedTextInput';
 import { ThemedView } from '../../atoms/ThemedView';
 
 import { QUERY_KEYS } from '../../../constants/QueryKeys';
-import { InstallmentReviewModal } from '../InstallmentReviewModal';
 import { InvoiceReviewModal } from '../InvoiceReviewModal';
+import { MatchReviewModal, TMatchReviewSource } from '../MatchReviewModal';
 import { TransactionDuplicateModal } from '../TransactionDuplicateModal';
 import { TransactionFormModal } from '../TransactionFormModal';
 
@@ -259,7 +261,7 @@ const TransactionsList = () => {
 	const [ duplicating_transaction, setDuplicatingTransaction ] = useState<TTransaction | null>(null);
 	const [ actions_transaction, setActionsTransaction ] = useState<TTransaction | null>(null);
 	const [ reviewing_source, setReviewingSource ] = useState<{ id: string; name: string } | null>(null);
-	const [ reviewing_installments_source, setReviewingInstallmentsSource ] = useState<{ id: string; name: string } | null>(null);
+	const [ reviewing_match_source, setReviewingMatchSource ] = useState<TMatchReviewSource | null>(null);
 	const [ is_totals_detail_open, setIsTotalsDetailOpen ] = useState(false);
 	/* IDs de cartão expandidos (fora do Set = fechado — accordions nascem fechados). */
 	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
@@ -310,6 +312,8 @@ const TransactionsList = () => {
 	});
 
 	const { mutate: deleteTransaction } = useDeleteTransactions();
+	const { mutate: updateRecurrenceMutation } = useUpdateRecurrence();
+	const { mutate: deleteRecurrenceMutation } = useDeleteRecurrence();
 
 	const { width: screen_width } = useWindowDimensions();
 	const translate_x = useRef(new Animated.Value(0)).current;
@@ -435,8 +439,67 @@ const TransactionsList = () => {
 		});
 	};
 
+	const showDeleteError = (error: Error | undefined, description: string) => Toast.show({
+		type: 'error',
+		text1: 'Erro ao excluir transação',
+		text2: getApiErrorMessage(error, `Não foi possível excluir a transação ${ description }`),
+	});
+
+	const deleteOnly = (transaction_to_delete: TTransaction) => {
+		deleteTransaction({
+			id: transaction_to_delete.id,
+			onSuccess: () => {
+				Toast.show({
+					type: 'success',
+					text1: 'Transação excluída com sucesso',
+					text2: `A transação ${ transaction_to_delete.description } foi excluída com sucesso`,
+				});
+			},
+			onError: (error) => showDeleteError(error, transaction_to_delete.description),
+		});
+	};
+
+	/*
+	 * "Esta e as próximas" numa ocorrência de recorrência: exclui esta e encerra a recorrência na véspera
+	 * dela (as previstas seguintes somem). Na 1ª ocorrência não há véspera dentro da regra: remove a recorrência.
+	 */
+	const deleteThisAndNext = (transaction_to_delete: TTransaction) => {
+		const recurrence_id = transaction_to_delete.recurrence_id!;
+		deleteTransaction({
+			id: transaction_to_delete.id,
+			onSuccess: () => {
+				const onSuccess = () => Toast.show({ type: 'success', text1: 'Ocorrências excluídas', text2: 'Esta e as próximas foram removidas' });
+				const onError = (error?: Error) => showDeleteError(error, transaction_to_delete.description);
+				if (transaction_to_delete.recurrence_index === 1) {
+					deleteRecurrenceMutation({ id: recurrence_id, onSuccess, onError });
+					return;
+				}
+				updateRecurrenceMutation({
+					id: recurrence_id,
+					body: { end_date: RecurrenceUtils.dayBefore(RecurrenceUtils.occurrenceDate(transaction_to_delete)) },
+					onSuccess,
+					onError,
+				});
+			},
+			onError: (error) => showDeleteError(error, transaction_to_delete.description),
+		});
+	};
+
 	const handleDeleteTransaction = (transaction_to_delete: TTransaction) => {
 		setTimeout(() => {
+			if (RecurrenceUtils.isRecurringOccurrence(transaction_to_delete)) {
+				Alert.alert(
+					'Excluir ocorrência',
+					`"${ transaction_to_delete.description }" se repete. O que deseja excluir?`,
+					[
+						{ text: 'Cancelar', style: 'cancel' },
+						{ text: 'Só esta', onPress: () => deleteOnly(transaction_to_delete) },
+						{ text: 'Esta e as próximas', style: 'destructive', onPress: () => deleteThisAndNext(transaction_to_delete) },
+					],
+				);
+				return;
+			}
+
 			Alert.alert(
 				'Excluir Transação',
 				`Deseja excluir "${ transaction_to_delete.description }"? Essa ação não pode ser desfeita.`,
@@ -448,25 +511,7 @@ const TransactionsList = () => {
 					{
 						text: 'Excluir',
 						style: 'destructive',
-						onPress: () => {
-							deleteTransaction({
-								id: transaction_to_delete.id,
-								onSuccess: () => {
-									Toast.show({
-										type: 'success',
-										text1: 'Transação excluída com sucesso',
-										text2: `A transação ${ transaction_to_delete.description } foi excluída com sucesso`,
-									});
-								},
-								onError: (error) => {
-									Toast.show({
-										type: 'error',
-										text1: 'Erro ao excluir transação',
-										text2: getApiErrorMessage(error, `Não foi possível excluir a transação ${ transaction_to_delete.description }`),
-									});
-								},
-							});
-						},
+						onPress: () => deleteOnly(transaction_to_delete),
 					},
 				],
 			);
@@ -525,20 +570,20 @@ const TransactionsList = () => {
 						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Fatura a confirmar</ThemedText>
 					</TouchableOpacity>
 				)}
-				{is_credit && transaction_item.installment_review === 'pending' && (
+				{transaction_item.match_review === 'pending' && (
 					<TouchableOpacity
-						onPress={() => setReviewingInstallmentsSource({ id: transaction_item.source_id, name: raw_source_label })}
+						onPress={() => setReviewingMatchSource({ type: transaction_item.source_type, id: transaction_item.source_id, name: raw_source_label })}
 						hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
 					>
-						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Parcela a confirmar</ThemedText>
+						<ThemedText style={[ styles.stateBadge, styles.pendingBadge ]}>Conferir</ThemedText>
 					</TouchableOpacity>
 				)}
-				{transaction_item.projected_installment && (
+				{transaction_item.projected && (
 					<TouchableOpacity
-						onPress={() => Toast.show({ type: 'info', text1: 'Parcela prevista', text2: PROJECTED_INSTALLMENT_HELP })}
+						onPress={() => Toast.show({ type: 'info', text1: 'Prevista', text2: PROJECTED_HELP })}
 						hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
 					>
-						<ThemedText style={[ styles.stateBadge, styles.draftBadge ]}>Parcela prevista</ThemedText>
+						<ThemedText style={[ styles.stateBadge, styles.draftBadge ]}>Prevista</ThemedText>
 					</TouchableOpacity>
 				)}
 				<View style={styles.userChip}>
@@ -581,7 +626,12 @@ const TransactionsList = () => {
 			{renderKindIcon(transaction_item)}
 
 			<ThemedView style={[ styles.transactionLeft, { backgroundColor: 'transparent' } ]}>
-				<ThemedText style={styles.transactionDescription} numberOfLines={1}>{transaction_item.description}</ThemedText>
+				<View style={styles.descriptionRow}>
+					{RecurrenceUtils.isRecurringOccurrence(transaction_item) && (
+						<Icon name='repeat' size={13} color={theme.colors.placeholder} />
+					)}
+					<ThemedText style={[ styles.transactionDescription, styles.descriptionText ]} numberOfLines={1}>{transaction_item.description}</ThemedText>
+				</View>
 				{renderTransactionMeta(transaction_item, hide_source)}
 				{renderDates(transaction_item)}
 			</ThemedView>
@@ -785,10 +835,10 @@ const TransactionsList = () => {
 				</Animated.View>
 			</ThemedView>
 
-			<InstallmentReviewModal
-				visible={Boolean(reviewing_installments_source)}
-				onClose={() => setReviewingInstallmentsSource(null)}
-				creditBalance={reviewing_installments_source}
+			<MatchReviewModal
+				visible={Boolean(reviewing_match_source)}
+				onClose={() => setReviewingMatchSource(null)}
+				source={reviewing_match_source}
 			/>
 			<InvoiceReviewModal
 				visible={Boolean(reviewing_source)}
@@ -1020,6 +1070,14 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		lineHeight: 18,
 		fontWeight: '600',
+	},
+	descriptionRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+	},
+	descriptionText: {
+		flexShrink: 1,
 	},
 	transactionValue: {
 		fontSize: 14,

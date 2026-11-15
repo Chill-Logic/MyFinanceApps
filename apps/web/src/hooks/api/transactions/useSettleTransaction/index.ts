@@ -16,6 +16,7 @@ export const useSettleTransaction = () => {
 		onSuccess: (data, { onSuccess }) => {
 			// Efetivar move o valor pro saldo efetivado (conta/carteira) e altera os totais do mês
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });

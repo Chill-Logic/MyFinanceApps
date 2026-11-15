@@ -15,6 +15,7 @@ import { ThemedText } from '../../components/atoms/ThemedText';
 import AuthenticatedLayout from '../../components/layouts/AuthenticatedLayout';
 import { AccountInfoFormModal } from '../../components/organisms/AccountInfoFormModal';
 import { AccountPasswordFormModal } from '../../components/organisms/AccountPasswordFormModal';
+import { ClaudeConnectionsModal } from '../../components/organisms/ClaudeConnectionsModal';
 
 const app_version = Constants.expoConfig?.version;
 
@@ -35,7 +36,8 @@ const formatVersionDate = (raw?: string) => {
 /**
  * Configurações do app (não mais da carteira — renomear/convidar/excluir carteira vivem no menu de
  * ações ⋮ de cada carteira, na MyWalletsScreen). Lista com "Conta" (Informações pessoais / Atualizar
- * senha, cada um abre um modal) e "Sobre" (versão do app + branch/commit/data da API).
+ * senha, cada um abre um modal), "Integrações" (Conexões com o Claude, modal) e "Sobre" (versão do
+ * app + branch/commit/data da API).
  */
 const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) => {
 	const { theme, mode, toggleTheme } = useTheme();
@@ -44,6 +46,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 
 	const [ is_info_open, setIsInfoOpen ] = useState(false);
 	const [ is_password_open, setIsPasswordOpen ] = useState(false);
+	const [ is_claude_open, setIsClaudeOpen ] = useState(false);
 
 	return (
 		<AuthenticatedLayout navigation={navigation}>
@@ -90,6 +93,20 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 					<Icon name='chevron-right' size={22} color={theme.colors.placeholder} />
 				</TouchableOpacity>
 
+				<ThemedText style={styles.sectionLabel}>Integrações</ThemedText>
+
+				<TouchableOpacity
+					style={[ styles.row, { backgroundColor: card_surface, borderColor: card_surface } ]}
+					onPress={() => setIsClaudeOpen(true)}
+				>
+					<Icon name='smart-toy' size={22} color={theme.colors.text} />
+					<View style={styles.rowInfo}>
+						<ThemedText style={styles.rowTitle}>Conexões com o Claude</ThemedText>
+						<ThemedText style={styles.rowDescription}>Acesso do Claude à sua conta</ThemedText>
+					</View>
+					<Icon name='chevron-right' size={22} color={theme.colors.placeholder} />
+				</TouchableOpacity>
+
 				<ThemedText style={styles.sectionLabel}>Sobre</ThemedText>
 
 				<View style={[ styles.aboutBox, { backgroundColor: card_surface, borderColor: card_surface } ]}>
@@ -108,6 +125,7 @@ const WalletsSettingsScreen = ({ navigation }: IScreenProps<'WalletsSettings'>) 
 
 			<AccountInfoFormModal visible={is_info_open} onClose={() => setIsInfoOpen(false)} />
 			<AccountPasswordFormModal visible={is_password_open} onClose={() => setIsPasswordOpen(false)} />
+			<ClaudeConnectionsModal visible={is_claude_open} onClose={() => setIsClaudeOpen(false)} />
 		</AuthenticatedLayout>
 	);
 };

@@ -16,7 +16,7 @@ export const useResolveInvoiceReview = () => {
 		onSuccess: (data, { onSuccess }) => {
 			[
 				QUERY_KEYS.transaction.get_pending_reviews,
-				QUERY_KEYS.transaction.get_pending_installment_reviews,
+				QUERY_KEYS.transaction.get_pending_matches,
 				QUERY_KEYS.transaction.get_all,
 				QUERY_KEYS.credit_balance.get_all,
 				QUERY_KEYS.credit_balance.get_invoice,

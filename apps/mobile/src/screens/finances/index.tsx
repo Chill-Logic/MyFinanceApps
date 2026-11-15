@@ -12,12 +12,14 @@ import AuthenticatedLayout from '../../components/layouts/AuthenticatedLayout';
 import { AccountList } from '../../components/organisms/AccountList';
 import { BankConnectionList } from '../../components/organisms/BankConnectionList';
 import { CreditBalanceList } from '../../components/organisms/CreditBalanceList';
+import { RecurrenceList } from '../../components/organisms/RecurrenceList';
 
-type TTab = 'accounts' | 'cards' | 'connections';
+type TTab = 'accounts' | 'cards' | 'recurrences' | 'connections';
 
 const TABS = [
 	{ value: 'accounts', label: 'Contas', icon: 'account-balance-wallet' },
 	{ value: 'cards', label: 'Cartões', icon: 'credit-card' },
+	{ value: 'recurrences', label: 'Recorrências', icon: 'repeat' },
 ];
 
 /* Só para usuários liberados na integração bancária (Pluggy em período de testes). */
@@ -47,6 +49,7 @@ const FinancesScreen = ({ navigation }: IScreenProps<'Finances'>) => {
 				<ThemedView style={styles.content}>
 					{active_tab === 'accounts' && <AccountList />}
 					{active_tab === 'cards' && <CreditBalanceList />}
+					{active_tab === 'recurrences' && <RecurrenceList />}
 					{active_tab === 'connections' && <BankConnectionList />}
 				</ThemedView>
 			</ThemedView>

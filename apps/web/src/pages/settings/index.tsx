@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { ChevronDown, ChevronLeft, ChevronRight, Info, Lock, Moon, Palette, Pencil, Sun, User, type LucideIcon } from 'lucide-react';
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, Info, Lock, Moon, Palette, Pencil, Sun, User, type LucideIcon } from 'lucide-react';
 
 import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
@@ -10,8 +10,9 @@ import Typography from '@/components/atoms/Typography';
 import AboutInfo from '@/components/organisms/AboutInfo';
 import AccountInfoForm from '@/components/organisms/AccountInfoForm';
 import AccountPasswordForm from '@/components/organisms/AccountPasswordForm';
+import ClaudeConnections from '@/components/organisms/ClaudeConnections';
 
-type TLeafKey = 'appearance' | 'about' | 'account_info' | 'account_password';
+type TLeafKey = 'appearance' | 'about' | 'account_info' | 'account_password' | 'claude_connections';
 
 type TLeaf = {
 	type: 'leaf';
@@ -43,6 +44,7 @@ const NODES: (TLeaf | TGroup)[] = [
 			{ type: 'leaf', key: 'account_password', label: 'Atualizar senha', description: 'Trocar sua senha', icon: Lock },
 		],
 	},
+	{ type: 'leaf', key: 'claude_connections', label: 'Conexões com o Claude', description: 'Acesso do Claude à sua conta', icon: Bot },
 	{ type: 'leaf', key: 'about', label: 'Sobre', description: 'Versões do webapp e da API', icon: Info },
 ];
 
@@ -118,6 +120,8 @@ const SettingsPage = () => {
 		}
 
 		if (active_key === 'account_info') return <AccountInfoForm />;
+
+		if (active_key === 'claude_connections') return <ClaudeConnections />;
 
 		return <AccountPasswordForm />;
 	};

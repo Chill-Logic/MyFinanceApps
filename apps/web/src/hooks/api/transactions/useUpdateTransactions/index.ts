@@ -15,8 +15,9 @@ export const useUpdateTransactions = () => {
 		},
 		onSuccess: (data, { onSuccess }) => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_reviews ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_installment_reviews ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_matches ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
 			onSuccess?.(data);
 		},

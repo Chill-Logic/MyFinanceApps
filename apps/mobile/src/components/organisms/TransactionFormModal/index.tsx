@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { colors, getApiErrorMessage, TransactionUtils } from '@myfinance/shared';
+import { colors, getApiErrorMessage, RECURRENCE_FREQUENCY_OPTIONS, RecurrenceUtils, TransactionUtils, type TRecurrenceFrequency, type TRepeatMode } from '@myfinance/shared';
 import { useNavigation } from '@react-navigation/native';
 
 import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '../../../hooks/api/credit-cards/useIndexCreditCards';
+import { useCreateRecurrence } from '../../../hooks/api/recurrences/useCreateRecurrence';
+import { useUpdateRecurrence } from '../../../hooks/api/recurrences/useUpdateRecurrence';
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
 import { useListWalletMembers } from '../../../hooks/api/wallets/useListWalletMembers';
@@ -25,6 +27,7 @@ import { parseOrigin, TNewTransactionForm } from '../../../types/forms';
 import { TTransaction, TTransactionKind, TTransactionSourceType } from '../../../types/models';
 
 import { Loader } from '../../atoms/Loader';
+import SegmentedControl from '../../atoms/SegmentedControl';
 import SelectInput from '../../atoms/SelectInput';
 import { ThemedText } from '../../atoms/ThemedText';
 import { ThemedTextInput } from '../../atoms/ThemedTextInput';
@@ -95,6 +98,37 @@ const buildInvoiceYearOptions = (current: string) => {
 	return Array.from(new Set(all)).sort().map((year) => ({ label: year, value: year }));
 };
 
+/*
+ * "Repetir" (só na criação): o lançamento vira uma recorrência (assinatura, salário...) ou, em cartão, uma
+ * compra parcelada — o backend gera as ocorrências como previstas.
+ */
+type TRepeatValues = {
+	mode: TRepeatMode;
+	frequency: TRecurrenceFrequency;
+	/* 'never' = sem fim; 'count' = após `count` vezes. */
+	ends: 'never' | 'count';
+	count: string;
+	/* Valor varia (conta de luz, salário variável) → `value_mode: 'estimated'`. */
+	value_varies: boolean;
+	installments: string;
+};
+
+const DEFAULT_REPEAT: TRepeatValues = {
+	mode: 'none',
+	frequency: 'monthly',
+	ends: 'never',
+	count: '',
+	value_varies: false,
+	installments: '',
+};
+
+const ENDS_OPTIONS = [
+	{ label: 'Nunca', value: 'never' },
+	{ label: 'Após N vezes', value: 'count' },
+];
+
+const onlyDigits = (text: string) => text.replace(/\D/g, '').slice(0, 3);
+
 /* Qual campo de data o calendário (que troca de conteúdo dentro do MESMO modal) está editando. */
 type TCalendarTarget = 'transaction' | 'settled' | null;
 
@@ -110,8 +144,11 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
 	const { mutate: updateTransactionMutation, isPending: is_update_pending } = useUpdateTransactions();
+	const { mutate: createRecurrenceMutation, isPending: is_recurrence_create_pending } = useCreateRecurrence();
+	const { mutate: updateRecurrenceMutation, isPending: is_recurrence_update_pending } = useUpdateRecurrence();
 
 	const [ values, setValues ] = useState<TNewTransactionForm>(DEFAULT_VALUES);
+	const [ repeat, setRepeat ] = useState<TRepeatValues>(DEFAULT_REPEAT);
 	const [ calendar_target, setCalendarTarget ] = useState<TCalendarTarget>(null);
 	/*
 	 * Etapa 1 da CRIAÇÃO: tipo de origem escolhido (Conta/Cartão). `null` = ainda na tela de escolha —
@@ -239,6 +276,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 	const handleClose = () => {
 		setValues(DEFAULT_VALUES);
+		setRepeat(DEFAULT_REPEAT);
 		setCalendarTarget(null);
 		setOriginType(null);
 		onClose();
@@ -314,9 +352,25 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
 	};
 
-	const is_pending = is_create_pending || is_update_pending;
+	/* Parcelado só existe em cartão; trocar de conta pra cartão (ou vice-versa) não deixa um modo inválido. */
+	const repeat_mode: TRepeatMode = !is_credit && repeat.mode === 'installment' ? 'none' : repeat.mode;
+	const is_repeating = !is_editing && repeat_mode !== 'none';
+	const repeat_segments = [
+		{ value: 'none', label: 'Não repete' },
+		{ value: 'recurring', label: 'Recorrente' },
+		...(is_credit ? [ { value: 'installment', label: 'Parcelado' } ] : []),
+	];
+	const repeat_count = Number(repeat.count);
+	const installments_count = Number(repeat.installments);
+	const is_repeat_invalid = (
+		(repeat_mode === 'recurring' && repeat.ends === 'count' && !(repeat_count >= 2)) ||
+		(repeat_mode === 'installment' && !(installments_count >= 2 && installments_count <= 48))
+	);
+
+	const is_pending = is_create_pending || is_update_pending || is_recurrence_create_pending || is_recurrence_update_pending;
 	const is_submit_disabled = (
 		is_pending ||
+		(is_repeating && is_repeat_invalid) ||
 		!values.value ||
 		(!is_transfer && !values.description.trim()) ||
 		!values.transaction_date ||
@@ -354,7 +408,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			/* Saindo de um crédito pra uma conta, '' desvincula o cartão antigo. */
 			const unlinked_card_id = origin_changed ? '' : undefined;
 
-			updateTransactionMutation({
+			const updateOnly = (onDone?: ()=> void) => updateTransactionMutation({
 				body: {
 					kind: effective_kind,
 					description,
@@ -372,11 +426,78 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				},
 				id: transaction.id,
 				onSuccess: () => {
+					if (onDone) {
+						onDone();
+						return;
+					}
 					Toast.show({ type: 'success', text1: 'Transação atualizada!' });
 					handleClose();
 				},
 				onError: (error) => {
 					Toast.show({ type: 'error', text1: 'Erro ao atualizar transação!', text2: getApiErrorMessage(error, 'Tente novamente') });
+				},
+			});
+
+			/*
+			 * Ocorrência de recorrência com descrição/valor mudados: "só esta" (update normal) ou "esta e as
+			 * próximas" (muda a regra a partir desta data; a própria transação, se já confirmada, também é
+			 * atualizada — a regra só mexe nas previstas).
+			 */
+			const rule_changed = description !== transaction.description || value !== transaction.value;
+			if (!RecurrenceUtils.isRecurringOccurrence(transaction) || !rule_changed) {
+				updateOnly();
+				return;
+			}
+
+			const updateThisAndNext = () => {
+				const finish = () => {
+					Toast.show({ type: 'success', text1: 'Recorrência atualizada!', text2: 'Esta e as próximas ocorrências foram alteradas' });
+					handleClose();
+				};
+				updateRecurrenceMutation({
+					id: transaction.recurrence_id!,
+					body: { description, value },
+					effective_from: RecurrenceUtils.occurrenceDate(transaction),
+					onSuccess: () => (transaction.projected ? finish() : updateOnly(finish)),
+					onError: (error) => {
+						Toast.show({ type: 'error', text1: 'Erro ao atualizar a recorrência!', text2: getApiErrorMessage(error, 'Tente novamente') });
+					},
+				});
+			};
+
+			Alert.alert('Aplicar a…', 'Esta transação se repete. Onde aplicar a mudança de descrição/valor?', [
+				{ text: 'Cancelar', style: 'cancel' },
+				{ text: 'Só esta', onPress: () => updateOnly() },
+				{ text: 'Esta e as próximas', onPress: updateThisAndNext },
+			]);
+			return;
+		}
+
+		if (is_repeating) {
+			const is_installment = repeat_mode === 'installment';
+			const recurring_total = repeat.ends === 'count' ? repeat_count : null;
+			createRecurrenceMutation({
+				body: {
+					source_type: source_type as TTransactionSourceType,
+					source_id,
+					recurrence_type: is_installment ? 'installment' : 'recurring',
+					kind: effective_kind,
+					description,
+					value,
+					start_date: toISODate(values.transaction_date),
+					frequency: is_installment ? 'monthly' : repeat.frequency,
+					occurrences_total: is_installment ? installments_count : recurring_total,
+					value_mode: !is_installment && repeat.value_varies ? 'estimated' : 'fixed',
+					credit_card_id: is_credit ? values.credit_card_id : undefined,
+					destination_account_id: is_transfer ? values.destination_account_id : undefined,
+					user_id: values.user_id || undefined,
+				},
+				onSuccess: () => {
+					Toast.show({ type: 'success', text1: is_installment ? 'Compra parcelada criada!' : 'Recorrência criada!' });
+					handleClose();
+				},
+				onError: (error) => {
+					Toast.show({ type: 'error', text1: 'Erro ao criar a recorrência!', text2: getApiErrorMessage(error, 'Tente novamente') });
 				},
 			});
 			return;
@@ -437,6 +558,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 			/* Passou de edição pra criação: volta pra etapa 1 (escolha do tipo). */
 			setOriginType(null);
 		}
+		setRepeat(DEFAULT_REPEAT);
 	}, [ transaction ]);
 
 	/*
@@ -556,6 +678,83 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		return is_transfer ? 'Da conta *' : 'Conta *';
 	})();
 
+	const renderRepeat = () => (
+		<ThemedView style={styles.formGroup}>
+			<ThemedText style={styles.pagoLabel}>Repetir</ThemedText>
+			<SegmentedControl
+				segments={repeat_segments}
+				value={repeat_mode}
+				onChange={(mode) => setRepeat((prev) => ({ ...prev, mode: mode as TRepeatMode }))}
+			/>
+
+			{repeat_mode === 'recurring' && (
+				<>
+					<ThemedView style={[ styles.originRow, styles.repeatRow ]}>
+						<ThemedView style={styles.originCol}>
+							<SelectInput
+								label='Frequência'
+								options={RECURRENCE_FREQUENCY_OPTIONS}
+								value={repeat.frequency}
+								onChange={(frequency) => frequency && setRepeat((prev) => ({ ...prev, frequency: frequency as TRecurrenceFrequency }))}
+							/>
+						</ThemedView>
+						<ThemedView style={styles.originCol}>
+							<SelectInput
+								label='Termina'
+								options={ENDS_OPTIONS}
+								value={repeat.ends}
+								onChange={(ends) => ends && setRepeat((prev) => ({ ...prev, ends: ends as TRepeatValues['ends'] }))}
+							/>
+						</ThemedView>
+					</ThemedView>
+					{repeat.ends === 'count' && (
+						<ThemedView style={styles.repeatRow}>
+							<ThemedTextInput
+								label='Quantas vezes *'
+								value={repeat.count}
+								onChangeText={(text) => setRepeat((prev) => ({ ...prev, count: onlyDigits(text) }))}
+								placeholder='Ex.: 12'
+								keyboardType='numeric'
+							/>
+						</ThemedView>
+					)}
+					<TouchableOpacity
+						style={styles.toggleRow}
+						onPress={() => setRepeat((prev) => ({ ...prev, value_varies: !prev.value_varies }))}
+						activeOpacity={0.7}
+					>
+						<Icon
+							name={repeat.value_varies ? 'check-box' : 'check-box-outline-blank'}
+							size={22}
+							color={colors['brand-secondary']}
+						/>
+						<ThemedText style={styles.toggleText}>
+							Valor varia <ThemedText style={styles.toggleHint}>— ex.: conta de luz, salário</ThemedText>
+						</ThemedText>
+					</TouchableOpacity>
+					<ThemedText style={styles.repeatHint}>
+						As próximas ocorrências entram como previstas e são confirmadas sozinhas quando o banco trouxer a transação.
+					</ThemedText>
+				</>
+			)}
+
+			{repeat_mode === 'installment' && (
+				<>
+					<ThemedView style={styles.repeatRow}>
+						<ThemedTextInput
+							label='Número de parcelas *'
+							value={repeat.installments}
+							onChangeText={(text) => setRepeat((prev) => ({ ...prev, installments: onlyDigits(text) }))}
+							placeholder='Ex.: 10'
+							keyboardType='numeric'
+						/>
+					</ThemedView>
+					<ThemedText style={styles.repeatHint}>Gera todas as parcelas, uma por fatura.</ThemedText>
+				</>
+			)}
+		</ThemedView>
+	);
+
 	const renderForm = () => (
 		<>
 			<ThemedText style={styles.title}>{transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova Transação'}</ThemedText>
@@ -634,7 +833,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={styles.formGroup}>
 					<ThemedTextInput
-						label='Valor *'
+						label={repeat_mode === 'installment' && !is_editing ? 'Valor da parcela *' : 'Valor *'}
 						value={values.value}
 						onChangeText={(text) => setValues({ ...values, value: MoneyUtils.formatMoney(text) })}
 						placeholder='R$ 0,00'
@@ -659,12 +858,14 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					</ThemedView>
 				</ThemedView>
 
+				{!is_editing && renderRepeat()}
+
 				{/*
 				 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
 				 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra outra
 				 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 				 */}
-				{is_credit && (
+				{is_credit && !is_repeating && (
 					<ThemedView style={styles.formGroup}>
 						{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
 						    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
@@ -713,7 +914,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				)}
 
 				{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
-				{!is_credit && (
+				{!is_credit && !is_repeating && (
 					<ThemedView style={styles.formGroup}>
 						<ThemedText style={styles.pagoLabel}>
 							Pago em <ThemedText style={styles.toggleHint}>— vazio = pendente</ThemedText>
@@ -771,18 +972,20 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					</ThemedView>
 				)}
 
-				<TouchableOpacity
-					style={styles.toggleRow}
-					onPress={() => setValues((v) => ({ ...v, draft: !v.draft }))}
-					activeOpacity={0.7}
-				>
-					<Icon
-						name={values.draft ? 'check-box' : 'check-box-outline-blank'}
-						size={22}
-						color={colors['brand-secondary']}
-					/>
-					<ThemedText>Rascunho <ThemedText style={styles.toggleHint}>— planejamento, fora dos totais</ThemedText></ThemedText>
-				</TouchableOpacity>
+				{!is_repeating && (
+					<TouchableOpacity
+						style={styles.toggleRow}
+						onPress={() => setValues((v) => ({ ...v, draft: !v.draft }))}
+						activeOpacity={0.7}
+					>
+						<Icon
+							name={values.draft ? 'check-box' : 'check-box-outline-blank'}
+							size={22}
+							color={colors['brand-secondary']}
+						/>
+						<ThemedText>Rascunho <ThemedText style={styles.toggleHint}>— planejamento, fora dos totais</ThemedText></ThemedText>
+					</TouchableOpacity>
+				)}
 			</ScrollView>
 
 			{/*
@@ -1030,6 +1233,18 @@ const styles = StyleSheet.create({
 	toggleHint: {
 		color: '#888',
 		fontSize: 13,
+	},
+	toggleText: {
+		flex: 1,
+	},
+	repeatRow: {
+		marginTop: 10,
+	},
+	repeatHint: {
+		marginTop: 4,
+		fontSize: 12,
+		lineHeight: 16,
+		color: '#888',
 	},
 	emptyState: {
 		alignItems: 'center',
