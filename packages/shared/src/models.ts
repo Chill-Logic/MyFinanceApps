@@ -154,6 +154,8 @@ export type TRecurrence = WithModelFields<{
 	external_description: string | null;
 	/* Valor de cada ocorrência, em centavos. */
 	value: number;
+	/* Só em parcelada: valor total da compra. A 1ª parcela leva os centavos que sobram da divisão. */
+	total_value: number | null;
 	/* `estimated` = varia (conta de luz, salário variável): as próximas seguem o último valor real. */
 	value_mode: TRecurrenceValueMode;
 	frequency: TRecurrenceFrequency;

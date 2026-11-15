@@ -1102,7 +1102,9 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
 - **Formulário de transação, criação:** seção "Repetir" (`SegmentedControl`: Não repete / Recorrente /
   Parcelado — este só em cartão). Com repetição o submit chama `createRecurrence` em vez de criar transação, e
   somem "Pago em", Rascunho e fatura manual (as ocorrências futuras são previstas; fatura pelo ciclo).
-  Parcelado: o valor digitado é o DA PARCELA.
+  Parcelado: o valor digitado é o TOTAL DA COMPRA (vai como `total_value`); o backend divide e põe a sobra dos
+  centavos na 1ª parcela, como os bancos — a ajuda mostra "10x de R$ 370,79 (1ª de R$ 370,82)" via
+  `RecurrenceUtils.splitInstallments` (antes era o valor da parcela, e 10 × R$ 370,79 perdia 3 centavos).
 - **"Só esta / Esta e as próximas":** editar descrição/valor de uma ocorrência de recorrência comum
   (`RecurrenceUtils.isRecurringOccurrence`) pergunta o escopo; "próximas" = `updateRecurrence(id, body,
   effective_from = data da ocorrência)` (o backend divide a regra) + update da própria transação se ela já não
