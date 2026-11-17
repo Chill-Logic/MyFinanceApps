@@ -23,6 +23,7 @@ import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateRecurrence } from '@/hooks/api/recurrences/useCreateRecurrence';
+import { useShowRecurrence } from '@/hooks/api/recurrences/useShowRecurrence';
 import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
@@ -37,6 +38,7 @@ import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
 import DateTimeField from '@/components/molecules/DateTimeField';
 import SegmentedControl from '@/components/molecules/SegmentedControl';
+import RecurrenceFormDialog from '@/components/organisms/RecurrenceFormDialog';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -299,9 +301,19 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		}
 	}, [ is_credit, single_card_id ]);
 
+	/*
+	 * Ocorrência de recorrência/parcela mostra a regra (e edita por "Editar regra"); transação avulsa pode
+	 * virar recorrente ou parcelada também na edição — ela vira a 1ª ocorrência.
+	 */
+	const linked_recurrence_id = open && transaction?.recurrence_id ? transaction.recurrence_id : null;
+	const { data: linked_recurrence } = useShowRecurrence(linked_recurrence_id);
+	const [ is_rule_dialog_open, setIsRuleDialogOpen ] = useState(false);
+
 	/* Parcelado só existe em cartão: se a origem deixou de ser cartão, volta pra "Não repete". */
-	const repeat_mode: TRepeatMode = is_editing || (!is_credit && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
+	const repeat_mode: TRepeatMode = linked_recurrence_id || (!is_credit && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
 	const is_repeating = repeat_mode !== 'none';
+	/* Na criação a repetição substitui o lançamento avulso (some "Pago em"/fatura manual); na edição a transação continua existindo. */
+	const hides_single_fields = is_repeating && !is_editing;
 	const repeat_count = Number(values.repeat_count);
 	const installments = Number(values.installments);
 	const installment_total_value = Number(MoneyUtils.unformatMoney(values.value));
@@ -458,6 +470,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				...(origin_changed ? { source_type: source_type as TTransactionSourceType, source_id } : {}),
 			};
 
+			if (is_repeating) {
+				convertToRecurrence(body, transaction.id);
+				return;
+			}
+
 			/* Ocorrência de recorrência com descrição/valor novos: pergunta se vale só pra ela ou pras próximas. */
 			const rule_changed = description !== transaction.description || value !== transaction.value;
 			if (RecurrenceUtils.isRecurringOccurrence(transaction) && rule_changed) {
@@ -510,6 +527,29 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			},
 			onSuccess: () => finalize('Transação criada!'),
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
+		});
+	};
+
+	/* Salva a transação e a transforma na 1ª ocorrência da regra escolhida (o resto ela herda no backend). */
+	const convertToRecurrence = (body: TUpdateTransactionBody, transaction_id: string) => {
+		const is_installment = repeat_mode === 'installment';
+		const recurring_total = values.repeat_ends === 'count' ? repeat_count : null;
+		updateTransactionMutation({
+			body,
+			id: transaction_id,
+			onSuccess: () => createRecurrenceMutation({
+				body: {
+					transaction_id,
+					recurrence_type: is_installment ? 'installment' : 'recurring',
+					frequency: values.frequency,
+					value_mode: values.value_varies ? 'estimated' : 'fixed',
+					occurrences_total: is_installment ? installments : recurring_total,
+					...(is_installment ? { total_value: body.value } : {}),
+				},
+				onSuccess: () => finalize(is_installment ? 'Compra parcelada!' : 'Transação agora é recorrente!'),
+				onError: (error) => toast.error(getApiErrorMessage(error, 'Transação salva, mas não deu para criar a recorrência')),
+			}),
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar transação')),
 		});
 	};
 
@@ -597,10 +637,41 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	);
 
 	/*
-	 * "Repetir" (só na criação). Recorrente: frequência, término e "valor varia"; parcelado (só cartão):
+	 * "Repetir" (criação, ou edição de transação avulsa — ela vira a 1ª ocorrência). Recorrente: frequência, término e "valor varia"; parcelado (só cartão):
 	 * número de parcelas — o valor digitado passa a ser o da parcela. Com repetição o lançamento vira uma
 	 * recorrência: as ocorrências futuras entram como PREVISTAS e somem "Pago em", rascunho e fatura manual.
 	 */
+	const renderLinkedRecurrence = () => {
+		const is_installment = transaction?.recurrence_type === 'installment';
+		const title = is_installment
+			? `Parcela ${ transaction?.installment_number ?? transaction?.recurrence_index ?? '?' }/${ transaction?.installment_total ?? linked_recurrence?.occurrences_total ?? '?' }`
+			: 'Recorrente';
+		const rule = linked_recurrence && !is_installment ? RecurrenceUtils.ruleLabel(linked_recurrence) : null;
+
+		return (
+			<div className='flex items-start gap-2 rounded-md border px-3 py-2 text-sm'>
+				<Repeat className='mt-0.5 h-3.5 w-3.5 shrink-0' />
+				<div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+					<span className='font-medium'>{rule ? `${ title } · ${ rule }` : title}</span>
+					<span className='text-xs text-muted-foreground'>
+						{is_installment
+							? 'Mudanças aqui valem só para esta parcela.'
+							: 'Mudar descrição ou valor pergunta se vale só para esta ou para as próximas.'}
+					</span>
+				</div>
+				{linked_recurrence && (
+					<button
+						type='button'
+						className='shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline'
+						onClick={() => setIsRuleDialogOpen(true)}
+					>
+						Editar regra
+					</button>
+				)}
+			</div>
+		);
+	};
+
 	const renderRepeat = () => (
 		<div className='flex flex-col gap-2'>
 			<label className='flex items-center gap-1.5 text-sm font-medium'>
@@ -919,9 +990,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra
 						 * outra fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 						 */}
-						{!is_editing && renderRepeat()}
+						{linked_recurrence_id ? renderLinkedRecurrence() : renderRepeat()}
 
-						{is_credit && !is_repeating && (
+						{is_credit && !hides_single_fields && (
 							<div className='flex flex-col gap-2'>
 								{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
 								    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
@@ -975,7 +1046,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						)}
 
 						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
-						{!is_credit && !is_repeating && (
+						{!is_credit && !hides_single_fields && (
 							<div className='flex flex-col gap-1.5'>
 								<label className='text-sm font-medium'>
 									Pago em <span className='font-normal text-muted-foreground'>— vazio = pendente</span>
@@ -1084,6 +1155,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<RecurrenceFormDialog open={is_rule_dialog_open} onOpenChange={setIsRuleDialogOpen} recurrence={linked_recurrence ?? null} />
 		</Dialog>
 	);
 };

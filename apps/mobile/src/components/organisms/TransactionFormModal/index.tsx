@@ -11,6 +11,7 @@ import { useIndexAccounts } from '../../../hooks/api/accounts/useIndexAccounts';
 import { useIndexCreditBalances } from '../../../hooks/api/credit-balances/useIndexCreditBalances';
 import { useIndexCreditCards } from '../../../hooks/api/credit-cards/useIndexCreditCards';
 import { useCreateRecurrence } from '../../../hooks/api/recurrences/useCreateRecurrence';
+import { useShowRecurrence } from '../../../hooks/api/recurrences/useShowRecurrence';
 import { useUpdateRecurrence } from '../../../hooks/api/recurrences/useUpdateRecurrence';
 import { useCreateTransactions } from '../../../hooks/api/transactions/useCreateTransactions';
 import { useUpdateTransactions } from '../../../hooks/api/transactions/useUpdateTransactions';
@@ -352,9 +353,18 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
 	};
 
+	/*
+	 * Ocorrência de recorrência/parcela mostra a regra; transação avulsa pode virar recorrente ou parcelada
+	 * também na edição — ela vira a 1ª ocorrência.
+	 */
+	const linked_recurrence_id = visible && transaction?.recurrence_id ? transaction.recurrence_id : null;
+	const { data: linked_recurrence } = useShowRecurrence(linked_recurrence_id);
+
 	/* Parcelado só existe em cartão; trocar de conta pra cartão (ou vice-versa) não deixa um modo inválido. */
-	const repeat_mode: TRepeatMode = !is_credit && repeat.mode === 'installment' ? 'none' : repeat.mode;
-	const is_repeating = !is_editing && repeat_mode !== 'none';
+	const repeat_mode: TRepeatMode = linked_recurrence_id || (!is_credit && repeat.mode === 'installment') ? 'none' : repeat.mode;
+	const is_repeating = repeat_mode !== 'none';
+	/* Na criação a repetição substitui o lançamento avulso (some "Pago em"/fatura manual); na edição a transação continua existindo. */
+	const hides_single_fields = is_repeating && !is_editing;
 	const repeat_segments = [
 		{ value: 'none', label: 'Não repete' },
 		{ value: 'recurring', label: 'Recorrente' },
@@ -441,6 +451,29 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					Toast.show({ type: 'error', text1: 'Erro ao atualizar transação!', text2: getApiErrorMessage(error, 'Tente novamente') });
 				},
 			});
+
+			if (is_repeating) {
+				const is_installment = repeat_mode === 'installment';
+				const recurring_total = repeat.ends === 'count' ? repeat_count : null;
+				updateOnly(() => createRecurrenceMutation({
+					body: {
+						transaction_id: transaction.id,
+						recurrence_type: is_installment ? 'installment' : 'recurring',
+						frequency: repeat.frequency,
+						value_mode: repeat.value_varies ? 'estimated' : 'fixed',
+						occurrences_total: is_installment ? installments_count : recurring_total,
+						...(is_installment ? { total_value: value } : {}),
+					},
+					onSuccess: () => {
+						Toast.show({ type: 'success', text1: is_installment ? 'Compra parcelada!' : 'Transação agora é recorrente!' });
+						handleClose();
+					},
+					onError: (error) => {
+						Toast.show({ type: 'error', text1: 'Transação salva, mas a recorrência não foi criada', text2: getApiErrorMessage(error, 'Tente novamente') });
+					},
+				}));
+				return;
+			}
 
 			/*
 			 * Ocorrência de recorrência com descrição/valor mudados: "só esta" (update normal) ou "esta e as
@@ -682,6 +715,28 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 		return is_transfer ? 'Da conta *' : 'Conta *';
 	})();
 
+	const renderLinkedRecurrence = () => {
+		const is_installment = transaction?.recurrence_type === 'installment';
+		const title = is_installment
+			? `Parcela ${ transaction?.installment_number ?? transaction?.recurrence_index ?? '?' }/${ transaction?.installment_total ?? linked_recurrence?.occurrences_total ?? '?' }`
+			: 'Recorrente';
+		const rule = linked_recurrence && !is_installment ? RecurrenceUtils.ruleLabel(linked_recurrence) : null;
+
+		return (
+			<ThemedView style={[ styles.formGroup, styles.linkedRecurrence ]}>
+				<Icon name='repeat' size={16} color='#888' />
+				<ThemedView style={styles.linkedRecurrenceText}>
+					<ThemedText style={styles.linkedRecurrenceTitle}>{rule ? `${ title } · ${ rule }` : title}</ThemedText>
+					<ThemedText style={styles.repeatHint}>
+						{is_installment
+							? 'Mudanças aqui valem só para esta parcela.'
+							: 'Mudar descrição ou valor pergunta se vale só para esta ou para as próximas. Frequência e término: Contas › Recorrências.'}
+					</ThemedText>
+				</ThemedView>
+			</ThemedView>
+		);
+	};
+
 	const renderRepeat = () => (
 		<ThemedView style={styles.formGroup}>
 			<ThemedText style={styles.pagoLabel}>Repetir</ThemedText>
@@ -841,7 +896,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 
 				<ThemedView style={styles.formGroup}>
 					<ThemedTextInput
-						label={repeat_mode === 'installment' && !is_editing ? 'Valor total da compra *' : 'Valor *'}
+						label={repeat_mode === 'installment' ? 'Valor total da compra *' : 'Valor *'}
 						value={values.value}
 						onChangeText={(text) => setValues({ ...values, value: MoneyUtils.formatMoney(text) })}
 						placeholder='R$ 0,00'
@@ -866,14 +921,14 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 					</ThemedView>
 				</ThemedView>
 
-				{!is_editing && renderRepeat()}
+				{linked_recurrence_id ? renderLinkedRecurrence() : renderRepeat()}
 
 				{/*
 				 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
 				 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra outra
 				 * fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
 				 */}
-				{is_credit && !is_repeating && (
+				{is_credit && !hides_single_fields && (
 					<ThemedView style={styles.formGroup}>
 						{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
 						    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
@@ -922,7 +977,7 @@ export const TransactionFormModal = (props: TransactionModalProps) => {
 				)}
 
 				{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
-				{!is_credit && !is_repeating && (
+				{!is_credit && !hides_single_fields && (
 					<ThemedView style={styles.formGroup}>
 						<ThemedText style={styles.pagoLabel}>
 							Pago em <ThemedText style={styles.toggleHint}>— vazio = pendente</ThemedText>
@@ -1247,6 +1302,24 @@ const styles = StyleSheet.create({
 	},
 	repeatRow: {
 		marginTop: 10,
+	},
+	linkedRecurrence: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 8,
+		borderWidth: 1,
+		borderColor: '#333',
+		borderRadius: 8,
+		padding: 10,
+	},
+	linkedRecurrenceText: {
+		flex: 1,
+		backgroundColor: 'transparent',
+	},
+	linkedRecurrenceTitle: {
+		fontSize: 14,
+		lineHeight: 18,
+		fontWeight: '600',
 	},
 	repeatHint: {
 		marginTop: 4,
