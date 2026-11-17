@@ -1105,6 +1105,12 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
   Parcelado: o valor digitado é o TOTAL DA COMPRA (vai como `total_value`); o backend divide e põe a sobra dos
   centavos na 1ª parcela, como os bancos — a ajuda mostra "10x de R$ 370,79 (1ª de R$ 370,82)" via
   `RecurrenceUtils.splitInstallments` (antes era o valor da parcela, e 10 × R$ 370,79 perdia 3 centavos).
+- **Formulário de transação, edição (2026-11-16):** transação avulsa também tem "Repetir"; salvar faz o update dela e
+  depois `createRecurrence({ transaction_id, ...regra })` — ela vira a 1ª ocorrência e herda o resto no backend
+  (parcelar: o valor dela vai como `total_value`). Na edição "Pago em"/fatura continuam visíveis (a transação segue
+  existindo). Ocorrência de recorrência/parcela mostra a regra (`useShowRecurrence`, `QUERY_KEYS.recurrence.get_one`)
+  no lugar do "Repetir"; no web, "Editar regra" abre o `RecurrenceFormDialog` aninhado (no mobile só o texto
+  apontando a aba Recorrências — dois `Modal` nativos empilhados quebram, ver acima).
 - **"Só esta / Esta e as próximas":** editar descrição/valor de uma ocorrência de recorrência comum
   (`RecurrenceUtils.isRecurringOccurrence`) pergunta o escopo; "próximas" = `updateRecurrence(id, body,
   effective_from = data da ocorrência)` (o backend divide a regra) + update da própria transação se ela já não

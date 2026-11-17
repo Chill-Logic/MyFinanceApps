@@ -21,6 +21,7 @@ export const QUERY_KEYS = {
 	},
 	[MODELS.recurrence]: {
 		get_all: 'get-all-recurrences',
+		get_one: 'get-recurrence',
 	},
 	[MODELS.USER]: {
 		get_current: 'get-current-user',

@@ -218,9 +218,18 @@ export type TRecurrenceBody = {
 	user_id?: string;
 };
 
-export type TCreateRecurrenceBody = TRecurrenceBody & {
+export type TCreateRecurrenceBody = (TRecurrenceBody & {
 	source_type: TTransactionSourceType;
 	source_id: string;
+}) | TCreateRecurrenceFromTransactionBody;
+
+/*
+ * Transformar uma transação já lançada em recorrência (pela edição): ela vira a 1ª ocorrência, a regra começa
+ * na data dela e herda origem, tipo, descrição, valor, cartão, destino e autor — mande só a regra. Parcelar uma
+ * compra lançada: `recurrence_type: 'installment'`, `occurrences_total` e `total_value` = valor dela.
+ */
+export type TCreateRecurrenceFromTransactionBody = Partial<TRecurrenceBody> & {
+	transaction_id: string;
 };
 
 export type TUpdateRecurrenceBody = Partial<TRecurrenceBody>;
