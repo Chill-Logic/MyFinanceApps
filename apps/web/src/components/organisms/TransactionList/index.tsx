@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
+import { useGetInvoice } from '@/hooks/api/credit-balances/useGetInvoice';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteRecurrence } from '@/hooks/api/recurrences/useDeleteRecurrence';
 import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
@@ -246,12 +247,33 @@ const TransactionList = () => {
 	const now = new Date();
 	const is_current_month = month_year.year === now.getFullYear() && month_year.month === now.getMonth();
 
-	/* Cartão em destaque (tablet/desktop): o de fatura mais alta ainda em aberto; sem nenhuma em aberto, o primeiro. */
+	/*
+	 * Cartão em destaque (tablet/desktop) DO MÊS EXIBIDO: o crédito com mais compras líquidas nas transações de
+	 * crédito deste mês (o grupo `credits` já vem no bucket da fatura do mês); sem compra no mês, o primeiro.
+	 * Nunca usar `current_invoice` aqui — ela é a fatura de HOJE e ficaria igual em todos os meses.
+	 */
 	const featured_credit = useMemo(() => {
-		const open = credit_balances.filter((credit_balance) => (credit_balance.current_invoice?.remaining ?? 0) > 0);
-		const pool = open.length ? open : credit_balances;
-		return [ ...pool ].sort((a, b) => (b.current_invoice?.remaining ?? 0) - (a.current_invoice?.remaining ?? 0))[0];
-	}, [ credit_balances ]);
+		const spent = new Map<string, number>();
+		credit_txs
+			.filter((item) => !item.draft)
+			.forEach((item) => {
+				const delta = item.kind === 'deposit' ? -item.value : item.value;
+				spent.set(item.source_id, (spent.get(item.source_id) ?? 0) + delta);
+			});
+
+		const ranked = credit_balances
+			.filter((credit_balance) => (spent.get(credit_balance.id) ?? 0) > 0)
+			.sort((a, b) => (spent.get(b.id) ?? 0) - (spent.get(a.id) ?? 0));
+
+		return ranked[0] ?? credit_balances[0];
+	}, [ credit_txs, credit_balances ]);
+
+	/* A fatura do cartão em destaque NO MÊS EXIBIDO (`reference` = mesmo bucket da aba Cartões). */
+	const { data: featured_invoice, isFetching: is_featured_invoice_fetching } = useGetInvoice({
+		id: featured_credit?.id || '',
+		enabled: Boolean(featured_credit),
+		params: { reference },
+	});
 
 	/*
 	 * Próximos 7 dias: pendentes de conta com data entre hoje e daqui a 7 dias. Só no mês atual, e só enxerga
@@ -568,14 +590,25 @@ const TransactionList = () => {
 
 	const plural = (count: number, singular: string, plural_word: string) => `${ count } ${ count === 1 ? singular : plural_word }`;
 
+	/* Situação de uma fatura que não é a atual (o limite disponível é um dado de hoje, não dela). */
+	const invoiceStatus = (invoice: NonNullable<typeof featured_invoice>) => {
+		if (invoice.amount <= 0) return 'sem compras nesta fatura';
+		if (invoice.paid) return 'fatura paga';
+		if (invoice.paid_amount > 0) return `restante ${ MoneyUtils.formatMoney(invoice.remaining) }`;
+		return 'em aberto';
+	};
+
 	/*
-	 * Cartão da fatura (tablet e desktop): o crédito com a maior fatura em aberto, no degradê azul-petróleo
-	 * do logo. Leva para Contas & Cartões.
+	 * Cartão da fatura (tablet e desktop), no degradê azul-petróleo do logo: a fatura do cartão em destaque
+	 * NO MÊS EXIBIDO. A barra de limite só aparece quando essa fatura é a atual (o limite disponível é de
+	 * hoje); nos outros meses, mostra se a fatura está paga, quanto falta ou se está em aberto.
+	 * Leva para Contas & Cartões.
 	 */
 	const renderInvoiceCard = () => {
 		if (!featured_credit) return null;
 
-		const invoice = featured_credit.current_invoice;
+		const invoice = featured_invoice;
+		const is_current_invoice = Boolean(invoice && InvoiceUtils.isCurrent(invoice));
 		const used_ratio = featured_credit.credit_limit > 0
 			? Math.min(1, Math.max(0, featured_credit.used / featured_credit.credit_limit))
 			: 0;
@@ -584,23 +617,43 @@ const TransactionList = () => {
 			<button
 				type='button'
 				onClick={() => navigate('/accounts')}
-				className='flex flex-col gap-2 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-left text-sand-light transition-transform hover:-translate-y-0.5'
+				className={cn(
+					'flex flex-col gap-2 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-left text-sand-light transition-[transform,opacity] hover:-translate-y-0.5',
+					is_featured_invoice_fetching && 'opacity-70',
+				)}
 			>
 				<span className='flex justify-between gap-3 text-[13px]'>
 					<span className='truncate font-semibold'>{featured_credit.name}</span>
 					{invoice?.due_date && <span className='shrink-0 text-[#A9B6BF]'>vence {formatShortDate(invoice.due_date)}</span>}
 				</span>
-				{invoice && <span className='text-xs text-[#A9B6BF]'>Fatura de {InvoiceUtils.label(invoice)}</span>}
-				<span className='text-[28px] font-semibold tracking-[-0.04em]'>{MoneyUtils.formatMoney(invoice?.amount ?? 0)}</span>
-				<span aria-hidden='true' className='flex h-1.5 overflow-hidden rounded-full bg-sand-light/15'>
-					<span className='rounded-full bg-[#A3BC74]' style={{ width: `${ Math.round(used_ratio * 100) }%` }} />
-				</span>
-				<span className='text-xs text-[#A9B6BF]'>
-					{invoice && invoice.paid_amount > 0 && invoice.remaining > 0
-						? `restante ${ MoneyUtils.formatMoney(invoice.remaining) } · `
-						: ''}
-					{MoneyUtils.formatMoney(featured_credit.available)} de limite disponível
-				</span>
+
+				{invoice ? (
+					<>
+						<span className='text-xs text-[#A9B6BF]'>
+							Fatura de {InvoiceUtils.label(invoice)}{is_current_invoice ? ' · atual' : ''}
+						</span>
+						<span className='text-[28px] font-semibold tracking-[-0.04em]'>{MoneyUtils.formatMoney(invoice.amount)}</span>
+						{is_current_invoice ? (
+							<>
+								<span aria-hidden='true' className='flex h-1.5 overflow-hidden rounded-full bg-sand-light/15'>
+									<span className='rounded-full bg-[#A3BC74]' style={{ width: `${ Math.round(used_ratio * 100) }%` }} />
+								</span>
+								<span className='text-xs text-[#A9B6BF]'>
+									{invoice.paid_amount > 0 && invoice.remaining > 0 ? `restante ${ MoneyUtils.formatMoney(invoice.remaining) } · ` : ''}
+									{MoneyUtils.formatMoney(featured_credit.available)} de limite disponível
+								</span>
+							</>
+						) : (
+							<span className='text-xs text-[#A9B6BF]'>{invoiceStatus(invoice)}</span>
+						)}
+					</>
+				) : (
+					<>
+						<Skeleton className='h-3 w-32 bg-sand-light/10' />
+						<Skeleton className='h-8 w-40 bg-sand-light/10' />
+						<Skeleton className='h-3 w-48 bg-sand-light/10' />
+					</>
+				)}
 			</button>
 		);
 	};
