@@ -1,5 +1,7 @@
 import { createContext, Dispatch, ReactNode, SetStateAction, useContext, useEffect, useState } from 'react';
 
+import { Native } from '@/services/native';
+
 export type TTheme = 'light' | 'dark';
 
 interface IContextType {
@@ -24,6 +26,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 	useEffect(() => {
 		document.documentElement.classList.toggle('dark', theme === 'dark');
 		localStorage.setItem('theme', theme);
+		Native.syncTheme(theme);
 	}, [ theme ]);
 
 	const toggleTheme = () => {

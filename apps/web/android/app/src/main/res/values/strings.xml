@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MyFinance</string>
+    <string name="title_activity_main">MyFinance</string>
+    <string name="package_name">com.chilllogic.myfinance.app</string>
+    <string name="custom_url_scheme">com.chilllogic.myfinance.app</string>
+</resources>

@@ -43,6 +43,7 @@
   ],
   "ignorePatterns": [
     "build/",
+    "android/",
     "dist/",
     "node_modules/",
     "src/util/legacy-helpers/"

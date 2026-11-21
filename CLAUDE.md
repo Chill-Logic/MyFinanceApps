@@ -1135,3 +1135,45 @@ validade; `isRevocable` = `active`/`pending`).
   `ClaudeConnectionsModal` (lista, sub-visão de Atividade dentro do modal, revogar por `Alert.alert`). O
   endereço é `selectable` + botão de compartilhar (`Share` do RN) — **sem `expo-clipboard`** de propósito,
   para não introduzir dependência nativa (exigiria build novo e bump de `version`, não só OTA).
+
+## Casca nativa do web (Capacitor) — substituindo o apps/mobile (2026-11-21, branch `feat/capacitor`)
+
+Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então o app da loja passa a ser o
+**`apps/web` empacotado no Capacitor 8** (Android), acabando com a duplicação web → port pro mobile. O
+`apps/mobile` (RN/Expo) continua no repo, intacto, até a migração se provar — é o caminho de rollback.
+- **Mesmo app da loja**: `appId` = `com.chilllogic.myfinance.app` (o mesmo package do RN) e assinatura com a
+  **mesma upload key** do EAS. A 1ª versão (`0.3.0`, `versionCode 100`) foi aceita na faixa de teste interno
+  como atualização do app existente. O `versionCode` pulou de 19 (último do EAS) pra 100: **rollback pro RN exige
+  antes `npx eas-cli build:version:set -p android` acima do `versionCode` atual do Capacitor** (a Play não aceita
+  número menor).
+- `apps/web/android/` **é versionado** (no Capacitor ele não é regenerado como no Expo CNG — ajustes nativos
+  feitos à mão sobrevivem). `capacitor.config.ts` fica em `apps/web/`; o `dist/` do Vite vai empacotado no APK/AAB
+  (não carregamos a URL da Vercel — abre sem rede e não depende do deploy).
+- **Comandos** (Capacitor 8 exige **Node ≥ 22**; o nvm daqui costuma estar no 20 — `nvm use 22.16.0` antes):
+  `npm run webapp:cap:sync` (build web + `cap sync`), `npm run webapp:android` (sync + abre o Android Studio),
+  `npm run webapp:android:bundle` (sync + `bundleRelease` assinado →
+  `apps/web/android/app/build/outputs/bundle/release/app-release.aab`). O build embute o `VITE_API_URL`/
+  `VITE_API_KEY` do `apps/web/.env` — sem ele o app abre mas não fala com a API.
+- **Assinatura de release**: `android/app/build.gradle` lê `android/keystore.properties` (fora do git; modelo em
+  `keystore.properties.example`) ou, no CI, `ANDROID_KEYSTORE_FILE`/`ANDROID_KEYSTORE_PASSWORD`/
+  `ANDROID_KEY_ALIAS`/`ANDROID_KEY_PASSWORD`. A keystore (`android/app/release.p12`, também fora do git) é a
+  upload key baixada do EAS (`npx eas-cli credentials -p android`). É **PKCS12**: não tem senha de chave própria —
+  `keyPassword` = a mesma senha da keystore.
+- **Integração no web** (no-op no navegador, `is_native` de `services/native`): `Native.init()` põe a classe
+  `native` no `<html>`; `Native.syncTheme` faz os ícones da status bar seguirem o tema do APP (não o do sistema);
+  `hooks/useNativeBackButton` (montado dentro do `<BrowserRouter>`) trata o voltar do Android — fecha a camada
+  Radix aberta simulando Escape, volta uma tela, ou minimiza na Home/login.
+- **Edge-to-edge**: `viewport-fit=cover` no `index.html` + `SystemBars.insetsHandling: 'css'`. Use as utilities
+  `pt-safe`/`pb-safe`/`top-safe-4`/`max-h-safe-screen` do `index.css` (leem `--safe-area-inset-*`, injetado pelo
+  Capacitor porque `env()` não vem certo em WebView Chromium < 140, com fallback pra `env()`). Template, BottomNav
+  e o sheet do menu já usam. **Modal alto precisa de `max-h-safe-screen overflow-y-auto`** (o form de
+  transferência estourava a tela) — hoje só o `TransactionFormDialog` tem; o ideal é ir pro primitivo `ui/dialog`.
+- **Ícone**: o Android 8+ usa o ícone ADAPTATIVO (`mipmap-anydpi-v26`), não os PNGs — o `@capacitor/assets` só
+  com `icon-only.png` gera os PNGs mas deixa o foreground padrão do Capacitor no adaptativo (ícone genérico). O
+  foreground foi gerado à mão (ícone em 72% da camada, fundo `#C5C4BF` = cinza do próprio ícone). Fonte:
+  `apps/web/assets/icon-only.png` (192px, herdado do RN — pedir um de 1024px). Splash = fundo liso na cor do app.
+- **Perde-se o EAS (Build/Submit/Update/OTA)**. Upload pra Play pode ser feito pela Android Publisher API com a
+  mesma service account do EAS Submit (permissão só de faixas de teste). Pendente: CD no GitHub Actions
+  substituindo o `mobile-cd.yml`, e decidir OTA (release nativa a cada merge na faixa interna vs. Capgo).
+- O CORS do backend aceita qualquer origem — a origem do app (`https://localhost`) funciona sem mudança. API em
+  `http://` não funciona (mixed content).

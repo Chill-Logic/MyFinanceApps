@@ -30,6 +30,9 @@
     "webapp:build": "npm run build --workspace=@myfinance/web",
     "webapp:lint": "npm run lint --workspace=@myfinance/web",
     "webapp:test": "npm run test --workspace=@myfinance/web",
-    "webapp:storybook": "npm run storybook --workspace=@myfinance/web"
+    "webapp:storybook": "npm run storybook --workspace=@myfinance/web",
+    "webapp:android": "npm run android --workspace=@myfinance/web",
+    "webapp:cap:sync": "npm run cap:sync --workspace=@myfinance/web",
+    "webapp:android:bundle": "npm run android:bundle --workspace=@myfinance/web"
   }
 }
