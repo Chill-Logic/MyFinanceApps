@@ -11,6 +11,7 @@ import { colors, getApiErrorMessage } from '@myfinance/shared';
 import { useSignIn } from '../../hooks/api/auth/useSignIn';
 
 import { useWallet } from '../../context/wallet';
+import { queryClient } from '../../services/query-client';
 import { LocalStorage } from '../../services/storage';
 
 import { IScreenProps } from '../../types/screen';
@@ -43,6 +44,14 @@ const SignInScreen = ({ navigation }: IScreenProps<'SignIn'>) => {
 		signInMutation({
 			body,
 			onSuccess: async(sign_in_response) => {
+				/*
+				 * Zera o cache do React Query ANTES de entrar. Depois de um 401, o erro do `/users/me` fica
+				 * guardado no cache (o logout só limpa o AsyncStorage); sem isso, o `AuthenticatedLayout`
+				 * montava, recebia o 401 VELHO na hora (antes da nova requisição voltar), chamava `logout()`
+				 * de novo e apagava o token recém-salvo — loop no login até matar o processo do app.
+				 * Também impede que dados em cache de um usuário apareçam pro próximo que logar no aparelho.
+				 */
+				queryClient.clear();
 				await LocalStorage.setItem(StorageKeys.TOKEN, sign_in_response.token);
 				setCanSearchForWallets(true);
 				navigation.replace('Home');
