@@ -6,6 +6,7 @@ import { queryClient } from '../../../services/query-client';
 export const invalidateRecurrenceData = () => {
 	[
 		QUERY_KEYS.recurrence.get_all,
+		QUERY_KEYS.recurrence.get_one,
 		QUERY_KEYS.transaction.get_all,
 		QUERY_KEYS.credit_balance.get_all,
 		QUERY_KEYS.credit_balance.get_invoice,

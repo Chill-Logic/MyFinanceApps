@@ -200,7 +200,10 @@ export type TRecurrenceBody = {
 	kind: TTransactionKind;
 	description: string;
 	/* Valor de cada ocorrência (em parcelada, de cada parcela), em centavos. */
-	value: number;
+	value?: number;
+	/* Só em parcelada: valor total da compra, em centavos. O backend divide pelo nº de parcelas e põe a sobra
+	 * dos centavos na 1ª, como os bancos. Alterar só `value` depois descarta o total. */
+	total_value?: number | null;
 	value_mode?: TRecurrenceValueMode;
 	frequency?: TRecurrenceFrequency;
 	interval?: number;
@@ -215,9 +218,18 @@ export type TRecurrenceBody = {
 	user_id?: string;
 };
 
-export type TCreateRecurrenceBody = TRecurrenceBody & {
+export type TCreateRecurrenceBody = (TRecurrenceBody & {
 	source_type: TTransactionSourceType;
 	source_id: string;
+}) | TCreateRecurrenceFromTransactionBody;
+
+/*
+ * Transformar uma transação já lançada em recorrência (pela edição): ela vira a 1ª ocorrência, a regra começa
+ * na data dela e herda origem, tipo, descrição, valor, cartão, destino e autor — mande só a regra. Parcelar uma
+ * compra lançada: `recurrence_type: 'installment'`, `occurrences_total` e `total_value` = valor dela.
+ */
+export type TCreateRecurrenceFromTransactionBody = Partial<TRecurrenceBody> & {
+	transaction_id: string;
 };
 
 export type TUpdateRecurrenceBody = Partial<TRecurrenceBody>;
