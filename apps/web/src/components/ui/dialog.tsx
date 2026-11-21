@@ -34,7 +34,14 @@ const DialogContent = forwardRef<
 		<DialogPrimitive.Content
 			ref={ref}
 			className={cn(
-				'fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+				/*
+				 * `max-h` + `overflow-y-auto`: sem isso um form mais alto que a tela vazava por cima e por
+				 * baixo (o conteúdo é centralizado com translate, não rola). `grid-cols-[minmax(0,1fr)]`:
+				 * a coluna implícita do grid é `auto`, e item de grid tem `min-width: auto` — qualquer filho
+				 * com largura intrínseca grande (input de hora, select com texto longo) esticava a coluna
+				 * além do diálogo e o conteúdo saía pela borda direita em tela estreita.
+				 */
+				'fixed left-1/2 top-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg grid-cols-[minmax(0,1fr)] overflow-y-auto overscroll-contain -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
 				className,
 			)}
 			{...props}

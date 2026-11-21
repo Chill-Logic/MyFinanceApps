@@ -28,12 +28,19 @@ export const withTimePart = (base: Date, hhmm: string): Date => {
 	return next;
 };
 
-/* Seletor de data (calendário) + horário (input nativo de time) num controle só. */
+/*
+ * Seletor de data (calendário) + horário (input nativo de time) num controle só.
+ *
+ * `flex-wrap` + larguras mínimas em vez de `w-auto shrink-0` no horário: o input nativo de time
+ * tem largura intrínseca grande e, sem poder encolher, empurrava a linha (e o diálogo inteiro) pra
+ * fora da tela em viewport estreita. Agora os dois dividem a linha quando cabe e o horário desce pra
+ * linha de baixo quando não cabe.
+ */
 const DateTimeField = ({ value, onChange, disabled }: IProps) => (
-	<div className='flex gap-2'>
+	<div className='flex flex-wrap gap-2'>
 		<Popover>
 			<PopoverTrigger asChild>
-				<Button type='button' variant='outline' disabled={disabled} className={`${ FIELD_METRICS } flex-1 justify-start gap-2`}>
+				<Button type='button' variant='outline' disabled={disabled} className={`${ FIELD_METRICS } min-w-[9rem] flex-[2] justify-start gap-2`}>
 					<CalendarIcon className='h-4 w-4' />
 					{format(value, 'dd/MM/yyyy')}
 				</Button>
@@ -47,7 +54,7 @@ const DateTimeField = ({ value, onChange, disabled }: IProps) => (
 			value={format(value, 'HH:mm')}
 			disabled={disabled}
 			onChange={(e) => onChange(withTimePart(value, e.target.value))}
-			className='w-auto shrink-0'
+			className='min-w-[7rem] flex-1'
 		/>
 	</div>
 );
