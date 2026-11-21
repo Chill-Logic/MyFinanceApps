@@ -33,11 +33,12 @@ const Logo = ({ variant = 'horizontal', size = 32, onDark = false, className }: 
 	const wordmark_height = Math.round(size * (variant === 'stacked' ? 0.32 : 0.5));
 
 	/*
-	 * O ícone tem SEMPRE `size` nos dois temas. No escuro, o quadrado areia cresce em volta dele
-	 * (em vez de o ícone encolher pra caber num quadrado de `size`) — senão o logo ficava visivelmente
-	 * menor no tema escuro.
+	 * O ícone tem SEMPRE `size`, e a caixa em volta dele tem SEMPRE `tile` — nos dois temas. Só o
+	 * fundo areia aparece ou não (escuro/`onDark`). Se a caixa mudasse de tamanho com o tema, o ícone
+	 * mudaria de tamanho ou empurraria o que vem depois (já aconteceu: no trilho do tablet a casinha
+	 * de "Início" pulava ao trocar de tema).
 	 */
-	const tile = dark_surface ? Math.round(size * 1.25) : size;
+	const tile = Math.round(size * 1.25);
 
 	const mark = (
 		<span
