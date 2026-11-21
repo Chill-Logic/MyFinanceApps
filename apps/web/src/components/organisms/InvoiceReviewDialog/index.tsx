@@ -45,7 +45,7 @@ const ReviewItem = ({ review }: { review: TPendingInvoiceReview }) => {
 					<p className='truncate font-medium text-foreground'>{review.description}</p>
 					<p className='text-xs text-muted-foreground'>{DateUtils.formatDate(review.settled_date || review.transaction_date)}</p>
 				</div>
-				<span className='shrink-0 font-semibold text-feedback-success-default'>{MoneyUtils.formatMoney(review.value)}</span>
+				<span className='shrink-0 font-semibold text-success'>{MoneyUtils.formatMoney(review.value)}</span>
 			</div>
 
 			<div className='flex flex-col gap-2' role='radiogroup' aria-label='Fatura do pagamento'>
@@ -120,7 +120,7 @@ const InvoiceReviewDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 
 				{!isLoading && reviews.length === 0 && (
 					<div className='flex flex-col items-center gap-2 py-8 text-center'>
-						<CheckCircle2 className='h-10 w-10 text-feedback-success-default' />
+						<CheckCircle2 className='h-10 w-10 text-success' />
 						<span className='font-medium'>Nenhuma pendência</span>
 					</div>
 				)}

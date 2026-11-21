@@ -58,12 +58,12 @@ const Sidebar = ({ className }: IProps) => {
 						<span className='relative shrink-0'>
 							<Icon className='h-4 w-4' />
 							{collapsed && id === 'wallets_invites' && invites_count > 0 && (
-								<span className='absolute -right-1 -top-1 h-2 w-2 rounded-full bg-brand-secondary' />
+								<span className='absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary' />
 							)}
 						</span>
 						{!collapsed && <span className='flex-1'>{label}</span>}
 						{!collapsed && id === 'wallets_invites' && invites_count > 0 && (
-							<span className='flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-secondary px-1 text-xs font-bold text-white'>
+							<span className='flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-bold text-primary-foreground'>
 								{invites_count}
 							</span>
 						)}

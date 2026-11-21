@@ -30,8 +30,8 @@ interface IProps {
 }
 
 const TONE_CLASS = {
-	success: 'text-feedback-success-default',
-	warning: 'text-feedback-warning-default',
+	success: 'text-success',
+	warning: 'text-warning',
 	error: 'text-destructive',
 	neutral: 'text-muted-foreground',
 } as const;

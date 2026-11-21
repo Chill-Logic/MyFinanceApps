@@ -138,9 +138,9 @@ const sectionNet = (items: TTransaction[]) =>
 
 /* Ícone por sentido da transação pra visão atual (ver `TransactionUtils.direction`). */
 const KIND_ICON_STYLE: Record<TTransactionDirection, { className: string; Icon: typeof ArrowUpRight }> = {
-	in: { className: 'bg-feedback-success-light text-feedback-success-dark', Icon: ArrowUpRight },
-	out: { className: 'bg-feedback-danger-light text-feedback-danger-dark', Icon: ArrowDownRight },
-	internal: { className: 'bg-feedback-info-light text-feedback-info-default', Icon: ArrowLeftRight },
+	in: { className: 'bg-success-soft text-success', Icon: ArrowUpRight },
+	out: { className: 'bg-danger-soft text-danger', Icon: ArrowDownRight },
+	internal: { className: 'bg-info-soft text-info', Icon: ArrowLeftRight },
 };
 
 const formatDateTime = (iso: string) => format(new Date(iso), 'dd/MM/yyyy HH:mm');
@@ -373,7 +373,7 @@ const TransactionList = () => {
 	const renderValue = (transaction_item: TTransaction, className: string) => {
 		const direction = directionOf(transaction_item);
 		const sign = { in: '+', out: '-', internal: '' }[direction];
-		const color = { in: 'text-feedback-success-default', out: 'text-destructive', internal: 'text-muted-foreground' }[direction];
+		const color = { in: 'text-success', out: 'text-destructive', internal: 'text-muted-foreground' }[direction];
 
 		return <span className={cn(className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
 	};
@@ -403,7 +403,7 @@ const TransactionList = () => {
 					<span
 						className={cn(
 							'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
-							is_credit ? 'border-feedback-info-default/50 text-feedback-info-default' : 'border-brand-secondary/50 text-brand-secondary',
+							is_credit ? 'border-info/50 text-info' : 'border-brand/50 text-brand',
 						)}
 					>
 						{is_credit ? <CreditCard className='h-3 w-3' /> : <Wallet className='h-3 w-3' />}
@@ -422,7 +422,7 @@ const TransactionList = () => {
 					<span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'>Rascunho</span>
 				)}
 				{is_pending && (
-					<span className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark'>Pendente</span>
+					<span className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning'>Pendente</span>
 				)}
 				{is_credit && transaction_item.invoice_review === 'pending' && (
 					<button
@@ -431,7 +431,7 @@ const TransactionList = () => {
 							event.stopPropagation();
 							setReviewingSource({ id: transaction_item.source_id, name: source_label || 'Crédito' });
 						}}
-						className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark hover:opacity-80'
+						className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning hover:opacity-80'
 					>
 						Fatura a confirmar
 					</button>
@@ -447,7 +447,7 @@ const TransactionList = () => {
 								name: source_label || (is_credit ? 'Crédito' : 'Conta'),
 							});
 						}}
-						className='rounded bg-feedback-warning-light px-1.5 py-0.5 text-[10px] font-semibold uppercase text-feedback-warning-dark hover:opacity-80'
+						className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning hover:opacity-80'
 					>
 						Conferir
 					</button>
@@ -511,11 +511,11 @@ const TransactionList = () => {
 						<Skeleton className='h-5 w-28' />
 					) : (
 						<div className='flex flex-wrap items-baseline gap-x-2'>
-							<span className={cn('text-base font-semibold', summary.settled >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
+							<span className={cn('text-base font-semibold', summary.settled >= 0 ? 'text-success' : 'text-destructive')}>
 								{MoneyUtils.formatSignedMoney(summary.settled)}
 							</span>
 							<span className='text-xs text-muted-foreground'>
-								previsto <span className={cn('font-medium', summary.gap ? 'text-feedback-warning-dark' : 'text-foreground')}>{MoneyUtils.formatSignedMoney(summary.projected)}</span>
+								previsto <span className={cn('font-medium', summary.gap ? 'text-warning' : 'text-foreground')}>{MoneyUtils.formatSignedMoney(summary.projected)}</span>
 								{summary.pending_suffix}
 							</span>
 						</div>
@@ -523,8 +523,8 @@ const TransactionList = () => {
 				</div>
 
 				<div className='flex items-center gap-6'>
-					{renderEntry(ArrowUpRight, 'bg-feedback-success-light text-feedback-success-dark', 'text-feedback-success-default', summary.deposit)}
-					{renderEntry(ArrowDownRight, 'bg-feedback-danger-light text-feedback-danger-dark', 'text-destructive', summary.withdraw)}
+					{renderEntry(ArrowUpRight, 'bg-success-soft text-success', 'text-success', summary.deposit)}
+					{renderEntry(ArrowDownRight, 'bg-danger-soft text-danger', 'text-destructive', summary.withdraw)}
 				</div>
 			</div>
 		</div>
@@ -575,7 +575,7 @@ const TransactionList = () => {
 				<div className='flex flex-col leading-tight'>
 					<span>{formatDateTime(transaction_item.transaction_date)}</span>
 					{transaction_item.settled_date && (
-						<span className='text-xs text-feedback-success-default'>pago {formatDateTime(transaction_item.settled_date)}</span>
+						<span className='text-xs text-success'>pago {formatDateTime(transaction_item.settled_date)}</span>
 					)}
 				</div>
 			</TableCell>
@@ -610,7 +610,7 @@ const TransactionList = () => {
 					className='flex w-full items-center justify-between gap-3 bg-card p-3 text-left'
 				>
 					<span className='flex items-center gap-3 overflow-hidden'>
-						<span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-feedback-info-light text-feedback-info-default'>
+						<span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-info-soft text-info'>
 							<CreditCard className='h-4 w-4' />
 						</span>
 						<span className='flex flex-col overflow-hidden'>
@@ -621,7 +621,7 @@ const TransactionList = () => {
 						</span>
 					</span>
 					<span className='flex shrink-0 items-center gap-2'>
-						<span className={cn('text-sm font-semibold', net >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
+						<span className={cn('text-sm font-semibold', net >= 0 ? 'text-success' : 'text-destructive')}>
 							{MoneyUtils.formatSignedMoney(net)}
 						</span>
 						<ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-300', is_collapsed && '-rotate-90')} />

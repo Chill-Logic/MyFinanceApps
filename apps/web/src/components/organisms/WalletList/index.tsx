@@ -148,14 +148,14 @@ const WalletList = () => {
 									<div className='flex items-center gap-2'>
 										<p className='truncate font-medium text-foreground'>{wallet.name}</p>
 										{is_main && (
-											<span className='flex shrink-0 items-center gap-1 rounded-full bg-brand-secondary/15 px-2 py-0.5 text-xs font-semibold text-brand-secondary'>
+											<span className='flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-brand'>
 												<Star className='h-3 w-3 fill-current' />
 												Principal
 											</span>
 										)}
 									</div>
 									{Boolean(wallet.total) && (
-										<p className={cn('text-sm', wallet.total >= 0 ? 'text-feedback-success-default' : 'text-feedback-danger-default')}>
+										<p className={cn('text-sm', wallet.total >= 0 ? 'text-success' : 'text-danger')}>
 											Total: {MoneyUtils.formatMoney(wallet.total)}
 										</p>
 									)}

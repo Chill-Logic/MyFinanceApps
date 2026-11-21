@@ -73,7 +73,7 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 							className='flex w-full items-center justify-between gap-2 rounded-md py-2 pl-6 pr-3 text-sm transition-colors hover:bg-accent'
 						>
 							<span className='truncate text-foreground'>{wallet.name}</span>
-							{wallet.id === user_wallet.data?.id && <Check className='h-4 w-4 shrink-0 text-brand-secondary' />}
+							{wallet.id === user_wallet.data?.id && <Check className='h-4 w-4 shrink-0 text-brand' />}
 						</button>
 					))}
 				</div>

@@ -123,7 +123,7 @@ const AccountList = () => {
 										<button
 											type='button'
 											onClick={() => setReviewingSource({ type: 'Account', id: account.id, name: account.name })}
-											className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
+											className='mt-1 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning hover:opacity-80'
 										>
 											<AlertTriangle className='h-3 w-3' />
 											{account.pending_match_reviews_count} para conferir
@@ -131,7 +131,7 @@ const AccountList = () => {
 									)}
 								</div>
 
-								<span className={cn('shrink-0 font-semibold', account.balance >= 0 ? 'text-feedback-success-default' : 'text-destructive')}>
+								<span className={cn('shrink-0 font-semibold', account.balance >= 0 ? 'text-success' : 'text-destructive')}>
 									{MoneyUtils.formatMoney(account.balance)}
 								</span>
 

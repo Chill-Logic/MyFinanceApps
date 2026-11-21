@@ -150,7 +150,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 							<button
 								type='button'
 								onClick={() => setIsReviewOpen(true)}
-								className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
+								className='mt-1 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning hover:opacity-80'
 							>
 								<AlertTriangle className='h-3 w-3' />
 								{creditBalance.pending_invoice_reviews_count}{' '}
@@ -161,7 +161,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 							<button
 								type='button'
 								onClick={() => setIsMatchReviewOpen(true)}
-								className='mt-1 inline-flex items-center gap-1 rounded-full bg-feedback-warning-light px-2 py-0.5 text-xs font-medium text-feedback-warning-dark hover:opacity-80'
+								className='mt-1 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning hover:opacity-80'
 							>
 								<AlertTriangle className='h-3 w-3' />
 								{creditBalance.pending_match_reviews_count} para conferir
@@ -246,7 +246,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 							<p className='text-xs text-muted-foreground'>
 								{formatDayMonth(invoice.cycle_start)} – {formatDayMonth(invoice.cycle_end)}
 								{' · '}
-								<span className={cn('font-medium', invoice.paid ? 'text-feedback-success-default' : 'text-feedback-warning-dark')}>
+								<span className={cn('font-medium', invoice.paid ? 'text-success' : 'text-warning')}>
 									{invoiceStatusLabel()}
 								</span>
 							</p>
@@ -260,7 +260,7 @@ const CreditBalanceCard = ({ creditBalance }: ICreditBalanceCardProps) => {
 
 			<div className='flex flex-col gap-2 border-t border-border pt-3'>
 				{!is_cards_loading && cards.length === 0 && (
-					<div className='flex items-start gap-2 rounded-lg bg-feedback-warning-light px-3 py-2 text-xs text-feedback-warning-dark'>
+					<div className='flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning'>
 						<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
 						<span>Cadastre um cartão para lançar compras neste crédito — sem cartão, ele não aparece como origem nas transações.</span>
 					</div>

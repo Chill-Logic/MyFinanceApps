@@ -98,10 +98,10 @@ const BankImportDialog = ({ open, onOpenChange, link }: IProps) => {
 									className={cn(
 										'flex flex-col gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors',
 										active ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted',
-										option.warning && active && 'border-feedback-warning-default bg-feedback-warning-light/40',
+										option.warning && active && 'border-warning-dot bg-warning-soft',
 									)}
 								>
-									<span className={cn('flex items-center gap-1.5 font-medium text-foreground', option.warning && 'text-feedback-warning-dark dark:text-feedback-warning-default')}>
+									<span className={cn('flex items-center gap-1.5 font-medium text-foreground', option.warning && 'text-warning')}>
 										{option.warning && <AlertTriangle className='h-4 w-4' />}
 										{option.label}
 									</span>

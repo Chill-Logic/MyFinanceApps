@@ -1,37 +1,55 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
-@import './fonts.css';
 
 @layer base {
     /*
-     * Tokens semânticos do shadcn/ui, mapeados a partir da paleta de marca em
-     * packages/shared/src/tokens.ts (colors/Theme) — não são uma paleta nova, só a
-     * mesma marca traduzida pro vocabulário `background`/`primary`/`destructive`/etc.
-     * que os componentes de packages/ui esperam. Valores em "H S% L%" (sem hsl()
-     * ao redor — quem envolve é o tailwind.config.ts).
+     * Tokens semânticos, convertidos para HSL a partir de `brandTheme`/`brandPalette` em
+     * packages/shared/src/tokens.ts (redesign 2026-11): `:root` = tema claro, `.dark` = escuro.
+     * Valores em "H S% L%" sem hsl() ao redor — quem envolve é o tailwind.config.ts. Os que
+     * carregam "/ alfa" (border, input e os *-soft) já vêm translúcidos e não aceitam
+     * modificador de opacidade do Tailwind; os demais aceitam (`bg-primary/15`).
      */
     :root {
-        --background: 30 7% 76%;
-        --foreground: 202 81% 11%;
+        --background: 40 20% 94%;
+        --foreground: 203 74% 12%;
         --card: 0 0% 100%;
-        --card-foreground: 202 81% 11%;
-        --popover: 30 7% 76%;
-        --popover-foreground: 202 81% 11%;
+        --card-foreground: 203 74% 12%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 203 74% 12%;
         --primary: 82 26% 50%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 0 0% 87%;
-        --secondary-foreground: 202 81% 11%;
-        --muted: 0 0% 87%;
-        --muted-foreground: 0 0% 53%;
-        --accent: 88 29% 42%;
-        --accent-foreground: 0 0% 100%;
-        --destructive: 351 100% 44%;
+        --primary-foreground: 203 74% 12%;
+        --secondary: 36 24% 96%;
+        --secondary-foreground: 203 74% 12%;
+        --muted: 37 17% 91%;
+        --muted-foreground: 206 12% 38%;
+        --accent: 36 17% 89%;
+        --accent-foreground: 203 74% 12%;
+        --destructive: 4 76% 40%;
         --destructive-foreground: 0 0% 100%;
-        --border: 202 81% 11%;
-        --input: 202 81% 11%;
+        --border: 203 74% 12% / 0.1;
+        --input: 203 74% 12% / 0.14;
         --ring: 82 26% 50%;
-        --radius: 0.75rem;
+        --radius: 1rem;
+
+        /* Papéis do redesign */
+        --sidebar: 38 20% 92%;
+        --brand: 88 40% 30%;
+        --success: 143 72% 29%;
+        --success-soft: 143 72% 29% / 0.12;
+        --warning: 36 78% 27%;
+        --warning-soft: 38 76% 45% / 0.14;
+        --warning-dot: 38 76% 45%;
+        --info: 190 92% 25%;
+        --info-soft: 190 92% 34% / 0.12;
+        --danger: 4 76% 40%;
+        --danger-soft: 4 76% 40% / 0.1;
+
+        /* Cores fixas da marca (iguais nos dois temas) */
+        --navy: 203 74% 12%;
+        --navy-light: 201 69% 19%;
+        --teal: 190 92% 34%;
+        --sand-light: 36 15% 94%;
 
         /* Cores por tipo de toast (sonner), mesmos tokens feedback-* de packages/shared/tokens.ts */
         --toast-success-bg: 143 100% 92%;
@@ -49,25 +67,37 @@
     }
 
     .dark {
-        --background: 203 74% 12%;
-        --foreground: 30 7% 76%;
-        --card: 240 6% 7%;
-        --card-foreground: 30 7% 76%;
-        --popover: 203 74% 12%;
-        --popover-foreground: 30 7% 76%;
-        --primary: 82 26% 50%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 203 40% 20%;
-        --secondary-foreground: 30 7% 76%;
-        --muted: 203 40% 20%;
-        --muted-foreground: 0 0% 53%;
-        --accent: 88 29% 42%;
-        --accent-foreground: 0 0% 100%;
-        --destructive: 351 94% 35%;
-        --destructive-foreground: 0 0% 100%;
-        --border: 30 7% 76%;
-        --input: 30 7% 76%;
-        --ring: 82 26% 50%;
+        --background: 204 71% 7%;
+        --foreground: 36 15% 94%;
+        --card: 204 62% 10%;
+        --card-foreground: 36 15% 94%;
+        --popover: 204 62% 10%;
+        --popover-foreground: 36 15% 94%;
+        --primary: 81 35% 60%;
+        --primary-foreground: 203 74% 12%;
+        --secondary: 202 52% 12%;
+        --secondary-foreground: 36 15% 94%;
+        --muted: 202 52% 12%;
+        --muted-foreground: 33 6% 64%;
+        --accent: 202 49% 15%;
+        --accent-foreground: 36 15% 94%;
+        --destructive: 6 82% 71%;
+        --destructive-foreground: 203 74% 12%;
+        --border: 30 7% 76% / 0.12;
+        --input: 30 7% 76% / 0.16;
+        --ring: 81 35% 60%;
+
+        --sidebar: 203 73% 9%;
+        --brand: 80 42% 70%;
+        --success: 144 49% 66%;
+        --success-soft: 144 49% 66% / 0.12;
+        --warning: 43 80% 75%;
+        --warning-soft: 42 78% 60% / 0.12;
+        --warning-dot: 42 78% 60%;
+        --info: 191 60% 73%;
+        --info-soft: 190 92% 34% / 0.18;
+        --danger: 6 82% 71%;
+        --danger-soft: 6 82% 71% / 0.12;
 
         --toast-success-bg: 144 90% 24%;
         --toast-success-border: 144 100% 33%;
@@ -89,7 +119,9 @@
      * "Manter conectado", que não mudavam de cor no dark mode.
      */
     body {
-        @apply text-foreground;
+        @apply bg-background font-sans text-foreground antialiased;
+        /* Números de largura fixa: valores em colunas e listas alinham sem "dançar". */
+        font-feature-settings: 'tnum' 1;
     }
 
     /*

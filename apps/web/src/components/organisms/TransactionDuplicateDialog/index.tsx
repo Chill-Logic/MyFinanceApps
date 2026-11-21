@@ -47,9 +47,9 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		? TransactionUtils.transferDescription(transaction?.source_name || sourceName, transaction?.destination_account_name)
 		: '';
 	const kind_style = (() => {
-		if (is_transfer) return { badge: 'bg-feedback-info-light text-feedback-info-default', value: 'text-foreground', sign: '', Icon: ArrowLeftRight };
-		if (is_deposit) return { badge: 'bg-feedback-success-light text-feedback-success-dark', value: 'text-feedback-success-default', sign: '+', Icon: ArrowUpRight };
-		return { badge: 'bg-feedback-danger-light text-feedback-danger-dark', value: 'text-destructive', sign: '-', Icon: ArrowDownRight };
+		if (is_transfer) return { badge: 'bg-info-soft text-info', value: 'text-foreground', sign: '', Icon: ArrowLeftRight };
+		if (is_deposit) return { badge: 'bg-success-soft text-success', value: 'text-success', sign: '+', Icon: ArrowUpRight };
+		return { badge: 'bg-danger-soft text-danger', value: 'text-destructive', sign: '-', Icon: ArrowDownRight };
 	})();
 
 	useEffect(() => {

@@ -97,11 +97,11 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 							<div className='flex flex-col gap-1 border-t border-dashed border-border pt-2 text-sm'>
 								<div className='flex items-center justify-between text-muted-foreground'>
 									<span>Já pago</span>
-									<span className='font-medium text-feedback-success-default'>{MoneyUtils.formatMoney(paid_amount)}</span>
+									<span className='font-medium text-success'>{MoneyUtils.formatMoney(paid_amount)}</span>
 								</div>
 								<div className='flex items-center justify-between'>
 									<span className='text-muted-foreground'>Restante</span>
-									<span className='font-semibold text-feedback-warning-dark'>{MoneyUtils.formatMoney(remaining)}</span>
+									<span className='font-semibold text-warning'>{MoneyUtils.formatMoney(remaining)}</span>
 								</div>
 							</div>
 						)}

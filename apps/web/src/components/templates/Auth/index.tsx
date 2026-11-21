@@ -1,13 +1,12 @@
 import classNames from 'classnames';
 import { Moon, Sun } from 'lucide-react';
 
-import logo from '@/assets/Logo Full MyFinance Cortada.png';
-
 import { useTheme } from '@/context/theme';
 
 import { ITemplateProps } from '@/types';
 
 import Button from '@/components/atoms/Button';
+import Logo from '@/components/atoms/Logo';
 
 const AuthTemplate = ({ children }: ITemplateProps) => {
 	const { theme, toggleTheme } = useTheme();
@@ -17,7 +16,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 			className={
 				classNames(
 					'relative h-screen overflow-auto py-8 transition-all duration-300',
-					'bg-background-light dark:bg-background-default'
+					'bg-background'
 				)
 			}
 		>
@@ -34,7 +33,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 
 			<div className='flex flex-col w-full min-h-full items-center justify-center'>
 				<div className='w-[300px]'>
-					<img src={logo} alt='logo' className='mb-14' />
+					<Logo variant='stacked' size={72} className='mb-12 w-full' />
 					{children}
 				</div>
 			</div>

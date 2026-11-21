@@ -995,11 +995,32 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   sincronizado só via `localStorage` lido no mount; qualquer toggle ficava "preso" ao componente que
   clicou, sem refletir em outros lugares até um reload. Se precisar ler/trocar o tema em código novo,
   sempre consuma o contexto, nunca reimplemente um state local pra isso.
+  - **Segue o sistema por padrão (redesign 2026-11):** o contexto guarda uma *preferência*
+    (`system`/`light`/`dark`, `setPreference`) e expõe o `theme` já resolvido; em `system` acompanha o
+    `prefers-color-scheme` em tempo real. A preferência fica na chave `theme-preference` — a antiga
+    `theme` foi abandonada de propósito, porque gravava "light" na primeira visita de todo mundo e
+    impediria usuários existentes de seguir o sistema. `index.html` tem um script inline que aplica a
+    classe `.dark` antes do React montar (mesma regra), para não piscar o tema errado; mudou a regra
+    num lado, mude no outro. A escolha fica em Configurações → Aparência (Sistema/Claro/Escuro).
   - As variáveis CSS do shadcn (`--background`, `--primary`, `--secondary`, etc., em
-    `src/styles/index.css`, dentro de `:root`/`.dark`) são a paleta de marca de
-    `packages/shared/src/tokens.ts` **convertida pra HSL** (não é uma paleta nova) — se adicionar um
-    token de marca novo lá, recalcule o HSL e adicione aqui também, os dois lados não sincronizam
-    sozinhos.
+    `src/styles/index.css`, dentro de `:root`/`.dark`) são `brandTheme`/`brandPalette` de
+    `packages/shared/src/tokens.ts` (paleta do redesign) **convertidos pra HSL** — se mudar um valor
+    lá, recalcule o HSL e mude aqui também, os dois lados não sincronizam sozinhos. Além das do
+    shadcn existem papéis próprios: `sidebar`, `brand` (oliva legível como texto), `success`,
+    `warning` (+`warning-dot`), `info`, `danger`, cada um com `*-soft` (fundo translúcido, ex.
+    `bg-success-soft text-success`), e as fixas da marca `navy`/`navy-light`/`teal`/`sand-light`
+    (iguais nos dois temas). Use esses papéis em vez dos tokens planos antigos (`feedback-*`,
+    `brand-secondary`, `background-default`…), que não acompanham o tema. As cores aceitam
+    modificador de opacidade (`bg-primary/15`), **exceto** `border`, `input` e os `*-soft`, cujas
+    variáveis já carregam o alfa. `primary-foreground` é marinho nos dois temas: o oliva não tem
+    contraste com texto branco.
+  - **Fonte: Geist** (`@fontsource-variable/geist`, importada em `src/index.tsx`), com números de
+    largura fixa (`tnum`) no `body`. `font-noto-sans`/`font-roboto` viraram apelidos da Geist só para
+    não quebrar quem ainda os usa; a Noto Sans e os 12 MB de arquivos dela foram removidos.
+  - **Logo**: SVGs em `src/assets/brand` (ícone redesenhado em geometria + nome traçado do PNG
+    original, com variante clara para fundo escuro), sempre via o átomo `components/atoms/Logo`
+    (`icon`/`horizontal`/`stacked`, prop `onDark` para fundo marinho fixo). No escuro o ícone ganha um
+    quadrado areia por trás, porque o quarto marinho dele some sobre fundo escuro.
   - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
     texto sem cor explícita (ex: `Label` do shadcn, que não define cor própria de propósito) herda o
     preto padrão do browser em vez de acompanhar o tema — foi exatamente isso que quebrou as labels

@@ -142,7 +142,7 @@ const MatchReviewDialog = ({ open, onOpenChange, source }: IProps) => {
 
 				{!isLoading && reviews.length === 0 && (
 					<div className='flex flex-col items-center gap-2 py-8 text-center'>
-						<CheckCircle2 className='h-10 w-10 text-feedback-success-default' />
+						<CheckCircle2 className='h-10 w-10 text-success' />
 						<span className='font-medium'>Nenhuma pendência</span>
 					</div>
 				)}

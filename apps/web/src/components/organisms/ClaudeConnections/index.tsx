@@ -25,8 +25,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Skeleton } from '@/components/ui/skeleton';
 
 const TONE_CLASS = {
-	success: 'text-feedback-success-default',
-	warning: 'text-feedback-warning-default',
+	success: 'text-success',
+	warning: 'text-warning',
 	error: 'text-destructive',
 	neutral: 'text-muted-foreground',
 } as const;

@@ -806,7 +806,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								onClick={() => chooseOriginType('Account')}
 								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
 							>
-								<Wallet className='h-6 w-6 text-brand-secondary' />
+								<Wallet className='h-6 w-6 text-brand' />
 								Conta
 								{!accounts.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhuma conta</span>}
 							</button>
@@ -816,7 +816,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								onClick={() => chooseOriginType('CreditBalance')}
 								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
 							>
-								<CreditCard className='h-6 w-6 text-feedback-info-default' />
+								<CreditCard className='h-6 w-6 text-info' />
 								Cartão
 								{!credit_balances.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhum cartão</span>}
 							</button>
@@ -826,7 +826,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								onClick={() => chooseOriginType('Account', 'transfer')}
 								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
 							>
-								<ArrowLeftRight className='h-6 w-6 text-feedback-info-default' />
+								<ArrowLeftRight className='h-6 w-6 text-info' />
 								Transferência
 								{!can_transfer && <span className='text-[11px] font-normal text-muted-foreground'>precisa de 2 contas</span>}
 							</button>
@@ -938,7 +938,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								</Select>
 
 								{!is_cards_loading && !credit_cards.length && (
-									<div className='flex items-start gap-2 rounded-md bg-feedback-warning-light px-3 py-2 text-xs text-feedback-warning-dark'>
+									<div className='flex items-start gap-2 rounded-md bg-warning-soft px-3 py-2 text-xs text-warning'>
 										<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
 										<span className='flex-1'>
 											Este crédito não tem cartões. Cadastre um em{' '}

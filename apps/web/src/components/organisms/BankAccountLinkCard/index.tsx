@@ -24,9 +24,9 @@ interface IProps {
 }
 
 const TONE_CLASS = {
-	success: 'bg-feedback-success-light text-feedback-success-dark',
-	warning: 'bg-feedback-warning-light text-feedback-warning-dark',
-	error: 'bg-feedback-danger-light text-destructive',
+	success: 'bg-success-soft text-success',
+	warning: 'bg-warning-soft text-warning',
+	error: 'bg-danger-soft text-destructive',
 	neutral: 'bg-muted text-muted-foreground',
 } as const;
 
@@ -118,9 +118,9 @@ const BankAccountLinkCard = ({ link, walletId }: IProps) => {
 			</div>
 
 			{needs_best_purchase_day && (
-				<div className='flex flex-col gap-2 rounded-lg border border-feedback-warning-default/50 bg-feedback-warning-light/40 p-3'>
+				<div className='flex flex-col gap-2 rounded-lg border border-warning-dot/50 bg-warning-soft p-3'>
 					<p className='flex items-start gap-2 text-sm text-foreground'>
-						<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0 text-feedback-warning-default' />
+						<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0 text-warning' />
 						{BANK_BEST_PURCHASE_DAY_HELP(link.suggested_best_purchase_day)}
 					</p>
 					<div className='flex items-end gap-2'>

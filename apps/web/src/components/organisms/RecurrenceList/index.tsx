@@ -34,7 +34,7 @@ const TYPE_SEGMENTS = [
 /* Valor com sinal/cor pelo tipo; transferência é neutra (não muda o saldo da carteira). */
 const renderValue = (recurrence: TRecurrence) => {
 	const sign = { deposit: '+', withdraw: '-', transfer: '' }[recurrence.kind];
-	const color = { deposit: 'text-feedback-success-default', withdraw: 'text-destructive', transfer: 'text-muted-foreground' }[recurrence.kind];
+	const color = { deposit: 'text-success', withdraw: 'text-destructive', transfer: 'text-muted-foreground' }[recurrence.kind];
 	return <span className={cn('shrink-0 font-semibold', color)}>{sign}{MoneyUtils.formatMoney(recurrence.value)}</span>;
 };
 

@@ -116,6 +116,7 @@ const Typography = (props: IProps) => {
 			'ultra-black': '!font-ultra-black',
 		},
 		fontFamily: {
+			'sans': '!font-sans',
 			'noto-sans': '!font-noto-sans',
 			'roboto': '!font-roboto',
 		},

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-import { Bot, ChevronDown, ChevronLeft, ChevronRight, Info, Lock, Moon, Palette, Pencil, Sun, User, type LucideIcon } from 'lucide-react';
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, Info, Lock, Monitor, Moon, Palette, Pencil, Sun, User, type LucideIcon } from 'lucide-react';
 
-import { useTheme } from '@/context/theme';
+import { type TThemePreference, useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
-import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
+import SegmentedControl, { type TSegment } from '@/components/molecules/SegmentedControl';
 import AboutInfo from '@/components/organisms/AboutInfo';
 import AccountInfoForm from '@/components/organisms/AccountInfoForm';
 import AccountPasswordForm from '@/components/organisms/AccountPasswordForm';
@@ -48,7 +48,13 @@ const NODES: (TLeaf | TGroup)[] = [
 	{ type: 'leaf', key: 'about', label: 'Sobre', description: 'Versões do webapp e da API', icon: Info },
 ];
 
-const LEAVES: TLeaf[] = NODES.flatMap((node) => (node.type === 'group' ? node.children : [ node ]));
+const THEME_SEGMENTS: TSegment[] = [
+	{ value: 'system', label: 'Sistema', icon: Monitor },
+	{ value: 'light', label: 'Claro', icon: Sun },
+	{ value: 'dark', label: 'Escuro', icon: Moon },
+];
+
+const LEAVES: TLeaf[] =NODES.flatMap((node) => (node.type === 'group' ? node.children : [ node ]));
 
 const leaf_base = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors';
 
@@ -60,7 +66,7 @@ const leaf_base = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left
  * "Voltar"; tocar num grupo só expande/colapsa, não navega).
  */
 const SettingsPage = () => {
-	const { theme, toggleTheme } = useTheme();
+	const { theme, preference, setPreference } = useTheme();
 
 	const [ selected_key, setSelectedKey ] = useState<TLeafKey | null>(null);
 	const [ expanded, setExpanded ] = useState<Record<string, boolean>>({ account: true });
@@ -98,15 +104,18 @@ const SettingsPage = () => {
 	const renderDetail = () => {
 		if (active_key === 'appearance') {
 			return (
-				<div className='flex items-center justify-between gap-3 rounded-lg border border-card bg-card p-4'>
+				<div className='flex flex-col gap-3 rounded-lg border border-card bg-card p-4'>
 					<div className='min-w-0'>
 						<p className='text-sm font-medium text-foreground'>Tema</p>
-						<p className='text-xs text-muted-foreground'>{theme === 'dark' ? 'Escuro' : 'Claro'}</p>
+						<p className='text-xs text-muted-foreground'>
+							{preference === 'system' ? `Seguindo o sistema (${ theme === 'dark' ? 'escuro' : 'claro' })` : 'Escolhido por você'}
+						</p>
 					</div>
-					<Button type='button' variant='outline' className='gap-2' onClick={toggleTheme}>
-						{theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
-						Alternar tema
-					</Button>
+					<SegmentedControl
+						segments={THEME_SEGMENTS}
+						value={preference}
+						onChange={(value) => setPreference(value as TThemePreference)}
+					/>
 				</div>
 			);
 		}
