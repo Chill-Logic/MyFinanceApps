@@ -32,12 +32,19 @@ const Logo = ({ variant = 'horizontal', size = 32, onDark = false, className }: 
 	/* O nome tem proporção 4480×550 ≈ 8,15:1; ~55% da altura do ícone fica equilibrado ao lado. */
 	const wordmark_height = Math.round(size * (variant === 'stacked' ? 0.32 : 0.5));
 
+	/*
+	 * O ícone tem SEMPRE `size` nos dois temas. No escuro, o quadrado areia cresce em volta dele
+	 * (em vez de o ícone encolher pra caber num quadrado de `size`) — senão o logo ficava visivelmente
+	 * menor no tema escuro.
+	 */
+	const tile = dark_surface ? Math.round(size * 1.25) : size;
+
 	const mark = (
 		<span
 			className={cn('flex shrink-0 items-center justify-center', dark_surface && 'bg-sand-light')}
-			style={{ width: size, height: size, borderRadius: size * 0.28 }}
+			style={{ width: tile, height: tile, borderRadius: tile * 0.28 }}
 		>
-			<img src={icon} alt='' width={size * (dark_surface ? 0.8 : 1)} height={size * (dark_surface ? 0.8 : 1)} />
+			<img src={icon} alt='' width={size} height={size} />
 		</span>
 	);
 
