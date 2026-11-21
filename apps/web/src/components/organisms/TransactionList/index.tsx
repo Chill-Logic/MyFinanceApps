@@ -35,6 +35,7 @@ import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence
 import { useDeleteTransactions } from '@/hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '@/hooks/api/transactions/useListTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
+import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
 import useToast from '@/hooks/useToast';
 
 import { useMonthSelection } from '@/context/monthSelection';
@@ -58,6 +59,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Badge from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,15 +120,16 @@ const buildSummary = (group: TTransactionGroup | undefined, account_ids: Readonl
 	const withdraw = sumBy('out');
 	const settled = group?.total_settled ?? 0;
 	const projected = group?.total_projected ?? 0;
-	const pending = non_draft.filter((i) => !i.settled).length;
+	const pending_count = non_draft.filter((i) => !i.settled).length;
 
 	return {
 		deposit,
 		withdraw,
 		settled,
 		projected,
-		gap: projected !== settled,
-		pending_suffix: pending > 0 ? ` · ${ pending } pendente${ pending > 1 ? 's' : '' }` : '',
+		/* O que ainda falta acontecer no mês: diferença entre o previsto e o já efetivado (com sinal). */
+		pending_net: projected - settled,
+		pending_count,
 	};
 };
 
@@ -136,14 +139,17 @@ const sectionNet = (items: TTransaction[]) =>
 		.filter((item) => !item.draft)
 		.reduce((acc, item) => acc + (item.kind === 'deposit' ? item.value : -item.value), 0);
 
-/* Ícone por sentido da transação pra visão atual (ver `TransactionUtils.direction`). */
+/*
+ * Ícone por sentido da transação pra visão atual (ver `TransactionUtils.direction`). Redesign: quadrado
+ * neutro com a seta colorida (verde só pra entrada) — a saída não grita em vermelho em toda linha.
+ */
 const KIND_ICON_STYLE: Record<TTransactionDirection, { className: string; Icon: typeof ArrowUpRight }> = {
-	in: { className: 'bg-success-soft text-success', Icon: ArrowUpRight },
-	out: { className: 'bg-danger-soft text-danger', Icon: ArrowDownRight },
-	internal: { className: 'bg-info-soft text-info', Icon: ArrowLeftRight },
+	in: { className: 'text-success', Icon: ArrowUpRight },
+	out: { className: 'text-muted-foreground', Icon: ArrowDownRight },
+	internal: { className: 'text-info', Icon: ArrowLeftRight },
 };
 
-const formatDateTime = (iso: string) => format(new Date(iso), 'dd/MM/yyyy HH:mm');
+const formatShortDate = (iso: string) => format(new Date(iso), 'd MMM', { locale: ptBR });
 
 const sortTransactions = (transactions: TTransaction[], sort: TSortState) => {
 	const sign = sort.direction === 'asc' ? 1 : -1;
@@ -212,6 +218,10 @@ const TransactionList = () => {
 
 	/* Contas que esta visão (a carteira) enxerga — decidem o sinal de uma transferência. */
 	const account_ids = useMemo(() => new Set(accounts.map((account) => account.id)), [ accounts ]);
+
+	/* Autor de cada transação só aparece quando a carteira é compartilhada — sozinho, é ruído em toda linha. */
+	const { data: members_data } = useListWalletMembers({ wallet_id });
+	const show_author = (members_data?.length ?? 0) > 1;
 
 	const is_loading = is_wallet_loading || is_transactions_loading || is_accounts_loading || is_credit_loading;
 
@@ -359,23 +369,34 @@ const TransactionList = () => {
 
 	const directionOf = (transaction_item: TTransaction) => TransactionUtils.direction(transaction_item, account_ids);
 
+	const isPending = (transaction_item: TTransaction) => !transaction_item.draft && !transaction_item.settled;
+
+	/* Quadrado neutro com a seta do sentido; bolinha âmbar no canto quando ainda está pendente. */
 	const renderKindIcon = (transaction_item: TTransaction) => {
 		const { className, Icon } = KIND_ICON_STYLE[directionOf(transaction_item)];
 
 		return (
-			<div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', className)}>
-				<Icon className='h-4 w-4' />
+			<div className='relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent'>
+				<Icon className={cn('h-[18px] w-[18px]', className)} />
+				{isPending(transaction_item) && (
+					<span aria-hidden='true' className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-warning-dot' />
+				)}
 			</div>
 		);
 	};
 
-	/* Valor com sinal pela visão: + entrada, − saída; movimento interno (transferência) fica sem sinal e neutro. */
+	/*
+	 * Valor com sinal pela visão: + entrada (verde), − saída (cor do texto, sem vermelho), movimento interno
+	 * (transferência) sem sinal. Pendente fica apagado: ainda não aconteceu.
+	 */
 	const renderValue = (transaction_item: TTransaction, className: string) => {
 		const direction = directionOf(transaction_item);
-		const sign = { in: '+', out: '-', internal: '' }[direction];
-		const color = { in: 'text-success', out: 'text-destructive', internal: 'text-muted-foreground' }[direction];
+		const sign = { in: '+', out: '−', internal: '' }[direction];
+		const color = isPending(transaction_item)
+			? 'text-muted-foreground'
+			: { in: 'text-success', out: 'text-foreground', internal: 'text-muted-foreground' }[direction];
 
-		return <span className={cn(className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
+		return <span className={cn('whitespace-nowrap', className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
 	};
 
 	/* Ícone de repetição: só em recorrência comum — parcela já tem o "n/N" na descrição. */
@@ -386,8 +407,9 @@ const TransactionList = () => {
 	);
 
 	/*
-	 * Chip do NOME da origem (omitido dentro de uma seção de cartão via `hide_source` — o header já diz),
-	 * badges de estado (pendente/rascunho) e QUEM fez a transação (`user_name`, sempre visível).
+	 * Segunda linha da transação: origem (omitida dentro da seção de um cartão via `hide_source` — o
+	 * cabeçalho já diz), selos de estado e, só em carteira compartilhada, quem lançou. Datas de previsão e
+	 * pagamento ficam fora da lista (cabeçalho do dia + detalhe), pra linha caber em duas linhas.
 	 */
 	const renderMeta = (transaction_item: TTransaction, hide_source = false) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
@@ -395,34 +417,27 @@ const TransactionList = () => {
 		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id);
 		const name = source_label && isDeletedSource(transaction_item) ? `${ source_label } (excluída)` : source_label;
 		const is_transfer = transaction_item.kind === 'transfer';
-		const is_pending = !transaction_item.draft && !transaction_item.settled;
 
 		return (
-			<div className='mt-0.5 flex flex-wrap items-center gap-1.5'>
+			<div className='mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground'>
 				{!hide_source && (
-					<span
-						className={cn(
-							'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
-							is_credit ? 'border-info/50 text-info' : 'border-brand/50 text-brand',
-						)}
-					>
-						{is_credit ? <CreditCard className='h-3 w-3' /> : <Wallet className='h-3 w-3' />}
-						{name || (is_credit ? 'Crédito' : 'Conta')}
-						{/* Transferência: "De X para Y" — o chip mostra os dois lados */}
+					<span className='inline-flex min-w-0 items-center gap-1 truncate'>
+						{is_credit && <CreditCard className='h-3 w-3 shrink-0 text-info' />}
+						<span className='truncate'>{name || (is_credit ? 'Crédito' : 'Conta')}</span>
+						{/* Transferência: "De X para Y" */}
 						{is_transfer && (
 							<>
-								<ArrowRight className='h-3 w-3' />
-								{transaction_item.destination_account_name || 'Conta'}
+								<ArrowRight className='h-3 w-3 shrink-0' />
+								<span className='truncate'>{transaction_item.destination_account_name || 'Conta'}</span>
 							</>
 						)}
 					</span>
 				)}
 
-				{transaction_item.draft && (
-					<span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'>Rascunho</span>
-				)}
-				{is_pending && (
-					<span className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning'>Pendente</span>
+				{transaction_item.draft && <Badge variant='neutral'>Rascunho</Badge>}
+				{isPending(transaction_item) && <Badge variant='warning' dot>Pendente</Badge>}
+				{transaction_item.projected && (
+					<Badge variant='outline' title={PROJECTED_HELP} className='cursor-help border-dashed'>Prevista</Badge>
 				)}
 				{is_credit && transaction_item.invoice_review === 'pending' && (
 					<button
@@ -431,9 +446,9 @@ const TransactionList = () => {
 							event.stopPropagation();
 							setReviewingSource({ id: transaction_item.source_id, name: source_label || 'Crédito' });
 						}}
-						className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning hover:opacity-80'
+						className='rounded-full transition-opacity hover:opacity-80'
 					>
-						Fatura a confirmar
+						<Badge variant='warning'>Fatura a confirmar</Badge>
 					</button>
 				)}
 				{transaction_item.match_review === 'pending' && (
@@ -447,86 +462,83 @@ const TransactionList = () => {
 								name: source_label || (is_credit ? 'Crédito' : 'Conta'),
 							});
 						}}
-						className='rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase text-warning hover:opacity-80'
+						className='rounded-full transition-opacity hover:opacity-80'
 					>
-						Conferir
+						<Badge variant='info'>Conferir</Badge>
 					</button>
 				)}
-				{transaction_item.projected && (
-					<span
-						title={PROJECTED_HELP}
-						className='cursor-help rounded border border-dashed border-muted-foreground/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground'
-					>
-						Prevista
+
+				{show_author && (
+					<span className='inline-flex items-center gap-1'>
+						<User className='h-3 w-3' />
+						{transaction_item.user_name}
 					</span>
 				)}
-
-				<span className='inline-flex items-center gap-1 text-[11px] text-muted-foreground'>
-					<User className='h-3 w-3' />
-					{transaction_item.user_name}
-				</span>
 			</div>
 		);
 	};
 
 	/*
-	 * Linha de data/hora: "Prevista" (transaction_date) + "Pago". Em crédito não mostramos a "Prevista" —
-	 * a compra é auto-efetivada — e o "Pago" sai da `transaction_date`, não do `settled_date`: os dois
-	 * nascem iguais, mas o `settled_date` pode acabar carimbado noutro dia (ex.: passando pelo endpoint de
-	 * settle, que usa `Time.current`) e a linha passaria a mostrar uma data que não é a da compra.
+	 * Destaque do mês: SÓ contas (fluxo de caixa real) — ver `buildSummary`. `settled` é o saldo efetivado
+	 * acumulado até o fim do mês de referência; `projected`, onde ele termina contando o que ainda está
+	 * pendente. Cartão marinho nos dois temas (é a peça de marca da tela).
 	 */
-	const renderDates = (transaction_item: TTransaction) => {
-		const is_credit = transaction_item.source_type === 'CreditBalance';
-		const paid_date = is_credit ? transaction_item.transaction_date : transaction_item.settled_date;
+	const renderHeroCard = () => (
+		<div className='relative flex flex-col gap-3 overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-navy-light from-0% to-navy to-60% p-5 text-sand-light shadow-[0_18px_40px_rgba(8,36,53,0.22)] dark:shadow-none md:p-6'>
+			<div aria-hidden='true' className='pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(163,188,116,0.32)_0%,rgba(163,188,116,0)_70%)]' />
 
-		return (
-			<div className='mt-1 flex flex-col text-[11px] leading-tight text-muted-foreground'>
-				{!is_credit && <span>Prevista: {formatDateTime(transaction_item.transaction_date)}</span>}
-				{paid_date && <span>Pago: {formatDateTime(paid_date)}</span>}
+			<span className='relative text-[13px] font-medium text-sand-light/70'>Saldo em contas</span>
+			{is_loading ? (
+				<Skeleton className='relative h-11 w-48 bg-sand-light/10' />
+			) : (
+				<span className={cn('relative text-[40px] font-semibold leading-none tracking-[-0.045em] md:text-[44px]', summary.settled < 0 && 'text-[#F5A99F]')}>
+					{MoneyUtils.formatSignedMoney(summary.settled)}
+				</span>
+			)}
+
+			<div className='relative flex flex-wrap gap-2'>
+				<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[rgba(163,188,116,0.18)] px-2.5 text-xs font-semibold text-[#C8DBA4]'>
+					<ArrowUpRight className='h-3 w-3' />
+					Fim do mês {is_loading ? '…' : MoneyUtils.formatSignedMoney(summary.projected)}
+				</span>
+				{summary.pending_count > 0 && (
+					<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium'>
+						<span className='h-1.5 w-1.5 rounded-full bg-[#E9B949]' />
+						{summary.pending_count} pendente{summary.pending_count > 1 ? 's' : ''}
+					</span>
+				)}
 			</div>
-		);
-	};
 
-	const renderEntry = (Icon: typeof ArrowUpRight, badgeClass: string, valueClass: string, value: number) => (
-		<div className='flex items-center gap-1.5 text-sm'>
-			<span className={cn('flex h-6 w-6 items-center justify-center rounded-full', badgeClass)}>
-				<Icon className='h-3.5 w-3.5' />
-			</span>
-			<span className={cn('font-medium', valueClass)}>{MoneyUtils.formatMoney(value)}</span>
+			{/* Celular e tablet: entradas/saídas dentro do próprio cartão. No desktop viram cartões ao lado. */}
+			<div className='relative mt-1 grid grid-cols-2 gap-3 border-t border-sand-light/15 pt-3 xl:hidden'>
+				<span className='flex flex-col gap-0.5'>
+					<span className='text-xs text-sand-light/70'>Entrou</span>
+					<span className='text-base font-semibold text-[#9FE0B6]'>+ {MoneyUtils.formatMoney(summary.deposit)}</span>
+				</span>
+				<span className='flex flex-col gap-0.5'>
+					<span className='text-xs text-sand-light/70'>Saiu</span>
+					<span className='text-base font-semibold text-[#F5A99F]'>− {MoneyUtils.formatMoney(summary.withdraw)}</span>
+				</span>
+			</div>
 		</div>
 	);
 
-	/*
-	 * Card de total do mês: SÓ contas (fluxo de caixa real). Não combina crédito — ver comentário do
-	 * `buildSummary`. Entrada/saída podem quebrar pra baixo em telas estreitas (flex-wrap).
-	 */
-	const renderTotals = () => (
-		<div className='rounded-lg border border-card bg-card px-4 py-3'>
-			<div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-2'>
-				<div className='flex flex-col'>
-					<span className='text-[11px] font-medium uppercase tracking-wide text-muted-foreground'>
-						Total do mês · Contas
-					</span>
-					{is_loading ? (
-						<Skeleton className='h-5 w-28' />
-					) : (
-						<div className='flex flex-wrap items-baseline gap-x-2'>
-							<span className={cn('text-base font-semibold', summary.settled >= 0 ? 'text-success' : 'text-destructive')}>
-								{MoneyUtils.formatSignedMoney(summary.settled)}
-							</span>
-							<span className='text-xs text-muted-foreground'>
-								previsto <span className={cn('font-medium', summary.gap ? 'text-warning' : 'text-foreground')}>{MoneyUtils.formatSignedMoney(summary.projected)}</span>
-								{summary.pending_suffix}
-							</span>
-						</div>
-					)}
-				</div>
-
-				<div className='flex items-center gap-6'>
-					{renderEntry(ArrowUpRight, 'bg-success-soft text-success', 'text-success', summary.deposit)}
-					{renderEntry(ArrowDownRight, 'bg-danger-soft text-danger', 'text-destructive', summary.withdraw)}
-				</div>
-			</div>
+	/* Desktop: Entrou / Saiu / Pendente em cartões ao lado do destaque. */
+	const renderStatCard = (label: string, value: string, hint: string, tone: 'success' | 'neutral' | 'warning') => (
+		<div
+			className={cn(
+				'flex flex-col justify-between gap-2 rounded-3xl p-5',
+				tone === 'warning' ? 'bg-warning-soft' : 'border border-border bg-card',
+			)}
+		>
+			<span className={cn('flex items-center gap-1.5 text-[13px] font-medium', tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}>
+				{tone === 'warning' && <span className='h-1.5 w-1.5 rounded-full bg-warning-dot' />}
+				{label}
+			</span>
+			{is_loading
+				? <Skeleton className='h-7 w-28' />
+				: <span className={cn('text-2xl font-semibold tracking-[-0.03em]', tone === 'success' && 'text-success')}>{value}</span>}
+			<span className={cn('text-xs', tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}>{hint}</span>
 		</div>
 	);
 
@@ -568,60 +580,63 @@ const TransactionList = () => {
 		</DropdownMenu>
 	);
 
-	/* ----- Desktop: linhas da tabela ----- */
-	const renderTableRow = (transaction_item: TTransaction, hide_source = false) => (
-		<TableRow key={transaction_item.id} className={cn(transaction_item.draft && 'opacity-60')}>
-			<TableCell className='text-muted-foreground'>
+	/* ----- Desktop: linhas da tabela de contas ----- */
+	const renderTableRow = (transaction_item: TTransaction) => (
+		<TableRow key={transaction_item.id} className={cn('hover:bg-accent/50', transaction_item.draft && 'opacity-60')}>
+			<TableCell className='py-3 pl-0 text-muted-foreground'>
 				<div className='flex flex-col leading-tight'>
-					<span>{formatDateTime(transaction_item.transaction_date)}</span>
+					<span className='capitalize'>{formatShortDate(transaction_item.transaction_date)}</span>
 					{transaction_item.settled_date && (
-						<span className='text-xs text-success'>pago {formatDateTime(transaction_item.settled_date)}</span>
+						<span className='text-xs text-muted-foreground/80'>pago {format(new Date(transaction_item.settled_date), 'dd/MM HH:mm')}</span>
 					)}
 				</div>
 			</TableCell>
-			<TableCell>
-				<div className='flex flex-col'>
-					<span className='flex items-center gap-1.5 font-medium'>
-						{transaction_item.description}
-						{renderRecurrenceIcon(transaction_item)}
-					</span>
-					{renderMeta(transaction_item, hide_source)}
+			<TableCell className='py-3'>
+				<div className='flex items-center gap-3'>
+					{renderKindIcon(transaction_item)}
+					<div className='flex min-w-0 flex-col'>
+						<span className='flex items-center gap-1.5 font-semibold'>
+							<span className='truncate'>{transaction_item.description}</span>
+							{renderRecurrenceIcon(transaction_item)}
+						</span>
+						{renderMeta(transaction_item)}
+					</div>
 				</div>
 			</TableCell>
-			<TableCell>{renderKindIcon(transaction_item)}</TableCell>
-			<TableCell className='text-right'>{renderValue(transaction_item, 'font-semibold')}</TableCell>
-			<TableCell>{renderActionsMenu(transaction_item)}</TableCell>
+			<TableCell className='py-3 text-right'>{renderValue(transaction_item, 'font-semibold')}</TableCell>
+			<TableCell className='w-10 py-3 pr-0'>{renderActionsMenu(transaction_item)}</TableCell>
 		</TableRow>
 	);
 
 	/*
-	 * Accordion de um cartão (usado no desktop — coluna direita — e no mobile): header com a altura de um
-	 * card de transação + body em cor distinta, animado (grid-rows) e com scroll interno (max-h).
+	 * Seção de um cartão (desktop — coluna direita — e celular/tablet, abaixo das contas): cabeçalho no
+	 * azul-petróleo do cartão + corpo animado (grid-rows) com rolagem interna (max-h).
 	 */
 	const renderCreditAccordion = (section: TCreditSection) => {
 		const is_collapsed = !expanded.has(section.id);
 		const net = sectionNet(section.items);
 
 		return (
-			<div key={section.id} className='overflow-hidden rounded-xl border border-card'>
+			<div key={section.id} className='overflow-hidden rounded-3xl border border-border bg-card'>
 				<button
 					type='button'
 					onClick={() => toggleExpanded(section.id)}
-					className='flex w-full items-center justify-between gap-3 bg-card p-3 text-left'
+					aria-expanded={!is_collapsed}
+					className='flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-accent/40'
 				>
-					<span className='flex items-center gap-3 overflow-hidden'>
-						<span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-info-soft text-info'>
-							<CreditCard className='h-4 w-4' />
+					<span className='flex min-w-0 items-center gap-3'>
+						<span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal to-navy text-sand-light'>
+							<CreditCard className='h-[18px] w-[18px]' />
 						</span>
-						<span className='flex flex-col overflow-hidden'>
-							<span className='truncate text-sm font-medium'>{section.name}</span>
+						<span className='flex min-w-0 flex-col'>
+							<span className='truncate text-[15px] font-semibold'>{section.name}</span>
 							<span className='text-xs text-muted-foreground'>
 								{section.items.length} transaç{section.items.length === 1 ? 'ão' : 'ões'}
 							</span>
 						</span>
 					</span>
 					<span className='flex shrink-0 items-center gap-2'>
-						<span className={cn('text-sm font-semibold', net >= 0 ? 'text-success' : 'text-destructive')}>
+						<span className={cn('text-[15px] font-semibold', net >= 0 ? 'text-success' : 'text-foreground')}>
 							{MoneyUtils.formatSignedMoney(net)}
 						</span>
 						<ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-300', is_collapsed && '-rotate-90')} />
@@ -631,113 +646,145 @@ const TransactionList = () => {
 				{/* Animação de altura via grid-rows (0fr↔1fr) — sem JS, funciona com o estado `collapsed` */}
 				<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
 					<div className='overflow-hidden'>
-						{/* Body em cor distinta + altura máxima com scroll interno (faturas com muitas linhas) */}
-						<div className='flex max-h-80 flex-col gap-4 overflow-y-auto bg-muted/40 p-3'>{renderDayGroups(section.items, true)}</div>
+						<div className='max-h-96 overflow-y-auto border-t border-border px-4 pb-2'>{renderDayGroups(section.items, true)}</div>
 					</div>
 				</div>
 			</div>
 		);
 	};
 
-	/* ----- Mobile: card de transação ----- */
-	const renderCard = (transaction_item: TTransaction, hide_source = false) => (
+	/* ----- Celular/tablet: linha de transação em duas linhas ----- */
+	const renderRow = (transaction_item: TTransaction, hide_source = false) => (
 		<div
 			key={transaction_item.id}
-			className={cn('flex items-start gap-3 rounded-xl border border-card bg-card p-3', transaction_item.draft && 'opacity-60')}
+			className={cn('flex items-center gap-3 border-b border-border py-3 last:border-b-0', transaction_item.draft && 'opacity-60')}
 		>
 			{renderKindIcon(transaction_item)}
 
-			<div className='flex flex-1 flex-col overflow-hidden'>
-				<span className='flex min-w-0 items-center gap-1.5 text-sm font-medium'>
+			<div className='flex min-w-0 flex-1 flex-col'>
+				<span className='flex min-w-0 items-center gap-1.5 text-[15px] font-semibold'>
 					<span className='truncate'>{transaction_item.description}</span>
 					{renderRecurrenceIcon(transaction_item)}
 				</span>
 				{renderMeta(transaction_item, hide_source)}
-				{renderDates(transaction_item)}
 			</div>
 
-			{renderValue(transaction_item, 'shrink-0 text-sm font-semibold')}
+			{renderValue(transaction_item, 'shrink-0 text-[15px] font-semibold')}
 
-			{renderActionsMenu(transaction_item)}
+			<div className='-mr-2 shrink-0'>{renderActionsMenu(transaction_item)}</div>
 		</div>
 	);
 
+	/* Total do dia no cabeçalho do grupo (mesma regra de sinal das linhas; rascunho fora). */
+	const dayNet = (items: TTransaction[]) => items
+		.filter((item) => !item.draft)
+		.reduce((acc, item) => {
+			const direction = directionOf(item);
+			if (direction === 'in') return acc + item.value;
+			if (direction === 'out') return acc - item.value;
+			return acc;
+		}, 0);
+
 	const renderDayGroups = (items: TTransaction[], hide_source = false) =>
-		groupTransactionsByDay(items).map((group) => (
-			<div key={group.label} className='flex flex-col gap-2'>
-				<span className='text-xs font-medium uppercase text-muted-foreground'>{group.label}</span>
-				<div className='flex flex-col gap-2'>
-					{group.items.map((transaction_item) => renderCard(transaction_item, hide_source))}
-				</div>
-			</div>
-		));
+		groupTransactionsByDay(items).map((group) => {
+			const net = dayNet(group.items);
+
+			return (
+				<section key={group.label} aria-label={group.label}>
+					<div className='flex items-baseline justify-between pb-1 pt-4 text-xs font-semibold text-muted-foreground'>
+						<span className='capitalize'>{group.label}</span>
+						{net !== 0 && <span>{MoneyUtils.formatSignedMoney(net)}</span>}
+					</div>
+					{group.items.map((transaction_item) => renderRow(transaction_item, hide_source))}
+				</section>
+			);
+		});
+
+	const month_label = format(new Date(month_year.year, month_year.month, 1), 'MMMM yyyy', { locale: ptBR });
 
 	return (
-		<div className='flex h-full flex-col gap-4'>
-			<div className='flex flex-col gap-4'>
-				{/* 1. Mês/ano (+ Nova Transação no desktop) — centralizado no mobile, à esquerda no desktop */}
-				<div className='flex flex-wrap items-center justify-center gap-3 md:justify-start'>
-					<div className='flex items-center gap-2'>
-						<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
+		<div className='flex h-full flex-col gap-4 md:gap-5'>
+			{/* 1. Cabeçalho: carteira + mês (setas) + Nova transação (no celular o "+" da barra inferior cobre) */}
+			<header className='flex items-center justify-between gap-3'>
+				<div className='flex min-w-0 items-center gap-2'>
+					<div className='flex min-w-0 flex-col'>
+						{user_wallet.data?.name && <span className='truncate text-xs font-medium text-muted-foreground'>{user_wallet.data.name}</span>}
+						<h1 className='truncate text-xl font-bold capitalize tracking-[-0.03em] md:text-2xl'>{month_label}</h1>
+					</div>
+					<div className='flex shrink-0 items-center gap-1'>
+						<Button type='button' variant='outline' size='icon' className='h-9 w-9' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
 							<ChevronLeft className='h-4 w-4' />
 						</Button>
-						<span className='w-36 text-center text-sm font-medium capitalize'>
-							{format(new Date(month_year.year, month_year.month, 1), 'MMMM yyyy', { locale: ptBR })}
-						</span>
-						<Button type='button' variant='outline' size='icon' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
+						<Button type='button' variant='outline' size='icon' className='h-9 w-9' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
 							<ChevronRight className='h-4 w-4' />
 						</Button>
 					</div>
-
-					{/* No mobile o "+" da bottom nav já cobre essa ação — duplicar aqui seria redundante */}
-					<Button
-						type='button'
-						onClick={() => setIsNewTransactionOpen(true)}
-						disabled={!wallet_id}
-						className='hidden gap-2 md:ml-auto md:inline-flex'
-					>
-						<Plus className='h-4 w-4' />
-						Nova Transação
-					</Button>
 				</div>
 
-				{/* 2. Card de total do mês — só contas (fluxo de caixa real) */}
-				{renderTotals()}
-			</div>
+				<Button
+					type='button'
+					onClick={() => setIsNewTransactionOpen(true)}
+					disabled={!wallet_id}
+					className='hidden shrink-0 md:inline-flex'
+				>
+					<Plus className='h-4 w-4' strokeWidth={2.6} />
+					Nova transação
+				</Button>
+			</header>
 
-			<div className='flex-1 overflow-y-auto'>
+			{/* 2. Destaque do mês (só contas) + Entrou/Saiu/Pendente ao lado no desktop */}
+			<section className='grid gap-4 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]'>
+				{renderHeroCard()}
+				<div className='hidden xl:contents'>
+					{renderStatCard('Entrou', `+ ${ MoneyUtils.formatMoney(summary.deposit) }`, 'no mês, em contas', 'success')}
+					{renderStatCard('Saiu', `− ${ MoneyUtils.formatMoney(summary.withdraw) }`, 'no mês, em contas', 'neutral')}
+					{renderStatCard(
+						'Pendente',
+						MoneyUtils.formatSignedMoney(summary.pending_net),
+						summary.pending_count > 0 ? `${ summary.pending_count } até o fim do mês` : 'nada pendente',
+						'warning',
+					)}
+				</div>
+			</section>
+
+			{/* 3. Transações */}
+			<div className='min-h-0 flex-1 overflow-y-auto'>
 				{is_loading && (
 					<div className='flex flex-col gap-2'>
 						{Array.from({ length: 6 }).map((_, index) => (
-							<Skeleton key={index} className='h-14 w-full' />
+							<Skeleton key={index} className='h-16 w-full rounded-2xl' />
 						))}
 					</div>
 				)}
 
 				{/* Sem nenhuma origem → manda cadastrar em Contas & Cartões */}
 				{!is_loading && !has_transactions && !has_sources && (
-					<div className='flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-10 text-center'>
-						<Wallet className='h-10 w-10 text-muted-foreground' />
+					<div className='flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border px-6 py-12 text-center'>
+						<span className='flex h-14 w-14 items-center justify-center rounded-2xl bg-accent'>
+							<Wallet className='h-6 w-6 text-muted-foreground' />
+						</span>
 						<div className='flex flex-col gap-1'>
-							<span className='font-medium'>Nenhuma conta ou cartão ainda</span>
+							<span className='font-semibold'>Nenhuma conta ou cartão ainda</span>
 							<span className='text-sm text-muted-foreground'>
 								Crie uma conta ou um cartão em Contas &amp; Cartões para ver as transações aqui.
 							</span>
 						</div>
-						<Button type='button' variant='secondary' onClick={() => navigate('/accounts')} className='gap-2'>
+						<Button type='button' variant='secondary' onClick={() => navigate('/accounts')}>
 							Ir para Contas &amp; Cartões
 						</Button>
 					</div>
 				)}
 
 				{!is_loading && !has_transactions && has_sources && (
-					<div className='flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-10 text-center'>
-						<Receipt className='h-10 w-10 text-muted-foreground' />
+					<div className='flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border px-6 py-12 text-center'>
+						<span className='flex h-14 w-14 items-center justify-center rounded-2xl bg-accent'>
+							<Receipt className='h-6 w-6 text-muted-foreground' />
+						</span>
 						<div className='flex flex-col gap-1'>
-							<span className='font-medium'>Nenhuma transação neste mês</span>
+							<span className='font-semibold'>Nenhuma transação neste mês</span>
 							<span className='text-sm text-muted-foreground'>Registre uma entrada, saída ou transferência pra começar</span>
 						</div>
-						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id} className='gap-2'>
+						<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id}>
 							<Plus className='h-4 w-4' />
 							Adicionar transação
 						</Button>
@@ -745,37 +792,32 @@ const TransactionList = () => {
 				)}
 
 				{!is_loading && has_transactions && (
-					<div className='mb-6'>
-						{/* Desktop: 2 colunas — Contas (tabela ordenável, flat) | Cartões (accordions de cards) */}
-						<div className='hidden gap-4 md:grid md:grid-cols-2'>
+					<div className='pb-2'>
+						{/* Desktop (≥1280px): 2 colunas — Contas (tabela ordenável) | Cartões (seções por cartão) */}
+						<div className='hidden gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_400px]'>
 							<div className='flex flex-col gap-2'>
-								<h3 className='px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Contas</h3>
+								<h2 className='px-1 text-[13px] font-semibold text-muted-foreground'>Contas</h2>
 								{account_txs.length > 0 ? (
-									<div className='overflow-hidden rounded-lg border border-card bg-card'>
+									<div className='rounded-3xl border border-border bg-card px-5 py-1'>
 										<Table>
 											<TableHeader>
 												<TableRow className='hover:bg-transparent'>
-													<TableHead className='w-40'>
-														<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 hover:text-foreground'>
+													<TableHead className='w-24 pl-0'>
+														<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 text-xs hover:text-foreground'>
 															Data {renderSortIcon('transaction_date')}
 														</button>
 													</TableHead>
 													<TableHead>
-														<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 hover:text-foreground'>
+														<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 text-xs hover:text-foreground'>
 															Descrição {renderSortIcon('description')}
 														</button>
 													</TableHead>
-													<TableHead className='w-16'>
-														<button type='button' onClick={() => toggleSort('kind')} className='flex items-center gap-1 hover:text-foreground'>
-															Tipo {renderSortIcon('kind')}
-														</button>
-													</TableHead>
-													<TableHead className='w-32 text-right'>
-														<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 hover:text-foreground'>
+													<TableHead className='w-36 text-right'>
+														<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 text-xs hover:text-foreground'>
 															Valor {renderSortIcon('value')}
 														</button>
 													</TableHead>
-													<TableHead className='w-10' />
+													<TableHead className='w-10 pr-0' />
 												</TableRow>
 											</TableHeader>
 											<TableBody>
@@ -784,27 +826,31 @@ const TransactionList = () => {
 										</Table>
 									</div>
 								) : (
-									<p className='rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground'>
+									<p className='rounded-3xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground'>
 										Nenhuma transação em contas neste mês
 									</p>
 								)}
 							</div>
 
 							<div className='flex flex-col gap-2'>
-								<h3 className='px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Cartões</h3>
+								<h2 className='px-1 text-[13px] font-semibold text-muted-foreground'>Cartões</h2>
 								{credit_sections.length > 0 ? (
 									<div className='flex flex-col gap-3'>{credit_sections.map(renderCreditAccordion)}</div>
 								) : (
-									<p className='rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground'>
+									<p className='rounded-3xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground'>
 										Nenhuma fatura neste mês
 									</p>
 								)}
 							</div>
 						</div>
 
-						{/* Mobile: empilhado — contas agrupadas por dia + accordions de cartão */}
-						<div className='flex flex-col gap-4 md:hidden'>
-							{account_txs.length > 0 && renderDayGroups(account_txs)}
+						{/* Celular e tablet: contas agrupadas por dia num painel + seções de cartão abaixo */}
+						<div className='flex flex-col gap-3 xl:hidden'>
+							{account_txs.length > 0 && (
+								<div className='rounded-3xl border border-border bg-card px-4 pb-1 md:px-5'>
+									{renderDayGroups(account_txs)}
+								</div>
+							)}
 							{credit_sections.map(renderCreditAccordion)}
 						</div>
 					</div>
