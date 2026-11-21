@@ -20,7 +20,12 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	 * nenhuma classe `md:hidden` alcança o conteúdo portado. Desmontar o componente
 	 * resolve na raiz, não só esse popover específico.
 	 */
-	const is_desktop = useMediaQuery('(min-width: 768px)');
+	/*
+	 * Três layouts: celular (<768px) barra inferior flutuante; tablet (768–1279px) trilho de ícones;
+	 * desktop (≥1280px) barra lateral completa.
+	 */
+	const is_tablet_up = useMediaQuery('(min-width: 768px)');
+	const is_desktop = useMediaQuery('(min-width: 1280px)');
 	const { is_loading: is_current_user_loading } = useCurrentUserContext();
 	const { is_open: is_new_wallet_open, setIsOpen: setIsNewWalletOpen } = useNewWalletDialog();
 
@@ -46,25 +51,29 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 		 * visível, só aparecendo depois de rolar a página inteira até o fim. `dvh` (dynamic
 		 * viewport height) acompanha o tamanho real e visível do viewport.
 		 */
-		<div className='flex h-dvh bg-background transition-all duration-300'>
-			{is_desktop && <Sidebar />}
+		<div className='flex h-dvh bg-background'>
+			{is_tablet_up && <Sidebar variant={is_desktop ? 'full' : 'rail'} />}
 
 			<div className='flex flex-1 flex-col overflow-hidden'>
 				<main className='flex-1 overflow-auto'>
-					<div className='container mx-auto h-full px-4 md:px-8 pt-6'>
+					{/*
+					 * No celular, o padding-bottom reserva o espaço da barra flutuante (`--bottom-nav-space`,
+					 * ver BottomNav): lista com rolagem própria termina acima dela, e página que rola inteira
+					 * ainda deixa o último item visível acima da barra.
+					 */}
+					<div
+						className={
+							is_tablet_up
+								? 'container mx-auto h-full px-6 pb-6 pt-6 xl:px-9 xl:pt-7'
+								: 'container mx-auto h-full px-4 pt-5 pb-[var(--bottom-nav-space)]'
+						}
+					>
 						{children}
 					</div>
 				</main>
-
-				{/*
-				 * Docked (não flutuante) de propósito — uma versão flutuante anterior (fixed + margem)
-				 * dependia de acertar um padding-bottom exato no conteúdo pra não tampar a última
-				 * transação da lista, e isso é frágil (a barra muda de altura com a ação central
-				 * condicional). Docked, ela reserva o próprio espaço no flex — impossível esconder
-				 * conteúdo por trás dela.
-				 */}
-				{!is_desktop && <BottomNav />}
 			</div>
+
+			{!is_tablet_up && <BottomNav />}
 
 			{/*
 			 * WalletFormDialog montado no topo do template (como o AuthenticatedLayout do mobile

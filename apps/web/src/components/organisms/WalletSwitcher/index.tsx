@@ -30,7 +30,7 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 		return (
 			<div className='flex flex-col gap-1'>
 				<span className='px-3 text-xs font-medium text-muted-foreground'>Visualizando a carteira</span>
-				<Skeleton className='h-9 w-full' />
+				<Skeleton className='h-[54px] w-full rounded-xl' />
 			</div>
 		);
 	}
@@ -54,7 +54,7 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 			<button
 				type='button'
 				onClick={() => setIsOpen((prev) => !prev)}
-				className='flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 transition-colors hover:bg-accent'
+				className='flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-colors hover:bg-accent'
 			>
 				<div className='min-w-0 flex-1 text-left'>
 					<p className='text-xs text-muted-foreground'>Visualizando a carteira</p>
@@ -70,7 +70,7 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 							key={wallet.id}
 							type='button'
 							onClick={() => handleSelect(wallet.id)}
-							className='flex w-full items-center justify-between gap-2 rounded-md py-2 pl-6 pr-3 text-sm transition-colors hover:bg-accent'
+							className='mt-1 flex w-full items-center justify-between gap-2 rounded-xl py-2 pl-4 pr-3 text-sm transition-colors hover:bg-accent'
 						>
 							<span className='truncate text-foreground'>{wallet.name}</span>
 							{wallet.id === user_wallet.data?.id && <Check className='h-4 w-4 shrink-0 text-brand' />}

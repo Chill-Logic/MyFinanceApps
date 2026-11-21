@@ -18,7 +18,7 @@ interface IProps {
 	onClose: ()=> void;
 }
 
-const item_class = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground';
+const item_class = 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground';
 
 /**
  * Corpo do bottom sheet do menu mobile (aberto pelo hambúrguer da `BottomNav`) — equivalente
@@ -82,7 +82,7 @@ const NavMenu = ({ onClose }: IProps) => {
 					onClick={handleRefresh}
 					disabled={is_refreshing}
 					aria-label='Atualizar dados'
-					className='rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-60'
+					className='rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-60'
 				>
 					<RefreshCw className={cn('h-4 w-4', is_refreshing && 'animate-spin')} />
 				</button>
@@ -100,7 +100,7 @@ const NavMenu = ({ onClose }: IProps) => {
 					to={path}
 					end
 					onClick={onClose}
-					className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
+					className={({ isActive }) => cn(item_class, isActive && 'bg-accent font-semibold text-foreground')}
 				>
 					<Icon className='h-4 w-4 shrink-0' />
 					<span className='flex-1'>{label}</span>
@@ -123,13 +123,13 @@ const NavMenu = ({ onClose }: IProps) => {
 				to='/settings'
 				end
 				onClick={onClose}
-				className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
+				className={({ isActive }) => cn(item_class, isActive && 'bg-accent font-semibold text-foreground')}
 			>
 				<Settings className='h-4 w-4 shrink-0' />
 				Configurações
 			</NavLink>
 
-			<button type='button' onClick={handleLogout} className={cn(item_class, 'text-destructive hover:text-destructive')}>
+			<button type='button' onClick={handleLogout} className={cn(item_class, 'text-danger hover:bg-danger-soft hover:text-danger')}>
 				<LogOut className='h-4 w-4 shrink-0' />
 				Sair
 			</button>

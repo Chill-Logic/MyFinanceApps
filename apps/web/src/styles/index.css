@@ -45,6 +45,13 @@
         --danger: 4 76% 40%;
         --danger-soft: 4 76% 40% / 0.1;
 
+        /*
+         * Espaço que a barra inferior flutuante do celular ocupa (components/organisms/BottomNav):
+         * altura (64px) + distância da borda (12px) + folga acima dela (16px) + área segura do iPhone.
+         * O DefaultTemplate usa como padding-bottom do conteúdo no celular — mudou a barra, mude aqui.
+         */
+        --bottom-nav-space: calc(64px + 12px + 16px + env(safe-area-inset-bottom));
+
         /* Cores fixas da marca (iguais nos dois temas) */
         --navy: 203 74% 12%;
         --navy-light: 201 69% 19%;

@@ -10,21 +10,28 @@ import { cn } from '@/lib/utils';
 import NavMenu from '@/components/organisms/NavMenu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
-interface IProps {
-	className?: string;
-}
-
-const BottomNav = ({ className }: IProps) => {
+/*
+ * Barra inferior do celular (<768px): pílula de vidro FLUTUANTE, fixa sobre o conteúdo.
+ *
+ * Histórico: já existiu uma versão flutuante que escondia a última transação da lista — dependia de
+ * acertar um padding-bottom no conteúdo, e esse padding ficava errado quando a barra mudava de
+ * altura com o "+" condicional. O que mudou para ela poder voltar:
+ *   1. A altura é FIXA (`h-16`): o "+" fica DENTRO da pílula (só a largura anima), então nada muda
+ *      a altura da barra.
+ *   2. O espaço que ela ocupa é uma variável única, `--bottom-nav-space` (index.css), usada pelo
+ *      DefaultTemplate como padding-bottom da área de conteúdo. Lista com rolagem própria (ex.:
+ *      TransactionList) termina ACIMA da barra; página que rola inteira passa por trás do vidro e
+ *      ainda deixa o último item visível acima dela.
+ * Mudou altura/posição aqui? Mude `--bottom-nav-space` junto.
+ */
+const BottomNav = () => {
 	const { bottomNavItems, centerAction } = useNavItems();
 	const [ open, setOpen ] = useState(false);
 
 	/*
-	 * Mantém a última ação central conhecida mesmo depois do `centerAction` virar `null`,
-	 * pra o ícone continuar visível ENQUANTO o botão encolhe (em vez de sumir instantaneamente
-	 * no meio da transição). O slot continua montado sempre — só anima `flex`/escala/opacidade
-	 * entre "aberto" e "fechado" — porque um `{condição && <div>}` desmontando na hora não dá
-	 * pra animar, e reservar o espaço sempre (sem isso) foi o problema anterior dos outros
-	 * itens ficarem com espaçamento torto quando não tinha ação central.
+	 * Mantém a última ação central conhecida depois do `centerAction` virar `null`, pra o ícone
+	 * continuar visível ENQUANTO o botão encolhe (em vez de sumir no meio da transição). O slot fica
+	 * sempre montado e anima a largura — `{condição && ...}` desmontando na hora não dá pra animar.
 	 */
 	const [ displayed_action, setDisplayedAction ] = useState<TNavAction | null>(centerAction);
 
@@ -35,30 +42,26 @@ const BottomNav = ({ className }: IProps) => {
 	const [ home_item, finances_item, wallets_item ] = bottomNavItems;
 
 	const link_class = ({ isActive }: { isActive: boolean }) => cn(
-		'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium text-muted-foreground transition-colors',
-		isActive && 'text-foreground',
+		'flex h-12 w-12 items-center justify-center rounded-full transition-colors',
+		isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
 	);
 
 	return (
 		<nav
-			className={cn(
-				'relative flex items-center border-t border-border bg-background',
-				className,
-			)}
+			aria-label='Navegação principal'
+			className='fixed bottom-[calc(12px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-16 -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/80 px-2 shadow-[0_10px_40px_rgba(8,36,53,0.18)] backdrop-blur-xl dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]'
 		>
-			<NavLink to={home_item.path} end className={link_class}>
+			<NavLink to={home_item.path} end aria-label={home_item.label} className={link_class}>
 				<home_item.icon className='h-5 w-5' />
-				{home_item.short || home_item.label}
 			</NavLink>
-			<NavLink to={finances_item.path} end className={link_class}>
+			<NavLink to={finances_item.path} end aria-label={finances_item.label} className={link_class}>
 				<finances_item.icon className='h-5 w-5' />
-				{finances_item.short || finances_item.label}
 			</NavLink>
 
 			<div
 				className={cn(
-					'flex justify-center overflow-hidden transition-[flex-grow] duration-300 ease-out',
-					centerAction ? 'flex-1' : 'flex-none basis-0',
+					'flex justify-center overflow-hidden transition-[width] duration-300 ease-out',
+					centerAction ? 'w-[60px]' : 'w-0',
 				)}
 			>
 				{displayed_action && (
@@ -69,38 +72,31 @@ const BottomNav = ({ className }: IProps) => {
 						aria-hidden={!centerAction}
 						tabIndex={centerAction ? 0 : -1}
 						className={cn(
-							'absolute -top-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-300 ease-out hover:scale-105',
-							centerAction ? 'scale-100 opacity-100' : 'pointer-events-none scale-0 opacity-0',
+							'flex h-12 w-[56px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all duration-300 ease-out active:scale-95',
+							centerAction ? 'scale-100 opacity-100' : 'pointer-events-none scale-50 opacity-0',
 						)}
 					>
-						<displayed_action.icon className='h-5 w-5' />
+						<displayed_action.icon className='h-6 w-6' strokeWidth={2.6} />
 					</button>
 				)}
 			</div>
 
-			<NavLink to={wallets_item.path} end className={link_class}>
+			<NavLink to={wallets_item.path} end aria-label={wallets_item.label} className={link_class}>
 				<wallets_item.icon className='h-5 w-5' />
-				{wallets_item.short || wallets_item.label}
 			</NavLink>
 
 			{/*
-			 * Bottom sheet (slide-up + handle + backdrop) no lugar do Popover pequeno anterior —
-			 * mesma cara nativa do menu do apps/mobile. O X padrão do Sheet fica escondido
-			 * (`hideClose`): fecha por backdrop/Esc/toque num item, como no mobile.
-			 *
-			 * Altura FIXA (`h-[70dvh]`), não `max-h` — igual ao snap fixo (~60%) do sheet do
-			 * mobile. Com `max-h`, expandir/colapsar a lista de carteiras redimensionava o sheet
-			 * inteiro e o scroll engatava/desengatava a cada toggle (jank). Fixa, o container de
-			 * scroll fica estável: expandir só adiciona conteúdo rolável, sem redimensionar nada.
+			 * Bottom sheet (slide-up + alça + fundo escurecido) com o menu completo. Altura FIXA
+			 * (`h-[70dvh]`), não `max-h`: com `max-h`, abrir/fechar a lista de carteiras redimensionava o
+			 * sheet e o scroll engatava/desengatava a cada toque.
 			 */}
 			<Sheet open={open} onOpenChange={setOpen}>
 				<SheetTrigger asChild>
-					<button type='button' className='flex flex-1 flex-col items-center justify-center gap-1 py-2 text-xs font-medium text-muted-foreground'>
+					<button type='button' aria-label='Menu' className='flex h-12 w-12 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground'>
 						<Menu className='h-5 w-5' />
-						Menu
 					</button>
 				</SheetTrigger>
-				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-2xl p-0'>
+				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-3xl p-0'>
 					<div className='mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border' />
 					<NavMenu onClose={() => setOpen(false)} />
 				</SheetContent>
