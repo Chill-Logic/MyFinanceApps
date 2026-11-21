@@ -23,9 +23,9 @@ const SegmentedControl = ({ segments, value, onChange, className }: IProps) => {
 	const active_index = Math.max(0, segments.findIndex((segment) => segment.value === value));
 
 	return (
-		<div className={cn('relative flex rounded-lg bg-muted p-1', className)}>
+		<div className={cn('relative flex rounded-full border border-border bg-secondary p-1', className)}>
 			<div
-				className='pointer-events-none absolute inset-y-1 left-1 rounded-md bg-card shadow-sm transition-transform duration-200 ease-out'
+				className='pointer-events-none absolute inset-y-1 left-1 rounded-full bg-card shadow-sm transition-transform duration-200 ease-out dark:bg-accent'
 				style={{
 					width: `calc((100% - 0.5rem) / ${ segments.length })`,
 					transform: `translateX(${ active_index * 100 }%)`,
@@ -47,7 +47,7 @@ const SegmentedControl = ({ segments, value, onChange, className }: IProps) => {
 							 * não encolhe abaixo da palavra mais longa ("Recorrente"), esticando o trilho pra fora
 							 * do container. Assim o segmento cabe na fração dele e o rótulo quebra se precisar.
 							 */
-							'relative z-10 flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-2 text-center text-xs font-semibold leading-tight transition-colors sm:gap-2 sm:px-3 sm:text-sm',
+							'relative z-10 flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1.5 py-2 text-center text-xs font-semibold leading-tight transition-colors sm:gap-2 sm:px-3 sm:text-sm',
 							active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
 						)}
 					>

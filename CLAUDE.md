@@ -1021,6 +1021,18 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     original, com variante clara para fundo escuro), sempre via o átomo `components/atoms/Logo`
     (`icon`/`horizontal`/`stacked`, prop `onDark` para fundo marinho fixo). No escuro o ícone ganha um
     quadrado areia por trás, porque o quarto marinho dele some sobre fundo escuro.
+  - **Componentes base do redesign** (`components/ui`): botões em pílula (`rounded-full`; variantes
+    `default` oliva, `navy` marinho fixo para seleção forte, `secondary`, `outline`, `ghost`,
+    `destructive`, `link`; tamanhos 32/40/48px); campos com 44px, raio 16px e foco com anel oliva
+    suave, todos via `ui/field.ts` (`FIELD_SURFACE`/`FIELD_METRICS`) — `atoms/TextInput` também usa
+    o `FIELD_SURFACE` agora, para input/select/data/TextInput baterem; `Card` com raio 24px;
+    diálogos/painéis com fundo `bg-card`, raio 24px, fundo escurecido marinho e botão de fechar em
+    círculo; `SegmentedControl` em pílula; `ui/badge` (`Badge`, variantes
+    `neutral`/`outline`/`brand`/`success`/`warning`/`info`/`danger`, prop `dot`) para selos como
+    "pendente"/"prevista"/"2 para conferir" — use-o em vez de `span` com classes de cor à mão.
+  - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `webapp:dev`**: o Tailwind importa
+    esse arquivo na config e o Vite não o observa, então o servidor segue com a config antiga (já deu
+    `The font-sans class does not exist` no dev com o build passando).
   - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
     texto sem cor explícita (ex: `Label` do shadcn, que não define cor própria de propósito) herda o
     preto padrão do browser em vez de acompanhar o tema — foi exatamente isso que quebrou as labels

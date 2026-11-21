@@ -1,20 +1,17 @@
 /*
- * Superfície visual padrão dos campos de formulário.
+ * Superfície visual padrão dos campos de formulário (input, select, gatilho de data, TextInput).
  *
- * A referência é o `atoms/TextInput`, que já estava certo: 40px de altura, raio de 12px,
- * padding lateral de 16px e texto de 14px em NotoSans. O select e o gatilho de data nasceram
- * 4px mais baixos (h-9), com raio menor (rounded-md) e na fonte padrão do browser — a
- * `theme.fontFamily` do Tailwind não define a chave `sans`, então quem não marca
- * `font-noto-sans` explicitamente não herda a fonte da marca.
+ * Redesign 2026-11: 44px de altura (alvo de toque confortável também no celular), raio de 16px
+ * (`rounded-lg` = `--radius`), fundo no tom de campo do tema (`bg-secondary`) e foco com anel oliva
+ * suave em vez da borda grossa. Fonte vem do `body` (Geist) — não marque família aqui.
  *
- * As classes abaixo são equivalentes aos tokens usados pelo TextInput (h-10 = h-giant-xx = 40px,
- * px-4 = px-small-xx = 16px, text-sm = text-small = 14px), mas escritas na escala padrão do
- * Tailwind: o tailwind-merge não reconhece os tokens customizados como conflitantes e manteria
- * as duas alturas ao mesclar com as classes do Button.
+ * As classes estão na escala padrão do Tailwind de propósito: o tailwind-merge não reconhece os
+ * tokens customizados (h-giant-xx etc.) como conflitantes e manteria duas alturas ao mesclar com as
+ * classes do Button.
  */
 
 /* Só as métricas — pra controles que já têm a própria pele (ex.: Button com variant='outline'). */
-export const FIELD_METRICS = 'h-10 rounded-lg px-4 text-sm font-medium font-noto-sans';
+export const FIELD_METRICS = 'h-11 rounded-lg px-4 text-sm font-medium';
 
-/* Métricas + pele (borda, fundo, sombra, foco e estado desabilitado). */
-export const FIELD_SURFACE = `${ FIELD_METRICS } border border-input bg-background text-foreground shadow-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`;
+/* Métricas + pele (borda, fundo, foco e estado desabilitado). */
+export const FIELD_SURFACE = `${ FIELD_METRICS } border border-input bg-secondary text-foreground transition-[border-color,box-shadow] outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-50`;
