@@ -41,7 +41,6 @@ const LiquidBrand = ({ markRef, className }: IProps) => {
 			gl.shaderSource(shader, source);
 			gl.compileShader(shader);
 			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-				// eslint-disable-next-line no-console
 				console.error('LiquidBrand:', gl.getShaderInfoLog(shader));
 				return null;
 			}
