@@ -1030,7 +1030,9 @@ const TransactionList = () => {
 
 					{/* Altura animada via grid-rows (0fr↔1fr), sem JS */}
 					<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
-						<div className='min-h-0 overflow-hidden'>
+						{/* `-mx-2 px-2` (aqui e nas áreas de cima): folga pro fundo do hover da linha, que avança 8px pros lados,
+						    não ter os cantos cortados por quem tem overflow escondido. O conteúdo não se mexe. */}
+						<div className='-mx-2 min-h-0 overflow-hidden px-2'>
 							{group.items.map((transaction_item) => renderRow(transaction_item, hide_source))}
 						</div>
 					</div>
@@ -1115,7 +1117,7 @@ const TransactionList = () => {
 		 * template reserva `--bottom-nav-space` como padding; aqui a altura soma esse padding de volta e o
 		 * respiro vai pro fim da área rolável (a última linha ainda para acima da barra).
 		 */
-		<div className='flex h-[calc(100%+var(--bottom-nav-space))] flex-col gap-4 overflow-x-clip md:h-full md:gap-5'>
+		<div className='-mx-2 flex h-[calc(100%+var(--bottom-nav-space))] flex-col gap-4 overflow-x-clip px-2 md:h-full md:gap-5'>
 			{/* 1a. Celular: pílula da carteira + (fora do mês atual) "Hoje" + pílula do mês */}
 			<div className='flex items-center gap-2 md:hidden'>
 				{renderWalletPill()}
@@ -1181,7 +1183,7 @@ const TransactionList = () => {
 			)}
 
 			{/* 4. Transações */}
-			<div ref={month_transition.ref} className='no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--bottom-nav-space)] [will-change:transform] md:overflow-hidden md:pb-0'>
+			<div ref={month_transition.ref} className='no-scrollbar -mx-2 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 pb-[var(--bottom-nav-space)] [will-change:transform] md:overflow-hidden md:pb-0'>
 				{is_loading && (
 					<div className='flex flex-col gap-2'>
 						{Array.from({ length: 6 }).map((_, index) => (
@@ -1216,7 +1218,7 @@ const TransactionList = () => {
 								{renderTabsRow()}
 							</div>
 
-							<div className='no-scrollbar md:min-h-0 md:flex-1 md:overflow-y-auto md:pb-2'>
+							<div className='no-scrollbar md:-mx-2 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-2 md:pb-2'>
 
 								{!has_transactions && (
 									<div className='flex flex-col items-center gap-3 px-6 py-12 text-center'>
