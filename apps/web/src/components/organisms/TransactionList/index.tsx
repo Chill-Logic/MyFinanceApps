@@ -5,10 +5,9 @@ import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, Transa
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
+	ArrowDownRight,
 	ArrowRight,
 	ArrowUpRight,
-	Minus,
-	ArrowDownRight,
 	Check,
 	CheckCircle2,
 	ChevronDown,
@@ -18,6 +17,7 @@ import {
 	Copy,
 	CreditCard,
 	Loader2,
+	Minus,
 	MoreVertical,
 	Plus,
 	Receipt,
@@ -43,6 +43,7 @@ import { useMonthSelection } from '@/context/monthSelection';
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
 import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
+import { groupTransactionsByDay } from '@/util/groupTransactionsByDay';
 
 import Button from '@/components/atoms/Button';
 import Logo from '@/components/atoms/Logo';
@@ -71,63 +72,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type TListTab = 'accounts' | 'credits';
 type TCreditSection = { id: string; name: string; items: TTransaction[] };
-
-/* "Dom, 30 nov" — dia da semana abreviado + dia + mês abreviado, como no mockup do redesign. */
-const groupLabel = (date: Date) => {
-	const label = format(date, 'EEE, d MMM', { locale: ptBR }).replace(/\./g, '');
-	return label.charAt(0).toUpperCase() + label.slice(1);
-};
-
-/* Separa "R$ 2.531,94" em "R$ 2.531" + ",94" para os centavos aparecerem apagados no destaque. */
-const splitCents = (formatted: string) => {
-	const comma = formatted.lastIndexOf(',');
-	return comma === -1 ? [ formatted, '' ] : [ formatted.slice(0, comma), formatted.slice(comma) ];
-};
-
-/* Valor sem o "R$": listas e cartões de resumo mostram só o número, como no mockup. */
-const plainMoney = (value: number) => MoneyUtils.formatMoney(Math.abs(value)).replace(/^R\$\s?/, '');
-
-/* "+ 1.612,00" / "− 390,00" com o menos tipográfico (zero sai sem sinal); `symbol` mantém o "R$". */
-const signedMoney = (value: number, symbol = false) => {
-	const body = symbol ? MoneyUtils.formatMoney(Math.abs(value)) : plainMoney(value);
-	if (value === 0) return body;
-	return `${ value < 0 ? '−' : '+' } ${ body }`;
-};
-
-/* Superfície dos cartões claros/translúcidos do mockup (branco no claro, véu areia no escuro). */
-const SURFACE = 'border border-border bg-white shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:bg-[rgba(199,195,191,0.04)] dark:shadow-none';
-
-/* Chip "Fim do mês" do destaque (fundo marinho fixo): positivo oliva ↗, negativo salmão ↘, zero neutro. */
-const PROJECTED_TONE: Record<-1 | 0 | 1, { className: string; Icon: typeof ArrowUpRight }> = {
-	1: { className: 'bg-[rgba(163,188,116,0.18)] text-[#C8DBA4]', Icon: ArrowUpRight },
-	0: { className: 'bg-sand-light/10 text-[#E2DFDB]', Icon: Minus },
-	[-1]: { className: 'bg-[rgba(245,169,159,0.18)] text-[#F5A99F]', Icon: ArrowDownRight },
-};
-
-const groupTransactionsByDay = (transactions: TTransaction[]) => {
-	const groups = new Map<string, { label: string; items: TTransaction[] }>();
-
-	transactions.forEach((transaction_item) => {
-		const date = new Date(TransactionUtils.groupingDate(transaction_item));
-		const key = format(date, 'yyyy-MM-dd');
-
-		if (!groups.has(key)) {
-			groups.set(key, { label: groupLabel(date), items: [] });
-		}
-		groups.get(key)!.items.push(transaction_item);
-	});
-
-	/*
-	 * Do dia mais recente pro mais antigo. O Map preserva ordem de INSERÇÃO, que é a ordem em que o
-	 * backend mandou (`ORDER BY transaction_date DESC`) — mas o grupo é pela data de agrupamento, que em
-	 * conta é o `settled_date` quando existe. As duas não têm relação, então sem este sort os cabeçalhos
-	 * saíam na sequência das `transaction_date` (6, 8, 2, 5...). A chave é "YYYY-MM-DD" com zero à
-	 * esquerda, então comparar string já ordena cronologicamente.
-	 */
-	return Array.from(groups.entries())
-		.sort(([ a ], [ b ]) => b.localeCompare(a))
-		.map(([ , group ]) => group);
-};
 
 /*
  * Resumo do card de total. Aqui é SEMPRE das contas (`accounts`), o único fluxo de caixa real: combinar
@@ -179,6 +123,32 @@ const buildSummary = (group: TTransactionGroup | undefined, account_ids: Readonl
 		pending_out_count: pending_out_items.length,
 		pending_count: pending_in_items.length + pending_out_items.length,
 	};
+};
+
+/* Separa "R$ 2.531,94" em "R$ 2.531" + ",94" para os centavos aparecerem apagados no destaque. */
+const splitCents = (formatted: string) => {
+	const comma = formatted.lastIndexOf(',');
+	return comma === -1 ? [ formatted, '' ] : [ formatted.slice(0, comma), formatted.slice(comma) ];
+};
+
+/* Valor sem o "R$": listas e cartões de resumo mostram só o número, como no mockup. */
+const plainMoney = (value: number) => MoneyUtils.formatMoney(Math.abs(value)).replace(/^R\$\s?/, '');
+
+/* "+ 1.612,00" / "− 390,00" com o menos tipográfico (zero sai sem sinal); `symbol` mantém o "R$". */
+const signedMoney = (value: number, symbol = false) => {
+	const body = symbol ? MoneyUtils.formatMoney(Math.abs(value)) : plainMoney(value);
+	if (value === 0) return body;
+	return `${ value < 0 ? '−' : '+' } ${ body }`;
+};
+
+/* Superfície dos cartões claros/translúcidos do mockup (branco no claro, véu areia no escuro). */
+const SURFACE = 'border border-border bg-white shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:bg-[rgba(199,195,191,0.04)] dark:shadow-none';
+
+/* Chip "Fim do mês" do destaque (fundo marinho fixo): positivo oliva ↗, negativo salmão ↘, zero neutro. */
+const PROJECTED_TONE: Record<-1 | 0 | 1, { className: string; Icon: typeof ArrowUpRight }> = {
+	1: { className: 'bg-[rgba(163,188,116,0.18)] text-[#C8DBA4]', Icon: ArrowUpRight },
+	0: { className: 'bg-sand-light/10 text-[#E2DFDB]', Icon: Minus },
+	[-1]: { className: 'bg-[rgba(245,169,159,0.18)] text-[#F5A99F]', Icon: ArrowDownRight },
 };
 
 const formatShortDate = (iso: string) => format(new Date(iso), 'd MMM', { locale: ptBR });

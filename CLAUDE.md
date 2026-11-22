@@ -959,6 +959,18 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Cartões (`organisms/CreditBalanceList`, redesign 2026-11)**: cartão selecionado como "cartão físico"
+    (degradê do logo), trocado no tablet/desktop pelas setas ‹ › ao lado do nome + pontinhos ("2 de 4") —
+    já houve uma lista compacta dos outros cartões, mas o selecionado saía dela e parecia que a lista mudava
+    de ordem a cada clique; ao lado (≥1024px) ou embaixo, o detalhe dele
+    (`CreditBalanceDetail`, com `key` = id pra zerar a navegação de fatura ao trocar): ‹ fatura ›, Pagar,
+    ⋮ editar/excluir crédito, total/limite/ciclo, plásticos e "Nesta fatura" (compras via
+    `useListTransactions` com `source_type/source_id` — só leitura, agrupadas por dia com o mesmo
+    `util/groupTransactionsByDay` da Home e dias recolhíveis). Celular: carrossel com scroll-snap; o
+    cartão no centro vira o selecionado, e um efeito (com `ResizeObserver`, porque o carrossel fica
+    `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
+    fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
+    — com modificador o navegador cai no branco.
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
