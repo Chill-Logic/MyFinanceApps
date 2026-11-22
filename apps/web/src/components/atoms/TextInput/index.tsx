@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 
 import { TError } from '@/types';
 
+import { FIELD_SURFACE } from '@/components/ui/field';
 import Label from '@/components/ui/label';
 
 interface IProps extends InputHTMLAttributes<HTMLInputElement | HTMLTextAreaElement> {
@@ -29,7 +30,8 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 	const styles = {
 		wrapper: 'flex flex-col gap-tiny relative',
 		input: {
-			base: 'flex h-giant-xx w-full rounded-lg border border-input bg-background px-small-xx text-small font-medium font-noto-sans text-foreground shadow-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring',
+			/* Mesma superfície de input/select/data (ui/field.ts), para todos os campos baterem. */
+			base: cn('flex w-full', FIELD_SURFACE),
 			disabled: 'cursor-not-allowed opacity-50',
 			invalid: '!border-destructive',
 		},
@@ -37,7 +39,7 @@ const TextInput = forwardRef<any, IProps>((props, ref) => {
 			invalid: '!text-destructive',
 		},
 		support_text: {
-			base: 'text-muted-foreground font-noto-sans text-x-small font-light',
+			base: 'text-muted-foreground text-x-small',
 			invalid: '!text-destructive',
 		},
 		right_icon: {

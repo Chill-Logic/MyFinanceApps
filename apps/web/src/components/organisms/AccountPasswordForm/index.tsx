@@ -6,37 +6,35 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
 import useToast from '@/hooks/useToast';
 
+import { cn } from '@/lib/utils';
+
 import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
+import { passwordProblem } from '@/components/molecules/AuthForm';
+import { SETTINGS_CARD, SETTINGS_FIELD, SETTINGS_LABEL } from '@/components/organisms/AccountInfoForm';
 
 const INITIAL_VALUES = { current_password: '', password: '', password_confirmation: '' };
 
 /**
- * Form de troca de senha — subitem "Atualizar senha" das Configurações. Exige a senha atual
- * (`current_password`, confirmação de identidade no backend) + nova + confirmação. Valida a
- * confirmação no client antes de bater na API (que também valida).
+ * Troca de senha das Configurações, num cartão (redesign 2026-11). Exige a senha atual (o backend confere) e valida
+ * no cliente o tamanho (6 a 128) e a confirmação, com as mensagens em português.
  */
-const AccountPasswordForm = () => {
+const AccountPasswordForm = ({ className }: { className?: string }) => {
 	const { toast } = useToast();
 	const { mutate: updateUserMutation, isPending } = useUpdateCurrentUser();
 
 	const [ values, setValues ] = useState(INITIAL_VALUES);
-	const [ show_password, setShowPassword ] = useState(false);
+	const [ shown, setShown ] = useState(false);
 
-	const onChange = (key: keyof typeof values, value: string) => {
-		setValues((prev) => ({ ...prev, [key]: value }));
-	};
-
+	const onChange = (key: keyof typeof values, value: string) => setValues((prev) => ({ ...prev, [key]: value }));
 	const is_submit_disabled = isPending || !values.current_password || !values.password || !values.password_confirmation;
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
-
-		if (values.password !== values.password_confirmation) {
-			toast.error('As senhas não coincidem');
+		const problem = passwordProblem(values.password, values.password_confirmation);
+		if (problem) {
+			toast.error(problem);
 			return;
 		}
-
 		updateUserMutation({
 			body: values,
 			onSuccess: () => {
@@ -47,38 +45,45 @@ const AccountPasswordForm = () => {
 		});
 	};
 
+	const field = (key: keyof typeof values, label: string, autoComplete: string, hint?: string) => (
+		<div className='flex flex-col gap-2'>
+			<label htmlFor={`settings-${ key }`} className={SETTINGS_LABEL}>{label}</label>
+			<div className='relative'>
+				<input
+					id={`settings-${ key }`}
+					type={shown ? 'text' : 'password'}
+					className={cn(SETTINGS_FIELD, key === 'current_password' && 'pr-12')}
+					autoComplete={autoComplete}
+					maxLength={128}
+					value={values[key]}
+					onChange={(e) => onChange(key, e.target.value)}
+					disabled={isPending}
+				/>
+				{key === 'current_password' && (
+					<button
+						type='button'
+						onClick={() => setShown(!shown)}
+						aria-label={shown ? 'Esconder senhas' : 'Mostrar senhas'}
+						className='pressable absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:text-foreground'
+					>
+						{shown ? <EyeOff className='size-4' /> : <Eye className='size-4' />}
+					</button>
+				)}
+			</div>
+			{hint && <span className='px-1 text-xs text-muted-foreground'>{hint}</span>}
+		</div>
+	);
+
 	return (
-		<form onSubmit={handleSubmit} className='flex max-w-md flex-col gap-4'>
-			<TextInput
-				type={show_password ? 'text' : 'password'}
-				label='Senha atual'
-				name='current_password'
-				placeholder='Sua senha atual'
-				value={values.current_password}
-				onChange={(e) => onChange('current_password', e.target.value)}
-				disabled={isPending}
-				rightIconComponent={show_password ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
-				rightBtnAction={() => setShowPassword(!show_password)}
-			/>
-			<TextInput
-				type={show_password ? 'text' : 'password'}
-				label='Nova senha'
-				name='password'
-				placeholder='Nova senha'
-				value={values.password}
-				onChange={(e) => onChange('password', e.target.value)}
-				disabled={isPending}
-			/>
-			<TextInput
-				type={show_password ? 'text' : 'password'}
-				label='Confirmar nova senha'
-				name='password_confirmation'
-				placeholder='Repita a nova senha'
-				value={values.password_confirmation}
-				onChange={(e) => onChange('password_confirmation', e.target.value)}
-				disabled={isPending}
-			/>
-			<Button type='submit' isLoading={isPending} disabled={is_submit_disabled} className='self-start'>
+		<form onSubmit={handleSubmit} className={cn(SETTINGS_CARD, className)}>
+			<div className='flex flex-col gap-0.5'>
+				<h3 className='text-lg font-bold'>Senha</h3>
+				<p className='text-sm text-muted-foreground'>Para trocar, confirme a atual.</p>
+			</div>
+			{field('current_password', 'Senha atual', 'current-password')}
+			{field('password', 'Nova senha', 'new-password', 'Mínimo de 6 caracteres.')}
+			{field('password_confirmation', 'Confirmar nova senha', 'new-password')}
+			<Button type='submit' isLoading={isPending} disabled={is_submit_disabled} className='mt-auto h-12 self-start px-6 font-bold max-md:w-full'>
 				Atualizar senha
 			</Button>
 		</form>

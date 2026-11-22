@@ -1,0 +1,75 @@
+import icon from '@/assets/brand/icon.svg';
+import wordmark_on_dark from '@/assets/brand/wordmark-on-dark.svg';
+import wordmark from '@/assets/brand/wordmark.svg';
+
+import { useTheme } from '@/context/theme';
+import { cn } from '@/lib/utils';
+
+type TLogoVariant = 'icon' | 'horizontal' | 'stacked' | 'wordmark';
+
+interface IProps {
+	variant?: TLogoVariant;
+	/** Altura do ícone em px; o nome acompanha proporcionalmente. */
+	size?: number;
+	/**
+	 * Força o nome claro (para fundo marinho fixo, como o painel da marca no login), independente
+	 * do tema. Sem isso, o nome segue o tema: marinho no claro, areia no escuro.
+	 */
+	onDark?: boolean;
+	/** Caixa do ícone em círculo (dentro de pílulas, como o seletor de carteira) em vez de quadrado arredondado. */
+	round?: boolean;
+	className?: string;
+}
+
+/*
+ * Logo vetorizado (src/assets/brand): ícone redesenhado em geometria e nome traçado do PNG original.
+ * O quarto marinho do ícone some sobre fundo marinho/escuro — por isso, no tema escuro (ou com
+ * `onDark`), o ícone ganha um quadrado areia por trás.
+ */
+const Logo = ({ variant = 'horizontal', size = 32, onDark = false, round = false, className }: IProps) => {
+	const { theme } = useTheme();
+	const dark_surface = onDark || theme === 'dark';
+	const wordmark_src = dark_surface ? wordmark_on_dark : wordmark;
+
+	/* O nome tem proporção 4480×550 ≈ 8,15:1; ~55% da altura do ícone fica equilibrado ao lado. */
+	const wordmark_height = Math.round(size * (variant === 'stacked' ? 0.32 : 0.5));
+
+	/*
+	 * O ícone tem SEMPRE `size`, e a caixa em volta dele tem SEMPRE `tile` — nos dois temas. Só o
+	 * fundo areia aparece ou não (escuro/`onDark`). Se a caixa mudasse de tamanho com o tema, o ícone
+	 * mudaria de tamanho ou empurraria o que vem depois (já aconteceu: no trilho do tablet a casinha
+	 * de "Início" pulava ao trocar de tema).
+	 */
+	const tile = Math.round(size * 1.25);
+
+	const mark = (
+		<span
+			className={cn('flex shrink-0 items-center justify-center', dark_surface && 'bg-sand-light')}
+			style={{ width: tile, height: tile, borderRadius: round ? tile / 2 : tile * 0.28 }}
+		>
+			<img src={icon} alt='' width={size} height={size} />
+		</span>
+	);
+
+	/* Só o nome (as telas de autenticação desenham o ícone em vidro no shader). Tamanho pela `className` (altura). */
+	if (variant === 'wordmark') {
+		return <img src={wordmark_src} alt='MyFinance' className={cn('w-auto', className)} style={className ? undefined : { height: size }} />;
+	}
+
+	if (variant === 'icon') {
+		return <span className={className} role='img' aria-label='MyFinance'>{mark}</span>;
+	}
+
+	return (
+		<span
+			className={cn('inline-flex items-center', variant === 'stacked' ? 'flex-col gap-4' : 'gap-2.5', className)}
+			role='img'
+			aria-label='MyFinance'
+		>
+			{mark}
+			<img src={wordmark_src} alt='' style={{ height: wordmark_height, width: 'auto' }} />
+		</span>
+	);
+};
+
+export default Logo;

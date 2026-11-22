@@ -1,31 +1,29 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { getApiErrorMessage } from '@myfinance/shared';
-import { Eye, EyeOff } from 'lucide-react';
 
 import { useResetPassword } from '@/hooks/api/auth/useResetPassword';
 import useToast from '@/hooks/useToast';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
+import { AUTH_MAX_PASSWORD, AuthBackLink, AuthField, AuthHeader, AuthSubmit, passwordProblem } from '@/components/molecules/AuthForm';
 
 /**
- * Redefinição de senha. O token chega pelo link do e-mail (`?token=...`) — prefilamos a partir da
- * URL, mas deixamos o campo editável pra dar pra validar o fluxo colando o token manualmente
- * (web-first). Confirmação de senha é validada no client antes de bater na API (que também valida).
+ * Criar senha nova. O código chega pelo link do e-mail: o backend manda `/auth/change-password/<código>` (no
+ * caminho); `/auth/reset-password?token=` continua valendo. O campo fica editável pra colar o código à mão.
+ * O código vale 6 horas.
  */
 const ResetPasswordPage = () => {
 	const navigate = useNavigate();
 	const { toast } = useToast();
+	const { token: path_token } = useParams();
 	const [ search_params ] = useSearchParams();
 
 	const [ values, setValues ] = useState({
-		token: search_params.get('token') ?? '',
+		token: path_token ?? search_params.get('token') ?? '',
 		password: '',
 		password_confirmation: '',
 	});
-	const [ show_password, setShowPassword ] = useState(false);
 	const { mutate: resetPasswordMutation, isPending } = useResetPassword();
 
 	const onChange = (key: keyof typeof values, value: string) => {
@@ -35,74 +33,67 @@ const ResetPasswordPage = () => {
 	const onSubmit = (e: FormEvent) => {
 		e.preventDefault();
 
-		if (values.password !== values.password_confirmation) {
-			toast.error('As senhas não coincidem');
+		const problem = passwordProblem(values.password, values.password_confirmation);
+		if (problem) {
+			toast.error(problem);
 			return;
 		}
 
 		resetPasswordMutation({
 			body: values,
-			onSuccess: (data) => {
-				toast.success(data.message || 'Senha alterada com sucesso!');
+			onSuccess: () => {
+				toast.success('Senha nova salva. Entre com ela.');
 				navigate('/auth/sign-in');
 			},
 			onError: (error) => {
-				toast.error(getApiErrorMessage(error, 'Não foi possível redefinir a senha'));
+				toast.error(getApiErrorMessage(error, 'Não foi possível salvar a senha. O link pode ter expirado.'));
 			},
 		});
 	};
 
-	const is_submit_disabled = isPending || !values.token || !values.password || !values.password_confirmation;
-
 	return (
-		<form onSubmit={onSubmit}>
-			<div className='flex flex-col gap-y-8'>
-				<div className='flex w-full flex-col gap-y-4'>
-					<TextInput
-						type='text'
-						placeholder='Cole aqui o token recebido por e-mail'
-						label='Token'
-						name='token'
-						value={values.token}
-						onChange={(e) => onChange('token', e.target.value)}
-						disabled={isPending}
-					/>
-					<TextInput
-						type={show_password ? 'text' : 'password'}
-						placeholder='Insira a nova senha'
-						label='Nova senha'
-						name='password'
-						value={values.password}
-						onChange={(e) => onChange('password', e.target.value)}
-						disabled={isPending}
-						rightIconComponent={show_password ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
-						rightBtnAction={() => setShowPassword(!show_password)}
-					/>
-					<TextInput
-						type={show_password ? 'text' : 'password'}
-						placeholder='Confirme a nova senha'
-						label='Confirmar senha'
-						name='password_confirmation'
-						value={values.password_confirmation}
-						onChange={(e) => onChange('password_confirmation', e.target.value)}
-						disabled={isPending}
-					/>
-				</div>
+		<form onSubmit={onSubmit} className='flex flex-col gap-3'>
+			<AuthHeader title='Criar senha nova' subtitle='Escolha uma senha nova para a sua conta.' />
 
-				<div className='flex flex-col gap-y-2'>
-					<Button type='submit' isLoading={isPending} disabled={is_submit_disabled}>
-						Redefinir senha
-					</Button>
-					<Button
-						variant='secondary'
-						type='button'
-						disabled={isPending}
-						onClick={() => navigate('/auth/sign-in')}
-					>
-						Voltar para o login
-					</Button>
-				</div>
-			</div>
+			<AuthField
+				id='token'
+				type='text'
+				mono
+				label='Código do e-mail'
+				hint='Já vem preenchido quando você abre o link do e-mail.'
+				autoComplete='one-time-code'
+				spellCheck={false}
+				required
+				value={values.token}
+				onChange={(e) => onChange('token', e.target.value)}
+				disabled={isPending}
+			/>
+			<AuthField
+				id='password'
+				revealable
+				label={<>Nova senha <span className='opacity-75'>· mínimo 6 caracteres</span></>}
+				autoComplete='new-password'
+				maxLength={AUTH_MAX_PASSWORD}
+				required
+				value={values.password}
+				onChange={(e) => onChange('password', e.target.value)}
+				disabled={isPending}
+			/>
+			<AuthField
+				id='password_confirmation'
+				type='password'
+				label='Confirmar nova senha'
+				autoComplete='new-password'
+				maxLength={AUTH_MAX_PASSWORD}
+				required
+				value={values.password_confirmation}
+				onChange={(e) => onChange('password_confirmation', e.target.value)}
+				disabled={isPending}
+			/>
+
+			<AuthSubmit isLoading={isPending}>Salvar senha</AuthSubmit>
+
+			<AuthBackLink />
 		</form>
 	);
 };

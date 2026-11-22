@@ -1,17 +1,17 @@
 import { FormEvent, useEffect, useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TAccount, type TAccountKind } from '@myfinance/shared';
+import { Wallet } from 'lucide-react';
 
 import { useCreateAccount } from '@/hooks/api/accounts/useCreateAccount';
 import { useUpdateAccount } from '@/hooks/api/accounts/useUpdateAccount';
 import useToast from '@/hooks/useToast';
 
 import { useWallet } from '@/context/wallet';
+import { cn } from '@/lib/utils';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SegmentedControl from '@/components/molecules/SegmentedControl';
+import { AffixInput, Field, FIELD_INPUT, SheetDialog, SheetDialogFooter } from '@/components/molecules/SheetDialog';
 
 interface IProps {
 	open: boolean;
@@ -19,12 +19,13 @@ interface IProps {
 	account?: TAccount | null;
 }
 
-const ACCOUNT_KINDS: { value: TAccountKind; label: string }[] = [
+const ACCOUNT_KINDS = [
 	{ value: 'checking', label: 'Conta corrente' },
 	{ value: 'savings', label: 'Poupança' },
 	{ value: 'cash', label: 'Dinheiro' },
 ];
 
+/* Nova/editar conta (redesign 2026-11, mockup "DlgAccount"). Tipo em abas; saldo inicial só na criação. */
 const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
@@ -35,6 +36,8 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 	const [ name, setName ] = useState('');
 	const [ kind, setKind ] = useState<TAccountKind>('checking');
 	const [ initial_balance, setInitialBalance ] = useState('');
+	/* Saldo inicial pode ser negativo (conta já no cheque especial): o backend vira uma saída "Saldo inicial". */
+	const [ is_negative, setIsNegative ] = useState(false);
 
 	useEffect(() => {
 		if (!open) return;
@@ -46,6 +49,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 			setName('');
 			setKind('checking');
 			setInitialBalance('');
+			setIsNegative(false);
 		}
 	}, [ open, account ]);
 
@@ -53,6 +57,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
+		if (!name.trim()) return;
 
 		/* Update só mexe em nome/tipo. O saldo inicial existe só na criação (vira uma transação no backend). */
 		if (account) {
@@ -75,7 +80,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 
 		createAccountMutation({
 			wallet_id: user_wallet.data.id,
-			body: { name, kind, initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)) },
+			body: { name, kind, initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)) * (is_negative ? -1 : 1) },
 			onSuccess: () => {
 				toast.success('Conta criada!');
 				onOpenChange(false);
@@ -85,61 +90,70 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>{account ? 'Editar conta' : 'Nova conta'}</DialogTitle>
-				</DialogHeader>
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={account ? 'Editar conta' : 'Nova conta'}
+			context={user_wallet.data ? `Na carteira ${ user_wallet.data.name }` : undefined}
+			contextIcon={Wallet}
+			onSubmit={handleSubmit}
+			footer={(
+				<SheetDialogFooter
+					submitLabel={account ? 'Salvar' : 'Criar conta'}
+					onCancel={() => onOpenChange(false)}
+					isLoading={is_pending}
+					disabled={!name.trim()}
+				/>
+			)}
+		>
+			<Field label='Tipo'>
+				<SegmentedControl segments={ACCOUNT_KINDS} value={kind} onChange={(value) => setKind(value as TAccountKind)} />
+			</Field>
 
-				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					<TextInput
-						type='text'
-						label='Nome'
-						name='name'
-						placeholder='Ex.: Conta Corrente, Carteira'
+			<div className='grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]'>
+				<Field label='Nome' htmlFor='account-name' className={account ? 'md:col-span-2' : undefined}>
+					<input
+						id='account-name'
+						className={FIELD_INPUT}
+						placeholder='Ex.: Nubank, Carteira'
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						disabled={is_pending}
 					/>
+				</Field>
 
-					<div className='flex flex-col gap-1.5'>
-						<label className='text-sm font-medium'>Tipo</label>
-						<Select value={kind} onValueChange={(value) => setKind(value as TAccountKind)}>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{ACCOUNT_KINDS.map((option) => (
-									<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					{/* Saldo inicial só na criação — no backend vira uma transação "Saldo inicial" efetivada */}
-					{!account && (
-						<TextInput
-							type='text'
-							label='Saldo inicial'
-							name='initial_balance'
-							placeholder='R$ 0,00'
-							value={initial_balance}
+				{/* Saldo inicial só na criação — no backend vira uma transação "Saldo inicial" efetivada */}
+				{!account && (
+					<Field label='Saldo inicial' htmlFor='account-balance'>
+						<AffixInput
+							id='account-balance'
+							prefix={is_negative ? '−R$' : 'R$'}
+							className={cn(is_negative && 'pl-14 text-destructive')}
+							inputMode='numeric'
+							placeholder='0,00'
+							value={initial_balance.replace(/^R\$\s?/, '')}
 							onChange={(e) => setInitialBalance(MoneyUtils.formatMoney(e.target.value))}
 							disabled={is_pending}
 						/>
-					)}
+						<button
+							type='button'
+							onClick={() => setIsNegative((value) => !value)}
+							disabled={is_pending}
+							aria-pressed={is_negative}
+							className={cn('pressable -mt-0.5 self-start px-1 text-xs font-semibold', is_negative ? 'text-destructive' : 'text-brand')}
+						>
+							{is_negative ? 'Saldo negativo · tornar positivo' : 'Está negativo?'}
+						</button>
+					</Field>
+				)}
+			</div>
 
-					<DialogFooter>
-						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
-							Cancelar
-						</Button>
-						<Button type='submit' isLoading={is_pending} disabled={is_pending || !name}>
-							Salvar
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+			<p className='px-1 text-xs text-muted-foreground'>
+				{account
+					? 'O saldo muda pelas transações. O saldo inicial vira um lançamento “Saldo inicial” no começo da conta.'
+					: 'O saldo inicial entra como um lançamento “Saldo inicial” já efetivado. Pode deixar zero ou negativo.'}
+			</p>
+		</SheetDialog>
 	);
 };
 

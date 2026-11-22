@@ -101,3 +101,72 @@ export const Theme = {
 		error: colors['feedback-danger-default'],
 	},
 } as const;
+
+/*
+ * ─── Redesign (2026-11) ──────────────────────────────────────────────────────────────────────
+ *
+ * Paleta e papéis semânticos do redesign "moderno com a marca" (canvas "MyFinance — redesign").
+ * `colors`/`Theme` acima continuam existindo porque o mobile ainda não recebeu o redesign — quando
+ * receber, ele passa a ler `brandTheme` e os dois acima podem ser aposentados.
+ *
+ * O web consome estes valores convertidos para HSL nas variáveis CSS de
+ * `apps/web/src/styles/index.css` (`:root` = claro, `.dark` = escuro). Os dois lados não se
+ * sincronizam sozinhos: mudou um valor aqui, recalcule o HSL lá.
+ */
+
+/** Cores-base da marca, as mesmas do logo. */
+export const brandPalette = {
+	navy: '#082435',       // marinho: fundo de marca, texto no claro
+	navyLight: '#0F3A52',  // marinho do degradê dos cartões de destaque
+	olive: '#89A160',      // oliva: ação principal no claro
+	oliveLight: '#A3BC74', // oliva clareado: ação principal no escuro
+	oliveDark: '#6E8B4D',  // oliva escuro (quarto inferior do logo)
+	teal: '#078DA7',       // azul-petróleo do logo: cartões de crédito e "informação"
+	sand: '#C7C3BF',       // areia: neutro quente da marca
+	sandLight: '#F1EFEC',  // areia clara: texto no escuro, fundo do ícone sobre marinho
+} as const;
+
+/**
+ * Papéis semânticos por tema. `primaryForeground` é marinho nos dois temas de propósito: o oliva
+ * não tem contraste suficiente com texto branco.
+ */
+export const brandTheme = {
+	light: {
+		background: '#F3F1ED',
+		sidebar: '#EFECE7',
+		card: '#FFFFFF',
+		field: '#F7F5F2',
+		muted: '#ECE9E4',
+		accent: '#E7E3DD',
+		foreground: brandPalette.navy,
+		mutedForeground: '#55626C',
+		border: 'rgba(8, 36, 53, 0.10)',
+		primary: brandPalette.olive,
+		primaryForeground: brandPalette.navy,
+		brand: '#4F6B2E',
+		success: '#157F3D',
+		warning: '#7A4F0F',
+		warningDot: '#C98A1B',
+		info: '#05667A',
+		danger: '#B42318',
+	},
+	dark: {
+		background: '#05141E',
+		sidebar: '#061A26',
+		card: '#0A1E2B',
+		field: '#0F2430',
+		muted: '#0F2430',
+		accent: '#132A37',
+		foreground: brandPalette.sandLight,
+		mutedForeground: '#A8A39D',
+		border: 'rgba(199, 195, 191, 0.12)',
+		primary: brandPalette.oliveLight,
+		primaryForeground: brandPalette.navy,
+		brand: '#BCD291',
+		success: '#7DD3A0',
+		warning: '#F2D58A',
+		warningDot: '#E9B949',
+		info: '#8FD3E3',
+		danger: '#F2867A',
+	},
+} as const;

@@ -1,9 +1,8 @@
-import { createTransaction, QUERY_KEYS } from '@myfinance/shared';
+import { createTransaction } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
+import { invalidateTransactionData } from '@/hooks/api/transactions/invalidateTransactionData';
 import { getAxiosInstance } from '@/hooks/api/useAxiosInstance';
-
-import { queryClient } from '@/services/query-client';
 
 import { type TCreateTransactionBody, type TMutationParams, type TTransaction } from '@/types';
 
@@ -14,8 +13,7 @@ export const useCreateTransactions = () => {
 			return createTransaction(axios, body);
 		},
 		onSuccess: (data, { onSuccess }) => {
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
+			invalidateTransactionData();
 			onSuccess?.(data);
 		},
 		onError: (error, { onError }) => {

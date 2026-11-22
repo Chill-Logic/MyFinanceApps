@@ -70,6 +70,9 @@ export type TTransaction = WithModelFields<{
 	invoice_review: TInvoiceReview | null;
 	/* Último toque do usuário (edição, efetivação, exclusão); `null` = nunca mexeu. */
 	user_edited_at: string | null;
+	/* Quando o registro foi criado/alterado (o backend sempre manda; o Detalhe mostra "criada em"). */
+	created_at?: string;
+	updated_at?: string;
 	/*
 	 * Campos que o usuário editou (ou herdados do lançamento manual que a transação do banco substituiu). A
 	 * sincronização bancária e a regra da recorrência continuam atualizando os outros, nunca estes.

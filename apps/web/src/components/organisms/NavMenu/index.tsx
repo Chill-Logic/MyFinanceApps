@@ -1,138 +1,231 @@
-import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 
-import { QUERY_KEYS } from '@myfinance/shared';
-import { LogOut, RefreshCw, Settings } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, LogOut, Plus, RefreshCw, Settings, Star } from 'lucide-react';
 
 import { useListInvites } from '@/hooks/api/user-wallets/useListInvites';
 import useNavItems from '@/hooks/useNavItems';
 
 import { useCurrentUserContext } from '@/context/current_user';
 import { cn } from '@/lib/utils';
-import { queryClient } from '@/services/query-client';
 
-import WalletSwitcher from '@/components/organisms/WalletSwitcher';
+import {
+	GLASS_TILE,
+	LiquidBlob,
+	ThemeSwitch,
+	useLiquidBlob,
+	useRefreshAll,
+	useWalletChoices,
+	WalletAvatar,
+	walletMoney,
+} from '@/components/molecules/NavKit';
 import { SheetTitle } from '@/components/ui/sheet';
 
 interface IProps {
 	onClose: ()=> void;
 }
 
-const item_class = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground';
+const initials = (name?: string) => (name || '?').trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 
 /**
- * Corpo do bottom sheet do menu mobile (aberto pelo hambúrguer da `BottomNav`) — equivalente
- * ao `NavMenu` do apps/mobile, e o que substituiu o `Popover` enxuto que existia aqui antes.
- * Reúne header de usuário + refresh, wallet switcher inline (`WalletSwitcher`, compartilhado com
- * o `Sidebar` do desktop), destinos com badge de convites, Nova Carteira, toggle de tema (extra
- * Sair. Aparência (tema) e "Sobre" moram na página de Configurações, não mais no menu.
+ * Folha do ☰ no celular (redesign 2026-11, mockup v3 "Menu"): vidro, altura pelo conteúdo. Perfil + atualizar;
+ * carteiras em cartões lado a lado (a em foco marcada pela gota, que escorre até a escolhida); destinos em grade
+ * 2×2 (o atual com a gota); rodapé com Configurações, tema (Sistema/Claro/Escuro) e Sair.
  */
 const NavMenu = ({ onClose }: IProps) => {
 	const { navItems, newWalletAction } = useNavItems();
 	const { current_user, logout } = useCurrentUserContext();
 	const { data: data_invites } = useListInvites();
+	const { wallets, active, main_id, select } = useWalletChoices();
+	const { refresh, is_refreshing } = useRefreshAll();
+	const { pathname } = useLocation();
 
-	const [ is_refreshing, setIsRefreshing ] = useState(false);
+	const invites_count = (data_invites?.data ?? []).filter((invite) => !invite.accepted).length;
 
-	const invites_count = data_invites?.data.length ?? 0;
+	const wallets_ref = useRef<HTMLDivElement>(null);
+	const strip_ref = useRef<HTMLDivElement>(null);
+	/* Setas da faixa de carteiras: só aparecem do lado em que ainda há cartão escondido. */
+	const [ can_scroll, setCanScroll ] = useState({ left: false, right: false });
+	const updateArrows = () => {
+		const strip = strip_ref.current;
+		if (!strip) return;
+		setCanScroll({ left: strip.scrollLeft > 4, right: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 4 });
+	};
+	const scrollStrip = (direction: 1 | -1) => strip_ref.current?.scrollBy({ left: direction * 160, behavior: 'smooth' });
+	const grid_ref = useRef<HTMLDivElement>(null);
+	const wallet_blob = useLiquidBlob(active?.id ?? null, () => wallets_ref.current?.querySelector<HTMLElement>(`[data-wallet="${ active?.id }"]`) ?? null);
+	const active_nav = navItems.find((item) => item.path === pathname)?.id ?? null;
+	const nav_blob = useLiquidBlob(active_nav, () => grid_ref.current?.querySelector<HTMLElement>(`[data-nav="${ active_nav }"]`) ?? null);
 
 	/*
-	 * O web não tem `RefreshProvider` como o mobile — o "atualizar" aqui é invalidar todas as
-	 * queries do React Query (mesma lógica do `useRefresh({ all: true })` do mobile: percorre os
-	 * QUERY_KEYS de cada modelo), com um estado local só pra girar o ícone enquanto roda.
+	 * A carteira em foco vem PRIMEIRO na faixa. A ordem é congelada na primeira vez em que a em foco é conhecida:
+	 * tocar em outra não a faz pular pro começo enquanto a gota anda e a folha fecha.
 	 */
-	const handleRefresh = async() => {
-		if (is_refreshing) return;
+	const first_id = useRef<string | null>(null);
+	if (!first_id.current && active) first_id.current = active.id;
+	const ordered = [
+		...wallets.filter((wallet) => wallet.id === first_id.current),
+		...wallets.filter((wallet) => wallet.id !== first_id.current),
+	];
 
-		setIsRefreshing(true);
-		try {
-			await Promise.all(
-				Object.values(QUERY_KEYS).flatMap((model_keys) =>
-					Object.values(model_keys).map((key) =>
-						queryClient.invalidateQueries({ queryKey: [ key ] }),
-					),
-				),
-			);
-		} finally {
-			setIsRefreshing(false);
-		}
-	};
+	useEffect(() => {
+		updateArrows();
+	}, [ wallets.length ]);
 
-	const handleNewWallet = () => {
-		onClose();
-		newWalletAction.onClick();
-	};
-
-	const handleLogout = () => {
-		onClose();
-		logout();
-	};
+	const short_label: Record<string, string> = { home: 'Início', finances: 'Contas & Cartões', my_wallets: 'Carteiras', wallets_invites: 'Convites' };
 
 	return (
-		<div className='flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-8 pt-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border scrollbar-thumb-rounded-full'>
+		<div className='flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-1'>
 			<SheetTitle className='sr-only'>Menu de navegação</SheetTitle>
 
-			<div className='flex items-center gap-3 px-3 py-2'>
-				<div className='min-w-0 flex-1'>
-					<p className='truncate text-sm font-bold text-foreground'>{current_user.data?.name}</p>
-					<p className='truncate text-xs text-muted-foreground'>{current_user.data?.email}</p>
-				</div>
+			{/* Perfil */}
+			<div className='flex items-center gap-3 px-1'>
+				<span className='flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-primary/60 bg-white/40 text-sm font-bold dark:bg-white/[0.06]'>
+					{initials(current_user.data?.name)}
+				</span>
+				<span className='flex min-w-0 flex-1 flex-col'>
+					<span className='truncate text-lg font-bold tracking-[-0.02em]'>{current_user.data?.name}</span>
+					<span className='truncate text-[13px] text-muted-foreground'>{current_user.data?.email}</span>
+				</span>
 				<button
 					type='button'
-					onClick={handleRefresh}
+					onClick={refresh}
 					disabled={is_refreshing}
 					aria-label='Atualizar dados'
-					className='rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-60'
+					className={cn('pressable flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground', GLASS_TILE)}
 				>
-					<RefreshCw className={cn('h-4 w-4', is_refreshing && 'animate-spin')} />
+					<RefreshCw className={cn('size-[18px]', is_refreshing && 'animate-spin')} />
 				</button>
 			</div>
 
-			<div className='my-2 border-t border-border' />
+			{/* Carteiras */}
+			<section className='flex flex-col gap-2'>
+				<div className='flex items-center justify-between px-1'>
+					<span className='text-xs font-semibold text-muted-foreground'>Visualizando a carteira</span>
+					<button
+						type='button'
+						onClick={() => {
+							onClose();
+							newWalletAction.onClick();
+						}}
+						className='flex items-center gap-1 text-xs font-bold text-brand'
+					>
+						<Plus className='size-3.5' />Nova carteira
+					</button>
+				</div>
+				<div className='relative -mx-4'>
+					<div ref={strip_ref} onScroll={updateArrows} className='no-scrollbar overflow-x-auto scroll-smooth px-4'>
+						<div ref={wallets_ref} className='relative flex w-max gap-2.5 py-0.5'>
+							<LiquidBlob blob={wallet_blob} className='rounded-[22px] ring-1 ring-primary/60' />
+							{ordered.map((wallet) => {
+								/* Cor do avatar pela posição ORIGINAL (a mesma do trilho e da barra lateral). */
+								const index = wallets.indexOf(wallet);
+								const is_active = wallet.id === active?.id;
+								return (
+									<button
+										key={wallet.id}
+										type='button'
+										data-wallet={wallet.id}
+										aria-pressed={is_active}
+										onClick={() => {
+											select(wallet);
+											setTimeout(onClose, 320);
+										}}
+										className={cn('pressable relative z-10 flex w-[150px] shrink-0 flex-col gap-2 rounded-[22px] p-3 text-left', !is_active && GLASS_TILE)}
+									>
+										<span className='flex items-center gap-2'>
+											<WalletAvatar name={wallet.name} index={index} className='size-8 rounded-full text-[11px]' />
+											{wallet.id === main_id && <span className='flex items-center gap-0.5 text-[11px] font-bold text-brand'><Star className='size-3 fill-current' />Principal</span>}
+											{is_active && (
+											/* Círculo fixo com o ícone dentro: o SVG direto no flex encolhia e o círculo virava oval. */
+												<span className='ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground'>
+													<Check className='size-3' strokeWidth={3.5} />
+												</span>
+											)}
+										</span>
+										<span className='flex min-w-0 flex-col'>
+											<span className='truncate text-sm font-bold'>{wallet.name}</span>
+											<span className={cn('truncate text-[15px] font-bold', wallet.total < 0 && 'text-destructive', !is_active && wallet.total >= 0 && 'text-muted-foreground')}>
+												{walletMoney(wallet.total)}
+											</span>
+										</span>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+					{([ [ -1, can_scroll.left ], [ 1, can_scroll.right ] ] as const).map(([ direction, visible ]) => (
+						<button
+							key={direction}
+							type='button'
+							tabIndex={visible ? 0 : -1}
+							aria-hidden={!visible}
+							aria-label={direction < 0 ? 'Carteiras anteriores' : 'Mais carteiras'}
+							onClick={() => scrollStrip(direction)}
+							className={cn(
+								'pressable absolute top-1/2 z-20 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white/70 text-foreground shadow-[0_4px_14px_rgba(8,36,53,0.18)] backdrop-blur-md transition-opacity duration-200 dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.75)]',
+								direction < 0 ? 'left-2' : 'right-2',
+								visible ? 'opacity-100' : 'pointer-events-none opacity-0'
+							)}
+						>
+							{direction < 0 ? <ChevronLeft className='size-4' /> : <ChevronRight className='size-4' />}
+						</button>
+					))}
+				</div>
+			</section>
 
-			<WalletSwitcher onAfterSelect={onClose} />
+			{/* Destinos */}
+			<nav aria-label='Destinos'>
+				<div ref={grid_ref} className='relative grid grid-cols-2 gap-2'>
+					<LiquidBlob blob={nav_blob} className='rounded-[20px]' />
+					{navItems.map(({ id, path, icon: Icon }) => {
+						const is_active = active_nav === id;
+						return (
+							<NavLink
+								key={id}
+								to={path}
+								end
+								data-nav={id}
+								onClick={() => setTimeout(onClose, 260)}
+								className={cn('pressable relative z-10 flex min-h-[60px] items-center gap-3 rounded-[20px] px-3 py-2.5', !is_active && GLASS_TILE)}
+							>
+								<span className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', is_active ? 'bg-primary text-primary-foreground' : 'bg-white/50 dark:bg-white/[0.06]')}>
+									<Icon className='size-[18px]' />
+								</span>
+								<span className='min-w-0 flex-1 text-sm font-semibold leading-tight'>{short_label[id] ?? id}</span>
+								{id === 'wallets_invites' && invites_count > 0 && (
+									<span className='flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground'>{invites_count}</span>
+								)}
+							</NavLink>
+						);
+					})}
+				</div>
+			</nav>
 
-			<div className='my-2 border-t border-border' />
-
-			{navItems.map(({ id, label, path, icon: Icon }) => (
+			{/* Rodapé */}
+			<div className='flex items-center gap-2 border-t border-foreground/10 pt-4'>
 				<NavLink
-					key={id}
-					to={path}
+					to='/settings'
 					end
-					onClick={onClose}
-					className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
+					onClick={() => setTimeout(onClose, 200)}
+					className={({ isActive }) => cn('pressable flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-4 text-sm font-semibold', GLASS_TILE, isActive && 'ring-1 ring-primary/60')}
 				>
-					<Icon className='h-4 w-4 shrink-0' />
-					<span className='flex-1'>{label}</span>
-					{id === 'wallets_invites' && invites_count > 0 && (
-						<span className='flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-secondary px-1 text-xs font-bold text-white'>
-							{invites_count}
-						</span>
-					)}
+					<Settings className='size-4 shrink-0' />
+					<span className='truncate'>Configurações</span>
 				</NavLink>
-			))}
-
-			<button type='button' onClick={handleNewWallet} className={item_class}>
-				<newWalletAction.icon className='h-4 w-4 shrink-0' />
-				{newWalletAction.label}
-			</button>
-
-			<div className='my-2 border-t border-border' />
-
-			<NavLink
-				to='/settings'
-				end
-				onClick={onClose}
-				className={({ isActive }) => cn(item_class, isActive && 'bg-secondary text-secondary-foreground')}
-			>
-				<Settings className='h-4 w-4 shrink-0' />
-				Configurações
-			</NavLink>
-
-			<button type='button' onClick={handleLogout} className={cn(item_class, 'text-destructive hover:text-destructive')}>
-				<LogOut className='h-4 w-4 shrink-0' />
-				Sair
-			</button>
+				<ThemeSwitch />
+				<button
+					type='button'
+					aria-label='Sair'
+					onClick={() => {
+						onClose();
+						logout();
+					}}
+					className='pressable flex size-11 shrink-0 items-center justify-center rounded-full bg-danger-soft text-destructive'
+				>
+					<LogOut className='size-[18px]' />
+				</button>
+			</div>
 		</div>
 	);
 };

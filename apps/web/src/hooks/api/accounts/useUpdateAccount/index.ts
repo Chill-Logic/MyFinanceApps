@@ -15,6 +15,7 @@ export const useUpdateAccount = () => {
 		},
 		onSuccess: (data, { onSuccess }) => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_projection ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });
 			onSuccess?.(data);
 		},

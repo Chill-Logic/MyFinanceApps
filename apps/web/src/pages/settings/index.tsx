@@ -1,190 +1,352 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
+import { Link } from 'react-router-dom';
 
-import { Bot, ChevronDown, ChevronLeft, ChevronRight, Info, Lock, Moon, Palette, Pencil, Sun, User, type LucideIcon } from 'lucide-react';
+import { getApiErrorMessage, MONTH_NAMES_PT, QUERY_KEYS } from '@myfinance/shared';
+import { Bot, ChevronLeft, ChevronRight, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, User, type LucideIcon } from 'lucide-react';
 
-import { useTheme } from '@/context/theme';
+import { useIndexClaudeSessions } from '@/hooks/api/claude-sessions/useIndexClaudeSessions';
+import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
+import { useGetMainWallet } from '@/hooks/api/wallets/useGetMainWallet';
+import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
+import useMediaQuery from '@/hooks/useMediaQuery';
+import useToast from '@/hooks/useToast';
+
+import { useCurrentUserContext } from '@/context/current_user';
+import { type TThemePreference, useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
+import { queryClient } from '@/services/query-client';
 
 import Button from '@/components/atoms/Button';
-import Typography from '@/components/atoms/Typography';
-import AboutInfo from '@/components/organisms/AboutInfo';
-import AccountInfoForm from '@/components/organisms/AccountInfoForm';
+import SegmentedControl, { type TSegment } from '@/components/molecules/SegmentedControl';
+import AboutInfo, { useShortVersions } from '@/components/organisms/AboutInfo';
+import AccountInfoForm, { SETTINGS_CARD } from '@/components/organisms/AccountInfoForm';
 import AccountPasswordForm from '@/components/organisms/AccountPasswordForm';
 import ClaudeConnections from '@/components/organisms/ClaudeConnections';
+import Badge from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-type TLeafKey = 'appearance' | 'about' | 'account_info' | 'account_password' | 'claude_connections';
+const HERO = 'relative overflow-hidden rounded-3xl border border-sand-light/15 bg-gradient-to-br from-navy-light from-0% to-navy to-65% text-sand-light shadow-[0_18px_40px_rgba(8,36,53,0.22)] dark:shadow-none';
+const HERO_GLOW = 'pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(163,188,116,0.30)_0%,rgba(163,188,116,0)_70%)]';
+const SURFACE = 'border border-border bg-white shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:bg-[rgba(199,195,191,0.04)] dark:shadow-none';
 
-type TLeaf = {
-	type: 'leaf';
-	key: TLeafKey;
-	label: string;
-	description: string;
-	icon: LucideIcon;
-};
-
-type TGroup = {
-	type: 'group';
-	key: string;
-	label: string;
-	description: string;
-	icon: LucideIcon;
-	children: TLeaf[];
-};
-
-const NODES: (TLeaf | TGroup)[] = [
-	{ type: 'leaf', key: 'appearance', label: 'Aparência', description: 'Tema claro ou escuro', icon: Palette },
-	{
-		type: 'group',
-		key: 'account',
-		label: 'Conta',
-		description: 'Seus dados e senha',
-		icon: User,
-		children: [
-			{ type: 'leaf', key: 'account_info', label: 'Informações pessoais', description: 'Nome e e-mail', icon: Pencil },
-			{ type: 'leaf', key: 'account_password', label: 'Atualizar senha', description: 'Trocar sua senha', icon: Lock },
-		],
-	},
-	{ type: 'leaf', key: 'claude_connections', label: 'Conexões com o Claude', description: 'Acesso do Claude à sua conta', icon: Bot },
-	{ type: 'leaf', key: 'about', label: 'Sobre', description: 'Versões do webapp e da API', icon: Info },
+const THEME_SEGMENTS: TSegment[] = [
+	{ value: 'system', label: 'Sistema', icon: Monitor },
+	{ value: 'light', label: 'Claro', icon: Sun },
+	{ value: 'dark', label: 'Escuro', icon: Moon },
 ];
 
-const LEAVES: TLeaf[] = NODES.flatMap((node) => (node.type === 'group' ? node.children : [ node ]));
+/* Seções do menu (desktop/tablet deitado) e das telas de detalhe (celular/tablet em pé). */
+type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'main_wallet' | 'claude' | 'bank' | 'about';
 
-const leaf_base = 'flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors';
+const initials = (name?: string) => (name || '?').trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 
 /**
- * Configurações em árvore mestre-detalhe ("diretórios"): lista com folhas e grupos expansíveis à
- * esquerda, conteúdo da folha selecionada à direita. O grupo "Conta" abre em "Informações pessoais"
- * e "Atualizar senha", cada um com seu form no detalhe. Responsivo só com CSS+estado: desktop lado a
- * lado (1ª folha ativa por padrão); mobile drill-in (a lista some ao abrir uma folha, volta pelo
- * "Voltar"; tocar num grupo só expande/colapsa, não navega).
+ * Configurações (redesign 2026-11, mockup v3).
+ *   - Desktop e tablet deitado: menu de seções à esquerda (Conta, Aparência, Carteira principal, Conexões com o
+ *     Claude, Integração bancária, Sobre) com um resumo de cada; o conteúdo da seção à direita.
+ *   - Tablet em pé: tudo empilhado (perfil, dados e senha lado a lado, aparência e carteira principal, integrações,
+ *     sobre); "Conexões com o Claude" abre por dentro.
+ *   - Celular: lista agrupada (Conta, Preferências, Integrações) que abre cada item numa tela própria, "Sair da
+ *     conta" e a linha "Sobre".
  */
 const SettingsPage = () => {
-	const { theme, toggleTheme } = useTheme();
+	const { toast } = useToast();
+	const is_wide = useMediaQuery('(min-width: 1024px)');
+	const is_tablet = useMediaQuery('(min-width: 768px)');
+	const { theme, preference, setPreference } = useTheme();
+	const { current_user, logout } = useCurrentUserContext();
+	const me = current_user.data;
+	const { data: wallets_data } = useIndexWallets();
+	const { data: main_wallet } = useGetMainWallet({ enabled: Boolean(me?.id), params: { user_id: me?.id || '' } });
+	const { mutate: updateCurrentUserMutation, isPending: is_main_pending } = useUpdateCurrentUser();
+	const { data: claude_data } = useIndexClaudeSessions();
+	const versions = useShortVersions();
 
-	const [ selected_key, setSelectedKey ] = useState<TLeafKey | null>(null);
-	const [ expanded, setExpanded ] = useState<Record<string, boolean>>({ account: true });
+	const [ section, setSection ] = useState<TSection | null>(null);
+	const active: TSection = section ?? 'account';
 
-	const active_key = selected_key ?? LEAVES[0].key;
-	const active_leaf = LEAVES.find((leaf) => leaf.key === active_key)!;
-	const active_group = NODES.find(
-		(node): node is TGroup => node.type === 'group' && node.children.some((child) => child.key === active_key),
-	);
+	const wallets = wallets_data?.data ?? [];
+	const sessions = claude_data?.data ?? [];
+	const active_sessions = sessions.filter((session) => session.status === 'active').length;
+	const pending_sessions = sessions.filter((session) => session.status === 'pending').length;
+	const claude_summary = [
+		active_sessions ? `${ active_sessions } ${ active_sessions === 1 ? 'ativa' : 'ativas' }` : null,
+		pending_sessions ? `${ pending_sessions } aguardando` : null,
+	].filter(Boolean).join(' · ') || (sessions.length ? 'nenhuma ativa' : 'nenhuma ainda');
+	const member_since = me?.created_at ? `${ MONTH_NAMES_PT[new Date(me.created_at).getMonth()]?.toLowerCase() } de ${ new Date(me.created_at).getFullYear() }` : null;
+	const theme_summary = preference === 'system' ? `Seguindo o sistema (${ theme === 'dark' ? 'escuro' : 'claro' } agora)` : `Sempre ${ preference === 'dark' ? 'escuro' : 'claro' }`;
 
-	const toggleGroup = (key: string) => {
-		setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+	const setMainWallet = (wallet_id: string) => {
+		if (!wallet_id || wallet_id === main_wallet?.id) return;
+		updateCurrentUserMutation({
+			body: { main_wallet_id: wallet_id },
+			onSuccess: () => {
+				toast.success('Carteira principal atualizada');
+				queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });
+			},
+			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao definir carteira principal')),
+		});
 	};
 
-	const renderLeafButton = (leaf: TLeaf, indented = false) => (
-		<button
-			key={leaf.key}
-			type='button'
-			onClick={() => setSelectedKey(leaf.key)}
-			className={cn(
-				leaf_base,
-				indented && 'pl-9',
-				active_key === leaf.key ? 'bg-secondary font-medium text-secondary-foreground' : 'text-foreground hover:bg-muted',
-			)}
-		>
-			<leaf.icon className='h-4 w-4 shrink-0' />
-			<span className='min-w-0 flex-1'>
-				<span className='block truncate'>{leaf.label}</span>
-				<span className='block truncate text-xs text-muted-foreground'>{leaf.description}</span>
-			</span>
-			<ChevronRight className='h-4 w-4 shrink-0 text-muted-foreground md:hidden' />
-		</button>
-	);
-
-	const renderDetail = () => {
-		if (active_key === 'appearance') {
-			return (
-				<div className='flex items-center justify-between gap-3 rounded-lg border border-card bg-card p-4'>
-					<div className='min-w-0'>
-						<p className='text-sm font-medium text-foreground'>Tema</p>
-						<p className='text-xs text-muted-foreground'>{theme === 'dark' ? 'Escuro' : 'Claro'}</p>
+	/* ---------- Peças ---------- */
+	const profileHero = (
+		<section className={cn(HERO, 'p-5 md:p-6')}>
+			<div aria-hidden='true' className={HERO_GLOW} />
+			<div className='relative flex flex-col gap-4'>
+				<div className='flex items-center gap-4'>
+					<span className='flex size-14 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-lg font-bold md:size-16 md:text-xl'>{initials(me?.name)}</span>
+					<div className='flex min-w-0 flex-col'>
+						<span className='truncate text-xl font-bold tracking-[-0.02em] md:text-2xl'>{me?.name}</span>
+						<span className='truncate text-sm text-[#A9B6BF]'>{me?.email}</span>
+						{member_since && <span className='text-xs text-[#A9B6BF] md:hidden'>Membro desde {member_since}</span>}
 					</div>
-					<Button type='button' variant='outline' className='gap-2' onClick={toggleTheme}>
-						{theme === 'dark' ? <Sun className='h-4 w-4' /> : <Moon className='h-4 w-4' />}
-						Alternar tema
-					</Button>
 				</div>
-			);
-		}
-
-		if (active_key === 'about') {
-			return (
-				<div className='rounded-lg border border-card bg-card p-4'>
-					<AboutInfo />
-				</div>
-			);
-		}
-
-		if (active_key === 'account_info') return <AccountInfoForm />;
-
-		if (active_key === 'claude_connections') return <ClaudeConnections />;
-
-		return <AccountPasswordForm />;
-	};
-
-	return (
-		<div className='flex flex-col gap-4'>
-			<Typography variant='large' className='dark:text-white'>
-				Configurações
-			</Typography>
-
-			<div className='flex flex-col gap-4 md:flex-row md:items-start'>
-				{/* Lista (mestre): some no mobile quando um detalhe está aberto; sempre visível no desktop. */}
-				<nav
-					className={cn(
-						'w-full flex-col gap-1 md:flex md:w-64 md:shrink-0 md:border-r md:border-border md:pr-2',
-						selected_key ? 'hidden' : 'flex',
+				<div className='hidden flex-wrap gap-2 md:flex'>
+					{member_since && <span className='rounded-full bg-white/10 px-3 py-1 text-xs font-semibold'>Membro desde {member_since}</span>}
+					{main_wallet && (
+						<span className='inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold'>
+							<Star className='size-3.5 text-[#F2D58A]' />Carteira principal · {main_wallet.name}
+						</span>
 					)}
-				>
-					{NODES.map((node) => {
-						if (node.type === 'leaf') return renderLeafButton(node);
-
-						const is_open = expanded[node.key];
-
-						return (
-							<div key={node.key} className='flex flex-col gap-1'>
-								<button
-									type='button'
-									onClick={() => toggleGroup(node.key)}
-									className={cn(leaf_base, 'text-foreground hover:bg-muted')}
-								>
-									<node.icon className='h-4 w-4 shrink-0' />
-									<span className='min-w-0 flex-1'>
-										<span className='block truncate'>{node.label}</span>
-										<span className='block truncate text-xs text-muted-foreground'>{node.description}</span>
-									</span>
-									<ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', is_open && 'rotate-180')} />
-								</button>
-
-								{is_open && node.children.map((child) => renderLeafButton(child, true))}
-							</div>
-						);
-					})}
-				</nav>
-
-				{/* Detalhe: escondido no mobile enquanto nada foi selecionado; sempre visível no desktop. */}
-				<div className={cn('min-w-0 flex-1 flex-col gap-3 md:flex', selected_key ? 'flex' : 'hidden')}>
-					<button
-						type='button'
-						onClick={() => setSelectedKey(null)}
-						className='flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden'
-					>
-						<ChevronLeft className='h-4 w-4' />
-						Voltar
-					</button>
-
-					<div className='flex flex-col gap-0.5'>
-						{active_group && <span className='text-xs text-muted-foreground'>{active_group.label}</span>}
-						<Typography className='text-base font-semibold text-foreground'>{active_leaf.label}</Typography>
-					</div>
-
-					{renderDetail()}
 				</div>
 			</div>
+		</section>
+	);
+
+	const appearanceCard = (
+		<section className={SETTINGS_CARD}>
+			<div className='flex flex-col gap-0.5'>
+				<h3 className='text-lg font-bold'>Aparência</h3>
+				<p className='text-sm text-muted-foreground'>{theme_summary}.</p>
+			</div>
+			<SegmentedControl segments={THEME_SEGMENTS} value={preference} onChange={(value) => setPreference(value as TThemePreference)} />
+		</section>
+	);
+
+	const mainWalletCard = (
+		<section className={SETTINGS_CARD}>
+			<div className='flex flex-col gap-0.5'>
+				<h3 className='text-lg font-bold'>Carteira principal</h3>
+				<p className='text-sm text-muted-foreground'>A Início sempre abre nela.</p>
+			</div>
+			<Select value={main_wallet?.id ?? ''} onValueChange={setMainWallet} disabled={is_main_pending}>
+				<SelectTrigger className='h-12 rounded-2xl text-[15px] font-semibold' aria-label='Carteira principal'>
+					<Star className='mr-2 size-4 shrink-0 fill-current text-brand' />
+					<span className='min-w-0 flex-1 truncate text-left'><SelectValue placeholder='Escolha a carteira' /></span>
+				</SelectTrigger>
+				<SelectContent>
+					{wallets.map((wallet) => <SelectItem key={wallet.id} value={wallet.id}>{wallet.name}</SelectItem>)}
+				</SelectContent>
+			</Select>
+		</section>
+	);
+
+	const bankCard = (
+		<section className={SETTINGS_CARD}>
+			<div className='flex items-start justify-between gap-3'>
+				<div className='flex flex-col gap-0.5'>
+					<h3 className='text-lg font-bold'>Integração bancária</h3>
+					<p className='text-sm text-muted-foreground'>
+						{me?.pluggy_enabled
+							? 'Liberada para a sua conta. As conexões com bancos ficam em Contas & Cartões, aba Bancos.'
+							: 'Em testes: ainda não liberada para a sua conta.'}
+					</p>
+				</div>
+				{me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>}
+			</div>
+			{me?.pluggy_enabled && (
+				<Button asChild variant='outline' className='h-11 self-start gap-2 px-5'>
+					<Link to='/accounts?tab=connections'>Ver bancos conectados <ChevronRight className='size-4' /></Link>
+				</Button>
+			)}
+		</section>
+	);
+
+	const aboutCard = (
+		<section className={SETTINGS_CARD}>
+			<h3 className='text-lg font-bold'>Sobre</h3>
+			<AboutInfo />
+		</section>
+	);
+
+	/* Linha de lista (celular) / item do menu (desktop). */
+	const row = (key: TSection, icon: LucideIcon, title: string, subtitle: string, trailing?: ReactNode, onClick?: ()=> void) => {
+		const Icon = icon;
+		return (
+			<button
+				key={key}
+				type='button'
+				onClick={onClick ?? (() => setSection(key))}
+				className={cn(
+					'pressable flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
+					is_wide && active === key ? 'bg-secondary' : 'hover:bg-accent/50'
+				)}
+			>
+				<span className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary'><Icon className='size-[18px]' /></span>
+				<span className='flex min-w-0 flex-1 flex-col'>
+					<span className='font-semibold leading-tight max-lg:truncate'>{title}</span>
+					<span className='truncate text-xs text-muted-foreground'>{subtitle}</span>
+				</span>
+				{trailing}
+				{!is_wide && !trailing && <ChevronRight className='size-4 shrink-0 text-muted-foreground' />}
+			</button>
+		);
+	};
+
+	const pending_dot = pending_sessions > 0 && <span className='size-2 shrink-0 rounded-full bg-warning-dot' aria-label='Conexão aguardando' />;
+
+	const sectionTitle: Record<TSection, string> = {
+		account: 'Conta', account_info: 'Informações pessoais', password: 'Senha', appearance: 'Aparência',
+		main_wallet: 'Carteira principal', claude: 'Conexões com o Claude', bank: 'Integração bancária', about: 'Sobre',
+	};
+
+	const sectionContent = (key: TSection) => {
+		switch (key) {
+			case 'account':
+				return (
+					<div className='flex flex-col gap-4'>
+						{profileHero}
+						<div className='grid gap-4 md:grid-cols-2'>
+							<AccountInfoForm />
+							<AccountPasswordForm />
+						</div>
+					</div>
+				);
+			case 'account_info': return <AccountInfoForm />;
+			case 'password': return <AccountPasswordForm />;
+			case 'appearance': return appearanceCard;
+			case 'main_wallet': return mainWalletCard;
+			case 'claude': return <ClaudeConnections />;
+			case 'bank': return bankCard;
+			default: return aboutCard;
+		}
+	};
+
+	const header = (
+		<header className='flex items-center justify-between gap-3'>
+			<h1 className='text-2xl font-bold tracking-[-0.03em] md:text-[28px]'>Configurações</h1>
+			<Button type='button' variant='outline' onClick={logout} className='hidden h-11 gap-2 px-4 text-destructive hover:text-destructive md:inline-flex lg:hidden'>
+				<LogOut className='size-4' />Sair
+			</Button>
+		</header>
+	);
+
+	/* ---------- Tela de um item (celular e tablet em pé) ---------- */
+	if (!is_wide && section) {
+		return (
+			<div className='flex flex-col gap-4'>
+				<header className='flex items-center gap-3'>
+					<button type='button' aria-label='Voltar' onClick={() => setSection(null)} className='pressable flex size-11 shrink-0 items-center justify-center rounded-full border border-border'>
+						<ChevronLeft className='size-5' />
+					</button>
+					<h1 className='truncate text-xl font-bold tracking-[-0.02em]'>{sectionTitle[section]}</h1>
+				</header>
+				{sectionContent(section)}
+			</div>
+		);
+	}
+
+	/* ---------- Desktop e tablet deitado: menu + seção ---------- */
+	if (is_wide) {
+		return (
+			<div className='flex flex-col gap-5'>
+				{header}
+				<div className='grid grid-cols-[240px_minmax(0,1fr)] items-start gap-6 xl:grid-cols-[260px_minmax(0,1fr)]'>
+					<nav className='flex flex-col gap-1' aria-label='Seções das configurações'>
+						{row('account', User, 'Conta', 'Nome, e-mail e senha')}
+						{row('appearance', Palette, 'Aparência', preference === 'system' ? 'Seguindo o sistema' : theme_summary)}
+						{row('main_wallet', Star, 'Carteira principal', main_wallet?.name ?? '—')}
+						{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot || undefined)}
+						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Ativa na sua conta' : 'Não liberada')}
+						{row('about', Info, 'Sobre', 'Versões do app e da API')}
+					</nav>
+					<div className='min-w-0'>{sectionContent(active)}</div>
+				</div>
+			</div>
+		);
+	}
+
+	/* ---------- Tablet em pé: tudo empilhado ---------- */
+	if (is_tablet) {
+		return (
+			<div className='flex flex-col gap-4'>
+				{header}
+				{sectionContent('account')}
+				<div className='grid grid-cols-2 gap-4'>
+					{appearanceCard}
+					{mainWalletCard}
+				</div>
+				<section className={SETTINGS_CARD}>
+					<h3 className='text-lg font-bold'>Integrações</h3>
+					<div className='flex flex-col divide-y divide-border'>
+						{row('claude', Bot, 'Conexões com o Claude', 'Consultar e lançar conversando com o Claude', (
+							<span className='flex items-center gap-2'>
+								{active_sessions > 0 && <Badge variant='success'>{active_sessions} {active_sessions === 1 ? 'ativa' : 'ativas'}</Badge>}
+								{pending_sessions > 0 && <Badge variant='warning'>{pending_sessions} aguardando</Badge>}
+								<ChevronRight className='size-4 text-muted-foreground' />
+							</span>
+						))}
+						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Liberada para sua conta · as conexões ficam em Contas' : 'Em testes: ainda não liberada', (
+							me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>
+						), me?.pluggy_enabled ? undefined : () => undefined)}
+					</div>
+				</section>
+				<section className={cn(SURFACE, 'flex items-center gap-3 rounded-3xl p-5')}>
+					<span className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary'><Info className='size-[18px]' /></span>
+					<span className='font-bold'>Sobre</span>
+					<AboutInfo inline className='ml-auto' />
+				</section>
+			</div>
+		);
+	}
+
+	/* ---------- Celular: lista agrupada ---------- */
+	const group = (title: string, children: ReactNode) => (
+		<section className='flex flex-col gap-2'>
+			<span className='px-1 text-xs font-semibold text-muted-foreground'>{title}</span>
+			<div className={cn(SURFACE, 'flex flex-col divide-y divide-border rounded-3xl p-1.5')}>{children}</div>
+		</section>
+	);
+
+	return (
+		<div className='flex flex-col gap-5'>
+			<h1 className='text-2xl font-bold tracking-[-0.03em]'>Configurações</h1>
+			{profileHero}
+			{group('Conta', (
+				<>
+					{row('account_info', User, 'Informações pessoais', 'Nome e e-mail')}
+					{row('password', Lock, 'Senha', 'Trocar a senha de acesso')}
+				</>
+			))}
+			{group('Preferências', (
+				<>
+					<div className='flex flex-col gap-3 px-3 py-3'>
+						<span className='flex items-center gap-3'>
+							<span className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary'><Palette className='size-[18px]' /></span>
+							<span className='flex min-w-0 flex-col'>
+								<span className='font-semibold'>Aparência</span>
+								<span className='truncate text-xs text-muted-foreground'>{theme_summary}</span>
+							</span>
+						</span>
+						<SegmentedControl segments={THEME_SEGMENTS} value={preference} onChange={(value) => setPreference(value as TThemePreference)} />
+					</div>
+					{row('main_wallet', Star, 'Carteira principal', main_wallet ? `${ main_wallet.name } · a Início abre nela` : '—')}
+				</>
+			))}
+			{group('Integrações', (
+				<>
+					{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot ? <span className='flex items-center gap-2'>{pending_dot}<ChevronRight className='size-4 text-muted-foreground' /></span> : undefined)}
+					{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Liberada para você · veja em Contas' : 'Em testes: ainda não liberada', (
+						me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>
+					))}
+				</>
+			))}
+			<button type='button' onClick={logout} className='pressable flex h-14 items-center justify-center gap-2 rounded-3xl border border-border font-bold text-destructive'>
+				<LogOut className='size-4' />Sair da conta
+			</button>
+			<button type='button' onClick={() => setSection('about')} className='flex items-center justify-center gap-1.5 text-xs text-muted-foreground'>
+				<Info className='size-3.5' />Sobre · webapp <span className='font-mono'>{versions.web}</span> · API <span className='font-mono'>{versions.api}</span>
+			</button>
 		</div>
 	);
 };
