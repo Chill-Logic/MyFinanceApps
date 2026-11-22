@@ -89,7 +89,7 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 		 * visível, só aparecendo depois de rolar a página inteira até o fim. `dvh` (dynamic
 		 * viewport height) acompanha o tamanho real e visível do viewport.
 		 */
-		<div className='flex h-dvh bg-background'>
+		<div className='flex h-dvh bg-background pt-safe'>
 			{is_tablet_up && (
 				<Sidebar
 					variant={is_sidebar_collapsed ? 'rail' : 'full'}

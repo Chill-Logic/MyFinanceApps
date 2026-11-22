@@ -1151,8 +1151,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			{/* Celular: tela cheia (como no mockup); tablet/desktop: diálogo. */}
 			<DialogContent
-				className='max-md:inset-0 max-md:flex max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:flex-col max-md:gap-0 max-md:overflow-x-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-0 md:max-w-[520px] md:p-6 lg:max-w-[880px] xl:max-w-2xl xl:p-8'
-				closeClassName='max-md:left-5 max-md:right-auto max-md:top-5 max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.05)]'
+				className='max-md:pb-safe max-md:pt-safe max-md:inset-0 max-md:flex max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:flex-col max-md:gap-0 max-md:overflow-x-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-0 md:max-w-[520px] md:p-6 lg:max-w-[880px] xl:max-w-2xl xl:p-8'
+				closeClassName='max-md:left-5 max-md:right-auto max-md:top-[calc(1.25rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.05)]'
 			>
 				{/* Celular: brilho oliva atrás do valor, como no mockup */}
 				<div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-5 h-80 bg-[radial-gradient(60%_50%_at_50%_50%,rgba(137,161,96,0.22)_0%,rgba(137,161,96,0)_100%)] md:hidden' />
@@ -1316,7 +1316,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 						</div>
 
 						{/* Celular e tablets: teclado numérico + botão grande de salvar (no tablet deitado, coluna da direita) */}
-						<div className='flex flex-col gap-3 px-5 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 md:px-0 md:pb-0 xl:hidden lg:max-xl:col-start-2 lg:max-xl:row-span-2 lg:max-xl:row-start-1 lg:max-xl:self-end'>
+						<div className='flex flex-col gap-3 px-5 pb-[calc(20px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] pt-2 md:px-0 md:pb-0 xl:hidden lg:max-xl:col-start-2 lg:max-xl:row-span-2 lg:max-xl:row-start-1 lg:max-xl:self-end'>
 							<div className='grid grid-cols-3 gap-1.5'>
 								{KEYPAD_KEYS.map((key) => (
 									<button

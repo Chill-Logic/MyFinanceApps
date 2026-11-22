@@ -46,7 +46,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 			type='button'
 			variant='secondary'
 			size='icon'
-			className='fixed right-4 top-4 z-10'
+			className='fixed right-4 top-safe-4 z-10'
 			onClick={toggleTheme}
 			aria-label='Alternar tema'
 		>
@@ -70,13 +70,13 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 	}
 
 	return (
-		<div className='relative flex min-h-[100dvh] flex-col bg-navy md:items-center md:justify-center md:gap-10 md:py-12'>
+		<div className='relative flex min-h-[100dvh] flex-col bg-navy pt-safe md:items-center md:justify-center md:gap-10 md:py-12'>
 			<LiquidBrand markRef={mark_ref} className='fixed' />
 			{theme_toggle}
 			<div className='flex flex-1 items-center justify-center px-6 pb-7 pt-10 md:flex-none md:p-0'>{brand}</div>
 			<div
 				className={cn(
-					'relative bg-background px-6 pb-8 pt-[26px] text-foreground',
+					'relative bg-background px-6 pb-[calc(2rem+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] pt-[26px] text-foreground',
 					'rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.25)]',
 					'md:w-[460px] md:rounded-[32px] md:p-8 md:shadow-[0_30px_80px_rgba(0,0,0,0.35)]'
 				)}

@@ -1,5 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 
+import { Native } from '@/services/native';
+
 export type TTheme = 'light' | 'dark';
 export type TThemePreference = 'system' | TTheme;
 
@@ -57,6 +59,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 	useEffect(() => {
 		document.documentElement.classList.toggle('dark', theme === 'dark');
 		document.documentElement.style.colorScheme = theme;
+		Native.syncTheme(theme);
 	}, [ theme ]);
 
 	const setPreference = useCallback((next: TThemePreference) => {

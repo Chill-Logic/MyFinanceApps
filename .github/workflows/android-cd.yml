@@ -1,0 +1,126 @@
+name: Android CD (Capacitor)
+
+# Gera o AAB do app Android (apps/web empacotado no Capacitor) e publica na faixa de TESTE INTERNO da
+# Google Play. Dispara quando um PR que mexeu no web, no shared ou nas dependências é MESCLADO na main
+# (evento pull_request, nunca push solto), ou manualmente (workflow_dispatch).
+#
+# Não existe OTA: cada merge vira um binário novo na faixa interna (sem revisão do Google, chega em
+# minutos). O app avisa o usuário quando há versão nova (organisms/AppUpdatePrompt).
+#
+# Secrets do repositório (Settings → Secrets and variables → Actions):
+#   GOOGLE_SERVICE_ACCOUNT_JSON_BASE64  JSON da service account da Play em base64 (só faixas de teste)
+#   ANDROID_KEYSTORE_BASE64             upload key (release.p12) em base64
+#   ANDROID_KEYSTORE_PASSWORD           senha da keystore
+#   ANDROID_KEY_ALIAS                   alias da chave
+#   ANDROID_KEY_PASSWORD                senha da chave (PKCS12: a mesma da keystore)
+#   VITE_API_URL / VITE_API_KEY         API embutida no build
+# Variável do repositório (aba Variables):
+#   VITE_WEB_URL                        URL pública do web, de onde o app lê /app-version.json
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-cd.yml"
+      - ".github/scripts/play-publish.mjs"
+  workflow_dispatch:
+
+# Dois merges seguidos não podem calcular o mesmo versionCode: um espera o outro terminar.
+concurrency:
+  group: android-cd
+  cancel-in-progress: false
+
+env:
+  PACKAGE_NAME: com.chilllogic.myfinance.app
+  # versionName = "<prefixo>.<versionCode>" (ex.: 0.3.101). Suba o prefixo em marcos maiores.
+  VERSION_NAME_PREFIX: "0.3"
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do commit mesclado
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle (cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Instala dependências (raiz do monorepo)
+        run: npm ci
+
+      - name: Credenciais (fora do repositório)
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON_BASE64" | base64 -d > "$RUNNER_TEMP/play-service-account.json"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          echo "PLAY_SERVICE_ACCOUNT_FILE=$RUNNER_TEMP/play-service-account.json" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+
+      - name: .env do web (embutido no build)
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_WEB_URL: ${{ vars.VITE_WEB_URL }}
+        run: printf 'VITE_API_URL=%s\nVITE_API_KEY=%s\nVITE_WEB_URL=%s\n' "$VITE_API_URL" "$VITE_API_KEY" "$VITE_WEB_URL" > apps/web/.env
+
+      - name: Calcula a versão (maior versionCode na Play + 1)
+        id: version
+        run: |
+          CODE=$(node .github/scripts/play-publish.mjs next-version-code "$PACKAGE_NAME")
+          NAME="$VERSION_NAME_PREFIX.$CODE"
+          echo "ANDROID_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
+          echo "ANDROID_VERSION_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Versão: $NAME ($CODE)"
+
+      - name: Build web + sync Capacitor
+        run: npm run cap:sync --workspace=@myfinance/web
+
+      - name: Build do AAB assinado
+        working-directory: apps/web/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Publica na faixa de teste interno
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          NOTES="${PR_TITLE:-Atualização do MyFinance}"
+          node .github/scripts/play-publish.mjs upload "$PACKAGE_NAME" \
+            apps/web/android/app/build/outputs/bundle/release/app-release.aab \
+            internal "${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})" "$NOTES"
+
+      - name: Guarda o AAB como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ steps.version.outputs.code }}
+          path: apps/web/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14

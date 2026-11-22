@@ -252,7 +252,7 @@ const TransactionDetailSheet = ({
 				</div>
 
 				{/* Ações principais */}
-				<div className='flex flex-col gap-2 max-md:pb-[env(safe-area-inset-bottom)]'>
+				<div className='flex flex-col gap-2 max-md:pb-[var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px))]'>
 					{transaction.match_review === 'pending' && onReviewMatch && (
 						<Button type='button' variant='outline' size='lg' onClick={onReviewMatch} className='w-full'>
 							<SearchCheck className='h-4 w-4' />

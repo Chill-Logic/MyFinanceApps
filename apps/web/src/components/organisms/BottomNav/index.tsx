@@ -93,7 +93,7 @@ const BottomNav = () => {
 			 * Vidro: desfoque MODERADO e fundo bem translúcido, pra o que passa atrás aparecer (borrado). Com desfoque
 			 * de 40px e fundo a 42% a barra virava uma mancha sólida sobre conteúdo simples — perdia o efeito.
 			 */
-			className='fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]'
+			className='fixed bottom-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] left-1/2 z-40 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]'
 		>
 			<span
 				aria-hidden='true'
@@ -154,7 +154,7 @@ const BottomNav = () => {
 						<Menu className='h-5 w-5' />
 					</button>
 				</SheetTrigger>
-				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-3xl p-0'>
+				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-3xl p-0 pb-safe'>
 					<div className='mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border' />
 					<NavMenu onClose={() => setOpen(false)} />
 				</SheetContent>

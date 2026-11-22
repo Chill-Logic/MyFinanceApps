@@ -339,7 +339,7 @@ const InvitesList = () => {
 					onOpenAutoFocus={(event) => event.preventDefault()}
 					className={cn(
 						'md:max-w-[440px]',
-						'max-md:bottom-0 max-md:top-auto max-md:w-full max-md:max-w-none max-md:translate-y-0 max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-x-0 max-md:border-b-0',
+						'max-md:bottom-0 max-md:top-auto max-md:w-full max-md:max-w-none max-md:translate-y-0 max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]',
 						'max-md:data-[state=open]:slide-in-from-bottom-8 max-md:data-[state=open]:zoom-in-100'
 					)}
 				>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo liso na cor do app (background-light do packages/shared/tokens.ts) no lugar do splash.png
+     padrão do Capacitor, que mostrava o logo dele. O ícone do app aparece pela SplashScreen API. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/splashBackground" />
+</shape>
