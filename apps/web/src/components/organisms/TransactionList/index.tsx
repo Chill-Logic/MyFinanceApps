@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
@@ -7,6 +7,8 @@ import { ptBR } from 'date-fns/locale';
 import {
 	ArrowRight,
 	ArrowUpRight,
+	Minus,
+	ArrowDownRight,
 	Check,
 	CheckCircle2,
 	ChevronDown,
@@ -84,14 +86,22 @@ const splitCents = (formatted: string) => {
 /* Valor sem o "R$": listas e cartões de resumo mostram só o número, como no mockup. */
 const plainMoney = (value: number) => MoneyUtils.formatMoney(Math.abs(value)).replace(/^R\$\s?/, '');
 
-/* "+ 1.612,00" / "− 390,00" com o menos tipográfico; `symbol` mantém o "R$". */
+/* "+ 1.612,00" / "− 390,00" com o menos tipográfico (zero sai sem sinal); `symbol` mantém o "R$". */
 const signedMoney = (value: number, symbol = false) => {
 	const body = symbol ? MoneyUtils.formatMoney(Math.abs(value)) : plainMoney(value);
+	if (value === 0) return body;
 	return `${ value < 0 ? '−' : '+' } ${ body }`;
 };
 
 /* Superfície dos cartões claros/translúcidos do mockup (branco no claro, véu areia no escuro). */
 const SURFACE = 'border border-border bg-white shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:bg-[rgba(199,195,191,0.04)] dark:shadow-none';
+
+/* Chip "Fim do mês" do destaque (fundo marinho fixo): positivo oliva ↗, negativo salmão ↘, zero neutro. */
+const PROJECTED_TONE: Record<-1 | 0 | 1, { className: string; Icon: typeof ArrowUpRight }> = {
+	1: { className: 'bg-[rgba(163,188,116,0.18)] text-[#C8DBA4]', Icon: ArrowUpRight },
+	0: { className: 'bg-sand-light/10 text-[#E2DFDB]', Icon: Minus },
+	[-1]: { className: 'bg-[rgba(245,169,159,0.18)] text-[#F5A99F]', Icon: ArrowDownRight },
+};
 
 const groupTransactionsByDay = (transactions: TTransaction[]) => {
 	const groups = new Map<string, { label: string; items: TTransaction[] }>();
@@ -129,25 +139,31 @@ const groupTransactionsByDay = (transactions: TTransaction[]) => {
  */
 const buildSummary = (group: TTransactionGroup | undefined, account_ids: ReadonlySet<string>) => {
 	const non_draft = (group?.data || []).filter((item) => !item.draft);
-	/* Transferência entre duas contas da carteira é interna: não é entrada nem saída (o backend também a zera). */
-	const sumBy = (direction: TTransactionDirection) => non_draft
-		.filter((item) => TransactionUtils.direction(item, account_ids) === direction)
-		.reduce((acc, item) => acc + item.value, 0);
+	/*
+	 * Entrou/Saiu = só o que JÁ ACONTECEU (efetivado). O que ainda não foi pago fica só no Pendente — antes
+	 * os dois somavam o pendente e a mesma saída aparecia em "Saiu" e em "Pendente" ao mesmo tempo.
+	 * Transferência entre duas contas da carteira é interna: não é entrada nem saída (o backend também a zera).
+	 */
+	const settled_items = non_draft.filter((item) => item.settled);
+	const byDirection = (direction: TTransactionDirection) => settled_items
+		.filter((item) => TransactionUtils.direction(item, account_ids) === direction);
+	const sumBy = (direction: TTransactionDirection) => byDirection(direction).reduce((acc, item) => acc + item.value, 0);
 
 	const deposit = sumBy('in');
 	const withdraw = sumBy('out');
-	const countBy = (direction: TTransactionDirection) => non_draft
-		.filter((item) => TransactionUtils.direction(item, account_ids) === direction).length;
+	const countBy = (direction: TTransactionDirection) => byDirection(direction).length;
 	const settled = group?.total_settled ?? 0;
 	const projected = group?.total_projected ?? 0;
 	const pending = non_draft.filter((item) => !item.settled);
-	/* Soma com sinal do que ainda não foi efetivado nas contas (entrada +, saída −; transferência interna 0). */
-	const pending_net = pending.reduce((acc, item) => {
-		const direction = TransactionUtils.direction(item, account_ids);
-		if (direction === 'in') return acc + item.value;
-		if (direction === 'out') return acc - item.value;
-		return acc;
-	}, 0);
+	/*
+	 * Pendente separado em "a receber" e "a pagar": um não anula o outro (um Pix a receber não diminui a
+	 * conta a pagar). Transferência interna fica de fora.
+	 */
+	const pendingBy = (direction: TTransactionDirection) => pending.filter((item) => TransactionUtils.direction(item, account_ids) === direction);
+	const pending_in_items = pendingBy('in');
+	const pending_out_items = pendingBy('out');
+	const pending_in = pending_in_items.reduce((acc, item) => acc + item.value, 0);
+	const pending_out = pending_out_items.reduce((acc, item) => acc + item.value, 0);
 
 	return {
 		deposit,
@@ -156,13 +172,11 @@ const buildSummary = (group: TTransactionGroup | undefined, account_ids: Readonl
 		withdraw_count: countBy('out'),
 		settled,
 		projected,
-		pending_net,
-		pending_count: pending.length,
-		/*
-		 * O previsto do backend também desconta a fatura de cartão ainda em aberto, que não é transação de
-		 * conta. O que sobra entre "efetivado + pendentes" e o previsto é essa fatura.
-		 */
-		invoices_due: Math.max(0, settled + pending_net - projected),
+		pending_in,
+		pending_out,
+		pending_in_count: pending_in_items.length,
+		pending_out_count: pending_out_items.length,
+		pending_count: pending_in_items.length + pending_out_items.length,
 	};
 };
 
@@ -279,6 +293,9 @@ const TransactionList = () => {
 		.map((credit_balance) => ({ id: credit_balance.id, name: credit_balance.name, invoice: invoices.get(credit_balance.id) }))
 		.filter((card) => (card.invoice?.amount ?? 0) > 0 || credit_sections.some((section) => section.id === card.id));
 
+	/* O que falta pagar das faturas do mês (mesma soma do card "Faturas do mês"). */
+	const invoices_open = invoice_cards.reduce((acc, card) => acc + (card.invoice?.remaining ?? 0), 0);
+
 	/* Cartões abertos na aba Cartões (fora do Set = fechado, que é o padrão). */
 	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
 	/* Dias recolhidos na lista (chave `escopo:dia`); fora do Set = aberto, que é o padrão. */
@@ -301,10 +318,26 @@ const TransactionList = () => {
 	};
 
 	/* Abre a aba Cartões já com o cartão escolhido aberto (atalho do cartão "Faturas do mês"). */
+	/*
+	 * Atalho do "Faturas do mês": abre a aba Cartões com SÓ esse cartão aberto (os outros recolhem) e rola
+	 * até ele. A rolagem espera a animação de recolher (300ms) — os cartões acima encolhem e mudam a posição
+	 * do alvo; rolar antes disso pararia no lugar errado.
+	 */
+	const [ scroll_to_section, setScrollToSection ] = useState<string | null>(null);
 	const openCreditSection = (id: string) => {
 		setListTab('credits');
-		setExpanded((current) => new Set(current).add(id));
+		setExpanded(new Set([ id ]));
+		setScrollToSection(id);
 	};
+
+	useEffect(() => {
+		if (!scroll_to_section) return undefined;
+		const timer = window.setTimeout(() => {
+			document.getElementById(`credit-section-${ scroll_to_section }`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			setScrollToSection(null);
+		}, 320);
+		return () => window.clearTimeout(timer);
+	}, [ scroll_to_section ]);
 
 	const summary = buildSummary(data_all?.accounts, account_ids); // total do mês = SÓ contas (fluxo de caixa real)
 
@@ -537,6 +570,9 @@ const TransactionList = () => {
 	const hero_label = heroLabel();
 	const [ settled_main, settled_cents ] = splitCents(MoneyUtils.formatSignedMoney(summary.settled));
 
+	const projected_sign = Math.sign(summary.projected) as -1 | 0 | 1;
+	const ProjectedIcon = PROJECTED_TONE[projected_sign].Icon;
+
 	const renderHeroCard = () => (
 		<div className='relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-navy-light from-0% to-navy to-60% p-5 text-sand-light shadow-[0_18px_40px_rgba(8,36,53,0.22)] dark:shadow-none md:p-6'>
 			<div aria-hidden='true' className='pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(163,188,116,0.34)_0%,rgba(163,188,116,0)_70%)]' />
@@ -552,20 +588,32 @@ const TransactionList = () => {
 						</span>
 					)}
 					<div className='flex flex-wrap gap-2'>
-						<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-[rgba(163,188,116,0.18)] px-2.5 text-xs font-semibold text-[#C8DBA4]'>
-							<ArrowUpRight className='h-3 w-3' strokeWidth={2.4} />
+						{/* Saldo previsto no fim do mês: seta e cor pelo SINAL (sobe, desce ou fica no zero). */}
+						<span className={cn('inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold', PROJECTED_TONE[projected_sign].className)}>
+							<ProjectedIcon className='h-3 w-3' strokeWidth={2.4} />
 							Fim do mês {is_loading ? '…' : MoneyUtils.formatSignedMoney(summary.projected)}
 						</span>
+						{/*
+						 * Pendentes e faturas só no celular: do tablet pra cima eles já têm lugar próprio (card
+						 * Pendente / lista do destaque e o card "Faturas do mês") e aqui seriam repetição.
+						 */}
 						{summary.pending_count > 0 && (
-							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB]'>
+							<span className='inline-flex h-7 md:hidden items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB]'>
 								<span className='h-1.5 w-1.5 rounded-full bg-[#E9B949]' />
-								{summary.pending_count} pendente{summary.pending_count > 1 ? 's' : ''} · {signedMoney(summary.pending_net, true)}
+								{summary.pending_count} pendente{summary.pending_count > 1 ? 's' : ''}
+								{summary.pending_out > 0 && <> · <span className='font-semibold text-[#F5A99F]'>{signedMoney(-summary.pending_out, true)}</span></>}
+								{summary.pending_in > 0 && <> · <span className='font-semibold text-[#9FE0B6]'>{signedMoney(summary.pending_in, true)}</span></>}
 							</span>
 						)}
-						{summary.invoices_due > 0 && (
-							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB]'>
+						{/*
+						 * Faturas em aberto = a MESMA conta do card "Faturas do mês" (o que falta pagar das faturas do
+						 * mês). Já foi a diferença "efetivado + pendentes − previsto", mas o previsto é o saldo
+						 * ACUMULADO e arrasta pendentes de meses anteriores — os dois números não batiam.
+						 */}
+						{invoices_open > 0 && (
+							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB] md:hidden'>
 								<CreditCard className='h-3 w-3' />
-								faturas · − {MoneyUtils.formatMoney(summary.invoices_due)}
+								faturas em aberto · <span className='font-semibold text-[#F5A99F]'>{signedMoney(-invoices_open, true)}</span>
 							</span>
 						)}
 					</div>
@@ -575,7 +623,8 @@ const TransactionList = () => {
 				<div className='hidden flex-col justify-center gap-3.5 border-l border-sand-light/15 pl-5 text-sm md:flex xl:hidden'>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Entrou</span><span className='font-semibold text-[#9FE0B6]'>+ {MoneyUtils.formatMoney(summary.deposit)}</span></span>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Saiu</span><span className='font-semibold text-[#F5A99F]'>− {MoneyUtils.formatMoney(summary.withdraw)}</span></span>
-					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Pendente</span><span className='font-semibold text-[#F2D58A]'>{signedMoney(summary.pending_net, true)}</span></span>
+					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>A pagar</span><span className='font-semibold text-[#F5A99F]'>{signedMoney(-summary.pending_out, true)}</span></span>
+					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>A receber</span><span className='font-semibold text-[#9FE0B6]'>{signedMoney(summary.pending_in, true)}</span></span>
 				</div>
 			</div>
 
@@ -594,7 +643,11 @@ const TransactionList = () => {
 	);
 
 	/* Desktop: Entrou / Saiu / Pendente em cartões ao lado do destaque. */
-	const renderStatCard = (label: string, value: string, hint: string, tone: 'success' | 'neutral' | 'warning') => (
+	/*
+	 * Nos cards de resumo o sinal tem cor (entrada verde, saída vermelha; zero neutro) — é onde o número
+	 * precisa saltar aos olhos. Nas linhas da lista, não: lá saída fica na cor do texto, como no mockup.
+	 */
+	const renderStatCard = (label: string, value: React.ReactNode, hint: string, tone: 'success' | 'neutral' | 'warning', value_class?: string) => (
 		<div
 			className={cn(
 				'flex flex-col justify-between gap-2 rounded-3xl p-5',
@@ -607,10 +660,22 @@ const TransactionList = () => {
 			</span>
 			{is_loading
 				? <Skeleton className='h-7 w-28' />
-				: <span className={cn('text-2xl font-semibold tracking-[-0.03em]', tone === 'success' && 'text-success')}>{value}</span>}
+				: <span className={cn('text-2xl font-semibold tracking-[-0.03em]', value_class)}>{value}</span>}
 			<span className={cn('text-xs', tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}>{hint}</span>
 		</div>
 	);
+
+	/* Valor do card Pendente: a pagar e a receber em linhas separadas (um não abate o outro). */
+	const renderPendingValue = () => {
+		if (summary.pending_out === 0 && summary.pending_in === 0) return plainMoney(0);
+		const both = summary.pending_out > 0 && summary.pending_in > 0;
+		return (
+			<span className={cn('flex flex-col leading-tight', both && 'text-xl')}>
+				{summary.pending_out > 0 && <span className='text-danger'>{signedMoney(-summary.pending_out)}</span>}
+				{summary.pending_in > 0 && <span className='text-success'>{signedMoney(summary.pending_in)}</span>}
+			</span>
+		);
+	};
 
 	const plural = (count: number, singular: string, plural_word: string) => `${ count } ${ count === 1 ? singular : plural_word }`;
 
@@ -648,7 +713,6 @@ const TransactionList = () => {
 		if (invoice_cards.length === 0) return null;
 
 		const total = invoice_cards.reduce((acc, card) => acc + (card.invoice?.amount ?? 0), 0);
-		const open_total = invoice_cards.reduce((acc, card) => acc + (card.invoice?.remaining ?? 0), 0);
 		const all_loaded = invoice_cards.every((card) => card.invoice);
 
 		return (
@@ -659,8 +723,8 @@ const TransactionList = () => {
 				</span>
 				<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
 				{all_loaded && (
-					open_total > 0
-						? <span className='text-xs font-medium text-[#F2D58A]'>{MoneyUtils.formatMoney(open_total)} em aberto</span>
+					invoices_open > 0
+						? <span className='text-xs font-medium text-[#F2D58A]'>{MoneyUtils.formatMoney(invoices_open)} em aberto</span>
 						: (
 							<span className='inline-flex items-center gap-1 self-start rounded-full bg-[rgba(125,211,160,0.18)] px-2.5 py-0.5 text-xs font-semibold text-[#9FE0B6]'>
 								<Check className='h-3 w-3' strokeWidth={3} /> Todas pagas
@@ -809,7 +873,7 @@ const TransactionList = () => {
 
 			{renderValue(transaction_item, 'shrink-0 text-[15px] font-semibold')}
 
-			<div className='-mr-2 shrink-0'>{renderActionsMenu(transaction_item)}</div>
+			<div className='shrink-0'>{renderActionsMenu(transaction_item)}</div>
 		</div>
 	);
 
@@ -866,7 +930,7 @@ const TransactionList = () => {
 
 					{/* Altura animada via grid-rows (0fr↔1fr), sem JS */}
 					<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
-						<div className='-mr-2 min-h-0 overflow-hidden pr-2'>
+						<div className='min-h-0 overflow-hidden'>
 							{group.items.map((transaction_item) => renderRow(transaction_item, hide_source))}
 						</div>
 					</div>
@@ -891,7 +955,7 @@ const TransactionList = () => {
 		const is_open = expanded.has(section.id);
 
 		return (
-			<section key={section.id} aria-label={section.name} className='border-b border-border last:border-b-0'>
+			<section key={section.id} id={`credit-section-${ section.id }`} aria-label={section.name} className='scroll-mt-2 border-b border-border last:border-b-0'>
 				<button
 					type='button'
 					onClick={() => toggleExpanded(section.id)}
@@ -987,12 +1051,14 @@ const TransactionList = () => {
 			<section className='grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]'>
 				{renderHeroCard()}
 				<div className='hidden xl:contents'>
-					{renderStatCard('Entrou', signedMoney(summary.deposit), plural(summary.deposit_count, 'lançamento', 'lançamentos'), 'success')}
-					{renderStatCard('Saiu', signedMoney(-summary.withdraw), plural(summary.withdraw_count, 'lançamento', 'lançamentos'), 'neutral')}
+					{renderStatCard('Entrou', signedMoney(summary.deposit), plural(summary.deposit_count, 'lançamento', 'lançamentos'), 'success', summary.deposit > 0 ? 'text-success' : undefined)}
+					{renderStatCard('Saiu', signedMoney(-summary.withdraw), plural(summary.withdraw_count, 'lançamento', 'lançamentos'), 'neutral', summary.withdraw > 0 ? 'text-danger' : undefined)}
 					{renderStatCard(
 						'Pendente',
-						signedMoney(summary.pending_net),
-						summary.pending_count > 0 ? `${ summary.pending_count } até o fim do mês` : 'nada pendente',
+						renderPendingValue(),
+						summary.pending_count > 0
+							? [ summary.pending_out_count > 0 && `${ summary.pending_out_count } a pagar`, summary.pending_in_count > 0 && `${ summary.pending_in_count } a receber` ].filter(Boolean).join(' · ')
+							: 'nada pendente',
 						'warning',
 					)}
 				</div>

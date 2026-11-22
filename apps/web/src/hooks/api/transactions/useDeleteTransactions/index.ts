@@ -1,9 +1,8 @@
-import { deleteTransaction, QUERY_KEYS } from '@myfinance/shared';
+import { deleteTransaction } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
+import { invalidateTransactionData } from '@/hooks/api/transactions/invalidateTransactionData';
 import { getAxiosInstance } from '@/hooks/api/useAxiosInstance';
-
-import { queryClient } from '@/services/query-client';
 
 import { type TMessageResponse, type TMutationParams } from '@/types';
 
@@ -14,10 +13,7 @@ export const useDeleteTransactions = () => {
 			return deleteTransaction(axios, id!);
 		},
 		onSuccess: (data, { onSuccess }) => {
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_matches ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
+			invalidateTransactionData();
 			onSuccess?.(data);
 		},
 		onError: (error, { onError }) => {

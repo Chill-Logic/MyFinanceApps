@@ -1,9 +1,8 @@
-import { updateTransaction, QUERY_KEYS } from '@myfinance/shared';
+import { updateTransaction } from '@myfinance/shared';
 import { useMutation } from '@tanstack/react-query';
 
+import { invalidateTransactionData } from '@/hooks/api/transactions/invalidateTransactionData';
 import { getAxiosInstance } from '@/hooks/api/useAxiosInstance';
-
-import { queryClient } from '@/services/query-client';
 
 import { type TMutationParams, type TTransaction, type TUpdateTransactionBody } from '@/types';
 
@@ -14,11 +13,7 @@ export const useUpdateTransactions = () => {
 			return updateTransaction(axios, id!, body);
 		},
 		onSuccess: (data, { onSuccess }) => {
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.recurrence.get_all ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_reviews ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_pending_matches ] });
-			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
+			invalidateTransactionData();
 			onSuccess?.(data);
 		},
 		onError: (error, { onError }) => {

@@ -15,6 +15,8 @@ export const useUpdateCreditBalance = () => {
 		},
 		onSuccess: (data, { onSuccess }) => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
+			// Mudar o melhor dia de compra/vencimento muda o ciclo, e com ele a fatura de cada mês.
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_invoice ] });
 			onSuccess?.(data);
 		},
 		onError: (error, { onError }) => {
