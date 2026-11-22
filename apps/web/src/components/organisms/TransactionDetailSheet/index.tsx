@@ -268,7 +268,7 @@ const TransactionDetailSheet = ({
 					{!transaction.draft && transaction.settled && (
 						<Button type='button' variant='outline' size='lg' onClick={onUnsettle} className='w-full'>
 							<CircleDashed className='h-4 w-4' />
-							{is_credit ? 'Desfazer efetivação' : 'Desfazer pagamento'}
+							Desfazer pagamento
 						</Button>
 					)}
 				</div>

@@ -19,7 +19,7 @@ import {
 } from '@myfinance/shared';
 import { addMonths, format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, ArrowRight, CalendarIcon, Check, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, Delete, Landmark, Receipt, Repeat, UserRound, Wallet, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarIcon, Check, CheckCircle2, ChevronLeft, CircleDashed, ChevronRight, CreditCard, Delete, Landmark, Receipt, Repeat, UserRound, Wallet } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
@@ -829,12 +829,20 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			<PopoverContent align='start' className='w-auto p-0'>
 				{values.settled_date ? (
 					<>
-						{renderDateTimePicker(values.settled_date, (next) => setValues((prev) => ({ ...prev, settled_date: next })))}
-						<div className='border-t border-border p-1.5'>
-							<button type='button' className={LIST_ITEM} onClick={() => { setValues((prev) => ({ ...prev, settled_date: null })); setOpenChip(null); }}>
-								<span className='flex items-center gap-2'><X className='h-3.5 w-3.5' /> Marcar como pendente</span>
-							</button>
+						{/* Desfazer em cima, à vista: no rodapé, abaixo do calendário, ninguém achava. */}
+						<div className='flex items-center justify-between gap-3 border-b border-border px-3 py-2'>
+							<span className='text-xs font-semibold text-muted-foreground'>Pago em</span>
+							<Button
+								type='button'
+								variant='outline'
+								size='sm'
+								onClick={() => { setValues((prev) => ({ ...prev, settled_date: null })); setOpenChip(null); }}
+							>
+								<CircleDashed className='h-3.5 w-3.5' />
+								Desfazer pagamento
+							</Button>
 						</div>
+						{renderDateTimePicker(values.settled_date, (next) => setValues((prev) => ({ ...prev, settled_date: next })))}
 					</>
 				) : (
 					<div className='flex w-64 flex-col gap-2 p-3'>

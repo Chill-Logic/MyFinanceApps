@@ -15,14 +15,17 @@ import {
 	ChevronRight,
 	CircleDashed,
 	Copy,
+	Info,
 	CreditCard,
 	Loader2,
 	Minus,
 	MoreVertical,
+	Pencil,
 	Plus,
 	Receipt,
 	Repeat,
 	RotateCcw,
+	Trash2,
 	User,
 	Wallet,
 } from 'lucide-react';
@@ -866,23 +869,27 @@ const TransactionList = () => {
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align='end'>
+				<DropdownMenuItem onClick={() => setDetailId(transaction_item.id)}>
+					<Info className='mr-2 h-4 w-4' /> Detalhes
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				{!transaction_item.draft && (
 					transaction_item.settled
 						? (
 							<DropdownMenuItem onClick={() => handleUnsettle(transaction_item)}>
-								<CircleDashed className='mr-2 h-4 w-4' /> Desfazer efetivação
+								<CircleDashed className='mr-2 h-4 w-4' /> Desfazer pagamento
 							</DropdownMenuItem>
 						)
 						: (
 							<DropdownMenuItem onClick={() => openSettle(transaction_item)}>
-								<CheckCircle2 className='mr-2 h-4 w-4' /> Efetivar pagamento
+								<CheckCircle2 className='mr-2 h-4 w-4' /> Marcar como pago
 							</DropdownMenuItem>
 						)
 				)}
 				{/* Transferência não é editável — só duplicar, efetivar/desfazer e excluir. */}
 				{transaction_item.kind !== 'transfer' && (
 					<DropdownMenuItem onClick={() => setEditingTransaction(transaction_item)}>
-						Editar
+						<Pencil className='mr-2 h-4 w-4' /> Editar
 					</DropdownMenuItem>
 				)}
 				<DropdownMenuItem onClick={() => setDuplicatingTransaction(transaction_item)}>
@@ -890,7 +897,7 @@ const TransactionList = () => {
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem className='text-destructive' onClick={() => setDeletingTransaction(transaction_item)}>
-					Excluir
+					<Trash2 className='mr-2 h-4 w-4' /> Excluir
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -1318,7 +1325,7 @@ const TransactionList = () => {
 			<Dialog open={Boolean(settling_transaction)} onOpenChange={(open) => !open && setSettlingTransaction(null)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Efetivar pagamento</DialogTitle>
+						<DialogTitle>Marcar como pago</DialogTitle>
 					</DialogHeader>
 
 					<div className='flex flex-col gap-1.5'>
@@ -1331,7 +1338,7 @@ const TransactionList = () => {
 							Cancelar
 						</Button>
 						<Button type='button' onClick={handleConfirmSettle} isLoading={is_settle_pending} className='gap-2'>
-							Efetivar pagamento
+							Marcar como pago
 						</Button>
 					</DialogFooter>
 				</DialogContent>
