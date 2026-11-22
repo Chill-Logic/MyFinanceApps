@@ -873,6 +873,13 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Celular (<768px)**: `BottomNav` **flutuante** (pílula de vidro `fixed`, só ícones com
     `aria-label`): Início, Contas, "+" central (só na Início), Carteiras e Menu (bottom sheet com o
     `NavMenu`). Pontos de troca: 768/1280 — mudou um, mude o outro (`DefaultTemplate`).
+  - **Janelas menores (2026-11-22, mockups v3 "Dlg*")**: todas no casco `molecules/SheetDialog` — no celular folha de
+    vidro (8px das bordas, raio 32, alça, um botão principal de largura total, SEM "Cancelar": fecha pelo × e por
+    fora); do tablet em diante diálogo de vidro de 560px (`wide` = 600) com "Cancelar" + principal à direita e ação
+    extra à esquerda. Peças: `Field`, `FIELD_INPUT`, `AffixInput` (prefixo/sufixo — o `prefix` nativo do input sai do
+    tipo), `RadioCard` (opção única; `warning` = opção perigosa), `Notice`, `SummaryTile`. Use-as em toda janela nova.
+    Botão principal diz o que faz ("Criar conta", "Pagar R$ X"). Na conferência o tipo é Saída/Entrada (não o
+    `translated_kind` da API). Textos sobre regra de backend só se confirmados (ex.: "ajustar o saldo" não diz COMO).
   - **Menu redesenhado (2026-11-22, mockup v3 "Menu")**: peças em `molecules/NavKit` — `GLASS_PANEL`/`GLASS_TILE`
     (vidro), `useLiquidBlob` + `LiquidBlob` (a "gota" que mede o alvo e escorre até ele; estica na direção do
     movimento — keyframes `nav-blob-*` na horizontal e `nav-blob-v-*` na vertical), `WalletPanel` (troca de carteira),

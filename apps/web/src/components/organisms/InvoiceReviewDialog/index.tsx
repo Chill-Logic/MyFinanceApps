@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { DateUtils, getApiErrorMessage, InvoiceUtils, MoneyUtils, type TPendingInvoiceReview } from '@myfinance/shared';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, CreditCard } from 'lucide-react';
 
 import { useIndexPendingInvoiceReviews } from '@/hooks/api/transactions/useIndexPendingInvoiceReviews';
 import { useResolveInvoiceReview } from '@/hooks/api/transactions/useResolveInvoiceReview';
@@ -11,7 +11,9 @@ import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { GLASS_TILE } from '@/components/molecules/NavKit';
+import { RadioCard, SheetDialog } from '@/components/molecules/SheetDialog';
+import Badge from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface IProps {
@@ -39,51 +41,54 @@ const ReviewItem = ({ review }: { review: TPendingInvoiceReview }) => {
 	};
 
 	return (
-		<li className='flex flex-col gap-3 rounded-lg border border-border p-3'>
+		<li className={cn('flex flex-col gap-3 rounded-[22px] p-3.5', GLASS_TILE)}>
 			<div className='flex items-start justify-between gap-3'>
-				<div className='min-w-0'>
-					<p className='truncate font-medium text-foreground'>{review.description}</p>
-					<p className='text-xs text-muted-foreground'>{DateUtils.formatDate(review.settled_date || review.transaction_date)}</p>
+				<div className='flex min-w-0 flex-col gap-0.5'>
+					<span className='text-xs text-muted-foreground'>Pagamento</span>
+					<p className='truncate text-[15px] font-semibold'>{review.description}</p>
+					<p className='text-xs text-muted-foreground'>pago em {DateUtils.formatDate(review.settled_date || review.transaction_date)}</p>
 				</div>
-				<span className='shrink-0 font-semibold text-success'>{MoneyUtils.formatMoney(review.value)}</span>
+				<span className='shrink-0 text-[17px] font-semibold text-success'>{MoneyUtils.formatMoney(review.value)}</span>
 			</div>
 
 			<div className='flex flex-col gap-2' role='radiogroup' aria-label='Fatura do pagamento'>
-				{review.invoice_candidates.map((candidate) => {
-					const active = candidate.invoice_month === selected_month;
-
-					return (
-						<button
-							key={candidate.invoice_month}
-							type='button'
-							role='radio'
-							aria-checked={active}
-							onClick={() => setSelectedMonth(candidate.invoice_month)}
-							className={cn(
-								'flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors',
-								active ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted',
-							)}
-						>
-							<span className='flex min-w-0 flex-col'>
-								<span className='font-medium text-foreground'>
-									Fatura {InvoiceUtils.label(candidate)}
-									{candidate.suggested && <span className='ml-2 text-xs font-normal text-muted-foreground'>(sugerida)</span>}
-								</span>
-								<span className='text-xs text-muted-foreground'>Vence {DateUtils.formatDate(candidate.due_date)}</span>
+				<span className='text-xs text-muted-foreground'>Abate da fatura de…</span>
+				{review.invoice_candidates.map((candidate) => (
+					<RadioCard
+						key={candidate.invoice_month}
+						checked={candidate.invoice_month === selected_month}
+						onSelect={() => setSelectedMonth(candidate.invoice_month)}
+						disabled={isPending}
+						title={InvoiceUtils.label(candidate)}
+						badge={candidate.suggested ? <Badge variant='brand'>sugerida</Badge> : undefined}
+						/*
+						 * No celular o "em aberto" desce pra segunda linha: à direita ele roubava a largura do título e o
+						 * selo "sugerida" quebrava de linha mesmo com título curto.
+						 */
+						description={(
+							<>
+								vence {DateUtils.formatDate(candidate.due_date)}
+								<span className='md:hidden'> · em aberto {MoneyUtils.formatMoney(candidate.open_amount)}</span>
+							</>
+						)}
+						trailing={(
+							<span className='flex flex-col items-end gap-0.5 max-md:hidden'>
+								{MoneyUtils.formatMoney(candidate.open_amount)}
+								<span className='text-xs font-normal text-muted-foreground'>em aberto</span>
 							</span>
-							<span className='shrink-0 text-xs text-muted-foreground'>em aberto {MoneyUtils.formatMoney(candidate.open_amount)}</span>
-						</button>
-					);
-				})}
+						)}
+					/>
+				))}
 			</div>
 
-			<Button type='button' size='sm' onClick={handleConfirm} isLoading={isPending} disabled={!selected_month} className='self-end'>
+			<Button type='button' onClick={handleConfirm} isLoading={isPending} disabled={!selected_month} className='h-10 self-end px-5 font-bold'>
 				Confirmar
 			</Button>
 		</li>
 	);
 };
 
+/* Faturas a confirmar (redesign 2026-11, mockup "DlgInvoiceReview"). Cada pagamento se confirma sozinho. */
 const InvoiceReviewDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 	const { user_wallet } = useWallet();
 	const wallet_id = user_wallet.data?.id;
@@ -101,39 +106,38 @@ const InvoiceReviewDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 	const reviews = data?.data || [];
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className='max-h-[85vh] overflow-y-auto'>
-				<DialogHeader>
-					<DialogTitle>Faturas a confirmar {creditBalance?.name ? `· ${ creditBalance.name }` : ''}</DialogTitle>
-					<DialogDescription>
-						Não deu para saber de qual fatura são estes pagamentos. Confira a sugestão e confirme a fatura certa.
-					</DialogDescription>
-				</DialogHeader>
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			wide
+			title='Faturas a confirmar'
+			context={creditBalance?.name}
+			contextIcon={CreditCard}
+			description='Não deu para saber de qual fatura são estes pagamentos. Confira a sugestão e confirme a fatura certa.'
+		>
+			{isLoading && (
+				<div className='flex flex-col gap-3 pb-3'>
+					{Array.from({ length: 2 }).map((_, index) => (
+						<Skeleton key={index} className='h-40 w-full rounded-[22px]' />
+					))}
+				</div>
+			)}
 
-				{isLoading && (
-					<div className='flex flex-col gap-2'>
-						{Array.from({ length: 2 }).map((_, index) => (
-							<Skeleton key={index} className='h-32 w-full' />
-						))}
-					</div>
-				)}
+			{!isLoading && reviews.length === 0 && (
+				<div className='flex flex-col items-center gap-2 py-10 text-center'>
+					<CheckCircle2 className='size-10 text-success' />
+					<span className='font-medium'>Nenhuma pendência</span>
+				</div>
+			)}
 
-				{!isLoading && reviews.length === 0 && (
-					<div className='flex flex-col items-center gap-2 py-8 text-center'>
-						<CheckCircle2 className='h-10 w-10 text-success' />
-						<span className='font-medium'>Nenhuma pendência</span>
-					</div>
-				)}
-
-				{!isLoading && reviews.length > 0 && (
-					<ul className='flex flex-col gap-3'>
-						{reviews.map((review) => (
-							<ReviewItem key={review.id} review={review} />
-						))}
-					</ul>
-				)}
-			</DialogContent>
-		</Dialog>
+			{!isLoading && reviews.length > 0 && (
+				<ul className='flex flex-col gap-3 pb-3'>
+					{reviews.map((review) => (
+						<ReviewItem key={review.id} review={review} />
+					))}
+				</ul>
+			)}
+		</SheetDialog>
 	);
 };
 

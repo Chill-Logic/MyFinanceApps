@@ -1,7 +1,9 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils } from '@myfinance/shared';
-import { Info } from 'lucide-react';
+import { Info, Wallet } from 'lucide-react';
+
+import icon_mark from '@/assets/brand/icon.svg';
 
 import { useCreateCreditBalance } from '@/hooks/api/credit-balances/useCreateCreditBalance';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
@@ -9,13 +11,12 @@ import { useCreateCreditCard } from '@/hooks/api/credit-cards/useCreateCreditCar
 import useToast from '@/hooks/useToast';
 
 import { useWallet } from '@/context/wallet';
+import { cn } from '@/lib/utils';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
+import { GLASS_TILE } from '@/components/molecules/NavKit';
+import { AffixInput, Field, FIELD_INPUT, FIELD_LABEL, RadioCard, SheetDialog, SheetDialogFooter } from '@/components/molecules/SheetDialog';
 import Checkbox from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
 	open: boolean;
@@ -32,7 +33,34 @@ const clampDay = (value: string): string => {
 };
 
 /*
- * Modal unificado "Novo Cartão" — some com a distinção linha-de-crédito vs cartão pro usuário:
+ * Prévia pequena do "cartão físico" (mesmo degradê do BigCard da tela Cartões): nome + chip em cima,
+ * final do cartão e um rótulo curto embaixo. 88px de altura no celular; 216×136 ao lado dos campos no md+.
+ * Exportada porque o CreditCardFormDialog usa a mesma prévia.
+ */
+export const MiniCardPreview = ({ title, lastDigits, trailing, className }: { title: ReactNode; lastDigits?: string; trailing?: ReactNode; className?: string }) => (
+	<div
+		aria-hidden='true'
+		className={cn(
+			'relative flex h-[88px] flex-col justify-between overflow-hidden rounded-[20px] border border-white/15 px-4 py-3.5 text-sand-light md:h-[136px]',
+			'bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_48%,#082435_100%)] shadow-[0_14px_30px_rgba(8,36,53,0.22)] dark:shadow-[0_14px_34px_rgba(7,141,167,0.22)]',
+			className,
+		)}
+	>
+		<img src={icon_mark} alt='' className='pointer-events-none absolute -bottom-11 -right-[34px] size-[120px] opacity-[0.14]' />
+		<span className='relative flex items-center justify-between gap-3'>
+			<span className='min-w-0 truncate text-sm font-semibold'>{title}</span>
+			<span className='h-[21px] w-[30px] shrink-0 rounded-[5px] bg-gradient-to-br from-[#E2DFDB] to-[#A8A39D]' />
+		</span>
+		<span className='relative flex justify-between gap-2 whitespace-nowrap font-mono text-xs text-[#A9B6BF]'>
+			<span>{lastDigits ? `•••• ${ lastDigits }` : '•••• ••••'}</span>
+			<span className='min-w-0 truncate'>{trailing}</span>
+		</span>
+	</div>
+);
+
+/*
+ * Modal unificado "Novo Cartão" (redesign 2026-11, mockup "DlgNewCard") — some com a distinção
+ * linha-de-crédito vs cartão pro usuário:
  * - Sem "Compartilhar limite": cria uma linha de crédito nova (nome = o que o usuário digitou) e, no
  *   sucesso, um cartão "PRINCIPAL" dentro dela (com os últimos dígitos informados).
  * - Com "Compartilhar limite": cria só o cartão (nome = o do usuário) dentro do limite escolhido — os
@@ -92,6 +120,7 @@ const NewCardDialog = ({ open, onOpenChange, defaultShareCreditBalanceId }: IPro
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
+		if (is_disabled) return;
 		setSubmitting(true);
 
 		/* Compartilhando: só cria o cartão dentro do limite escolhido. */
@@ -135,127 +164,170 @@ const NewCardDialog = ({ open, onOpenChange, defaultShareCreditBalanceId }: IPro
 		});
 	};
 
+	const share_disabled = submitting || (!has_balances && !defaultShareCreditBalanceId);
+	const preview_trailing = share ? 'compartilhado' : (due_day && `vence dia ${ due_day }`);
+
+	const name_field = (
+		<Field label='Nome' htmlFor='new-card-name'>
+			<input
+				id='new-card-name'
+				className={FIELD_INPUT}
+				placeholder='Ex.: Nubank, Físico, Virtual'
+				value={name}
+				onChange={(e) => setName(e.target.value)}
+				disabled={submitting}
+			/>
+		</Field>
+	);
+
+	const digits_field = (
+		<Field label={<>Últimos dígitos<span className='max-md:hidden'> (opcional)</span></>} htmlFor='new-card-digits'>
+			<AffixInput
+				id='new-card-digits'
+				prefix='••••'
+				inputMode='numeric'
+				placeholder='1234'
+				className='pl-[52px] font-mono'
+				value={last_digits}
+				onChange={(e) => setLastDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
+				disabled={submitting}
+			/>
+		</Field>
+	);
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Novo cartão</DialogTitle>
-				</DialogHeader>
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title='Novo cartão'
+			context={user_wallet.data ? `Na carteira ${ user_wallet.data.name }` : undefined}
+			contextIcon={Wallet}
+			onSubmit={handleSubmit}
+			footer={(
+				<SheetDialogFooter
+					submitLabel='Salvar cartão'
+					onCancel={() => onOpenChange(false)}
+					isLoading={submitting}
+					disabled={is_disabled}
+				/>
+			)}
+		>
+			{/* Celular: prévia em cima e Nome + dígitos lado a lado. Tablet/desktop: prévia à esquerda dos campos. */}
+			<div className='flex flex-col gap-4 md:grid md:grid-cols-[216px_minmax(0,1fr)]'>
+				<div className='flex flex-col justify-end'>
+					<MiniCardPreview title={name || 'Novo cartão'} lastDigits={last_digits} trailing={preview_trailing} />
+				</div>
+				<div className='grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-2.5 md:grid-cols-1 md:gap-3'>
+					{name_field}
+					{digits_field}
+				</div>
+			</div>
 
-				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					<TextInput
-						type='text'
-						label='Nome'
-						name='name'
-						placeholder='Ex.: Nubank, Físico, Virtual'
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						disabled={submitting}
-					/>
+			<div className={cn('flex items-start gap-2.5 rounded-[20px] px-3.5 py-3', GLASS_TILE)}>
+				<Checkbox
+					id='share-limit'
+					checked={share}
+					disabled={share_disabled}
+					onCheckedChange={(checked) => setShare(checked === true)}
+					className='mt-0.5'
+				/>
+				<div className='flex min-w-0 flex-1 flex-col gap-1'>
+					<span className='flex items-center gap-1.5'>
+						<label htmlFor='share-limit' className={cn('text-sm font-semibold', share_disabled ? 'opacity-60' : 'cursor-pointer')}>Compartilhar limite</label>
+						<Popover>
+							<PopoverTrigger asChild>
+								<button type='button' aria-label='O que é compartilhar limite?' className='text-muted-foreground hover:text-foreground'>
+									<Info className='size-3.5' />
+								</button>
+							</PopoverTrigger>
+							<PopoverContent align='start' className='w-72 text-sm'>
+								Ao selecionar, este cartão poderá compartilhar o limite com outros cartões já cadastrados
+							</PopoverContent>
+						</Popover>
+					</span>
+					<span className='text-xs leading-[1.45] text-muted-foreground'>
+						{share
+							? 'Este cartão usa o limite e a fatura de um cartão que você já tem — como um adicional ou um virtual.'
+							: 'Ligue para usar o limite de outro cartão já cadastrado, em vez de criar um limite novo.'}
+					</span>
+					{!has_balances && !defaultShareCreditBalanceId && (
+						<span className='text-xs leading-[1.45] text-muted-foreground'>Você ainda não tem um limite para compartilhar — este cartão vai criar o primeiro.</span>
+					)}
+				</div>
+			</div>
 
-					<TextInput
-						type='text'
-						label='Últimos dígitos (opcional)'
-						name='last_digits'
-						placeholder='Ex.: 1234'
-						value={last_digits}
-						onChange={(e) => setLastDigits(e.target.value.replace(/\D/g, '').slice(0, 4))}
-						disabled={submitting}
-					/>
-
-					<div className='flex flex-col gap-2'>
-						<div className='flex items-center gap-2'>
-							<Checkbox
-								id='share-limit'
-								checked={share}
-								disabled={submitting || (!has_balances && !defaultShareCreditBalanceId)}
-								onCheckedChange={(checked) => setShare(checked === true)}
+			{share ? (
+				<>
+					<div role='radiogroup' aria-label='Limite compartilhado' className='flex flex-col gap-2'>
+						<span className={FIELD_LABEL}>Limite compartilhado</span>
+						{credit_balances.map((credit_balance) => (
+							<RadioCard
+								key={credit_balance.id}
+								checked={credit_balance_id === credit_balance.id}
+								onSelect={() => setCreditBalanceId(credit_balance.id)}
+								disabled={submitting}
+								title={credit_balance.name}
+								description={`Melhor compra dia ${ credit_balance.best_purchase_day } · vence dia ${ credit_balance.due_day }`}
+								trailing={(
+									<span className='flex flex-col items-end gap-0.5'>
+										{MoneyUtils.formatMoney(credit_balance.credit_limit)}
+										<span className='text-xs font-normal text-muted-foreground'>limite</span>
+									</span>
+								)}
 							/>
-							<label htmlFor='share-limit' className='text-sm font-medium'>Compartilhar limite</label>
-							<Popover>
-								<PopoverTrigger asChild>
-									<button type='button' aria-label='O que é compartilhar limite?' className='text-muted-foreground hover:text-foreground'>
-										<Info className='h-4 w-4' />
-									</button>
-								</PopoverTrigger>
-								<PopoverContent align='start' className='w-72 text-sm'>
-									Ao selecionar, este cartão poderá compartilhar o limite com outros cartões já cadastrados
-								</PopoverContent>
-							</Popover>
-						</div>
-
-						{!has_balances && !defaultShareCreditBalanceId && (
-							<span className='text-xs text-muted-foreground'>Você ainda não tem um limite para compartilhar — este cartão vai criar o primeiro.</span>
-						)}
+						))}
 					</div>
+					<span className='px-1 text-xs leading-[1.45] text-muted-foreground'>
+						O cartão usa o limite e a fatura da linha escolhida — sem limite próprio. Limite, melhor dia de compra e vencimento vêm dela.
+					</span>
+				</>
+			) : (
+				<>
+					<Field label='Limite' htmlFor='new-card-limit'>
+						<AffixInput
+							id='new-card-limit'
+							prefix='R$'
+							inputMode='numeric'
+							placeholder='0,00'
+							value={credit_limit.replace(/^R\$\s?/, '')}
+							onChange={(e) => setCreditLimit(MoneyUtils.formatMoney(e.target.value))}
+							disabled={submitting}
+						/>
+					</Field>
 
-					{share ? (
-						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>Limite compartilhado</label>
-							<Select value={credit_balance_id} onValueChange={setCreditBalanceId} disabled={submitting}>
-								<SelectTrigger>
-									<SelectValue placeholder='Escolha o limite' />
-								</SelectTrigger>
-								<SelectContent>
-									{credit_balances.map((credit_balance) => (
-										<SelectItem key={credit_balance.id} value={credit_balance.id}>
-											{credit_balance.name} · {MoneyUtils.formatMoney(credit_balance.credit_limit)}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<span className='text-xs text-muted-foreground'>O cartão usa o limite e a fatura da linha escolhida — sem limite próprio.</span>
-						</div>
-					) : (
-						<>
-							<TextInput
-								type='text'
-								label='Limite'
-								name='credit_limit'
-								placeholder='R$ 0,00'
-								value={credit_limit}
-								onChange={(e) => setCreditLimit(MoneyUtils.formatMoney(e.target.value))}
+					<div className='grid grid-cols-2 gap-2.5 md:gap-3'>
+						<Field label='Melhor dia de compra' htmlFor='new-card-best-day'>
+							<AffixInput
+								id='new-card-best-day'
+								prefix='dia'
+								inputMode='numeric'
+								placeholder='1 a 31'
+								value={best_purchase_day}
+								onChange={(e) => setBestPurchaseDay(clampDay(e.target.value))}
 								disabled={submitting}
 							/>
+						</Field>
+						<Field label='Dia de vencimento' htmlFor='new-card-due-day'>
+							<AffixInput
+								id='new-card-due-day'
+								prefix='dia'
+								inputMode='numeric'
+								placeholder='1 a 31'
+								value={due_day}
+								onChange={(e) => setDueDay(clampDay(e.target.value))}
+								disabled={submitting}
+							/>
+						</Field>
+					</div>
 
-							<div className='flex gap-4'>
-								<TextInput
-									type='text'
-									label='Melhor dia de compra'
-									name='best_purchase_day'
-									placeholder='1 a 31'
-									value={best_purchase_day}
-									onChange={(e) => setBestPurchaseDay(clampDay(e.target.value))}
-									disabled={submitting}
-									className='flex-1'
-								/>
-								<TextInput
-									type='text'
-									label='Dia de vencimento'
-									name='due_day'
-									placeholder='1 a 31'
-									value={due_day}
-									onChange={(e) => setDueDay(clampDay(e.target.value))}
-									disabled={submitting}
-									className='flex-1'
-								/>
-							</div>
-
-							<span className='text-xs text-muted-foreground'>Este cartão cria um novo limite de crédito, com fatura própria.</span>
-						</>
-					)}
-
-					<DialogFooter>
-						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={submitting}>
-							Cancelar
-						</Button>
-						<Button type='submit' isLoading={submitting} disabled={is_disabled}>
-							Salvar
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+					<span className='px-1 text-xs leading-[1.45] text-muted-foreground'>
+						{best_purchase_day
+							? `Cria um limite novo, com fatura própria: compras do dia ${ best_purchase_day } em diante já caem na fatura seguinte.`
+							: 'Cria um limite novo, com fatura própria.'}
+					</span>
+				</>
+			)}
+		</SheetDialog>
 	);
 };
 

@@ -1,14 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 
 import { getApiErrorMessage, type TWallet } from '@myfinance/shared';
+import { Users } from 'lucide-react';
 
 import { useCreateWallet } from '@/hooks/api/wallets/useCreateWallet';
 import { useUpdateWallet } from '@/hooks/api/wallets/useUpdateWallet';
 import useToast from '@/hooks/useToast';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { walletInitials } from '@/components/molecules/NavKit';
+import { Field, FIELD_INPUT, SheetDialog, SheetDialogFooter } from '@/components/molecules/SheetDialog';
 
 interface IProps {
 	open: boolean;
@@ -19,9 +19,10 @@ interface IProps {
 }
 
 /**
- * Diálogo de criar OU renomear carteira. Sem `wallet` cria (useCreateWallet); com `wallet` renomeia
- * (useUpdateWallet). A criação é montada globalmente no DefaultTemplate (via newWalletDialog); a
- * edição é montada localmente na WalletList (menu de ações ⋮ de cada carteira).
+ * Diálogo de criar OU renomear carteira (redesign 2026-11, mockup "DlgWallet"). Sem `wallet` cria
+ * (useCreateWallet); com `wallet` renomeia (useUpdateWallet). A criação é montada globalmente no
+ * DefaultTemplate (via newWalletDialog); a edição é montada localmente na WalletList (menu ⋮ de cada carteira).
+ * O avatar ao lado do nome mostra as iniciais conforme a pessoa digita.
  */
 const WalletFormDialog = ({ open, onOpenChange, wallet, onSuccess }: IProps) => {
 	const { toast } = useToast();
@@ -38,6 +39,7 @@ const WalletFormDialog = ({ open, onOpenChange, wallet, onSuccess }: IProps) => 
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
+		if (!name) return;
 
 		if (wallet) {
 			updateWalletMutation({
@@ -65,34 +67,47 @@ const WalletFormDialog = ({ open, onOpenChange, wallet, onSuccess }: IProps) => 
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>{wallet ? 'Editar carteira' : 'Nova carteira'}</DialogTitle>
-				</DialogHeader>
-
-				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					<TextInput
-						type='text'
-						label='Nome'
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={wallet ? 'Editar carteira' : 'Nova carteira'}
+			description='Cada carteira tem as próprias contas, cartões e transações.'
+			onSubmit={handleSubmit}
+			footer={(
+				<SheetDialogFooter
+					submitLabel={wallet ? 'Salvar carteira' : 'Criar carteira'}
+					onCancel={() => onOpenChange(false)}
+					isLoading={is_pending}
+					disabled={!name}
+				/>
+			)}
+		>
+			<div className='flex items-end gap-3'>
+				<span aria-hidden='true' className='size-[52px] shrink-0 rounded-full bg-gradient-to-br from-[#C8DBA4] to-[#12708A] p-0.5'>
+					<span className='flex size-full items-center justify-center rounded-full bg-[#E7E3DD] text-base font-bold text-foreground dark:bg-[#0E2A3A]'>
+						{walletInitials(name)}
+					</span>
+				</span>
+				<Field label='Nome' htmlFor='wallet-name' className='flex-1'>
+					<input
+						id='wallet-name'
 						name='name'
+						className={FIELD_INPUT}
 						placeholder='Digite o nome da carteira'
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						disabled={is_pending}
 					/>
+				</Field>
+			</div>
 
-					<DialogFooter>
-						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
-							Cancelar
-						</Button>
-						<Button type='submit' isLoading={is_pending} disabled={is_pending || !name}>
-							Salvar
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+			{!wallet && (
+				<p className='flex items-start gap-2 px-1 text-[13px] leading-snug text-muted-foreground'>
+					<Users className='mt-0.5 size-3.5 shrink-0' />
+					<span>Você administra esta carteira. Depois de criar, dá para convidar alguém pelo menu ⋮ dela.</span>
+				</p>
+			)}
+		</SheetDialog>
 	);
 };
 
