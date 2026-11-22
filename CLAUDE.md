@@ -982,6 +982,19 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
+  - **Autenticação (redesign 2026-11, `templates/Auth` + `organisms/LiquidBrand` + `molecules/AuthForm`)**: fundo
+    líquido marinho/petróleo/oliva com o losango do logo em "vidro", desenhados por UM shader WebGL2
+    (`LiquidBrand/shader.ts`, 3D simulado — sem Three.js, de propósito, pra pesar poucos KB). O shader mede a cada quadro
+    um bloco vazio do tamanho do ícone (`markRef`) e desenha o losango ali; só o nome é imagem (`Logo variant='wordmark'`).
+    Desktop/tablet deitado: painel da marca à esquerda + formulário à direita; tablet em pé: cartão de 460px sobre o
+    líquido; celular: folha presa embaixo. Mexe com o ponteiro e, no celular, com o giroscópio (no iPhone só depois de
+    permissão, pedida no primeiro toque no fundo). Já testamos um fundo "mais líquido" (relevo + brilho + ondas) e o dono
+    achou enjoativo — ficou o de fumaça. O mesmo shader está no canvas do mockup: mudou um, mude o outro. Em dev o
+    StrictMode monta duas vezes: NÃO chame `loseContext()` na limpeza (o canvas devolve o mesmo contexto já perdido e o
+    fundo fica branco). Regras: senha de 6 a 128 checada no cliente (a mensagem da API pode vir em inglês); cadastro
+    entra sozinho logo depois (a API não devolve token, então chama o sign-in com a mesma senha); "Esqueci a senha"
+    fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
+    `/auth/reset-password?token=` continua valendo).
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só

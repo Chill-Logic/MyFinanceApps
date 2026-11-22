@@ -1,19 +1,21 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage } from '@myfinance/shared';
 
 import { useRecoverPassword } from '@/hooks/api/auth/useRecoverPassword';
 import useToast from '@/hooks/useToast';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
+import { AuthBackLink, AuthField, AuthHeader, AuthStatus, AuthSubmit } from '@/components/molecules/AuthForm';
 
+/*
+ * "Esqueci a senha". Depois de enviar, a tela fica e mostra pra onde foi o link (antes pulava pra redefinição, mas
+ * quem chega lá é o link do e-mail, já com o código). Dá pra reenviar.
+ */
 const RecoverPasswordPage = () => {
-	const navigate = useNavigate();
 	const { toast } = useToast();
 
 	const [ email, setEmail ] = useState('');
+	const [ sent_to, setSentTo ] = useState<string | null>(null);
 	const { mutate: recoverPasswordMutation, isPending } = useRecoverPassword();
 
 	const onSubmit = (e: FormEvent) => {
@@ -21,47 +23,44 @@ const RecoverPasswordPage = () => {
 
 		recoverPasswordMutation({
 			body: { email },
-			onSuccess: (data) => {
-				toast.success(data.message || 'E-mail com instruções enviado!');
-				navigate('/auth/reset-password');
-			},
+			onSuccess: () => setSentTo(email),
 			onError: (error) => {
-				toast.error(getApiErrorMessage(error, 'Não foi possível enviar as instruções'));
+				setSentTo(null);
+				toast.error(getApiErrorMessage(error, 'Não foi possível enviar o link'));
 			},
 		});
 	};
 
 	return (
-		<form onSubmit={onSubmit}>
-			<div className='flex flex-col gap-y-8'>
-				<p className='text-sm text-muted-foreground'>
-					Informe o e-mail da sua conta. Enviaremos um link com o token para você redefinir a senha.
-				</p>
+		<form onSubmit={onSubmit} className='flex flex-col gap-3'>
+			<AuthHeader
+				title='Esqueci a senha'
+				subtitle='Informe o e-mail da sua conta. Enviaremos um link para você criar uma senha nova.'
+			/>
 
-				<TextInput
-					type='email'
-					placeholder='Insira aqui seu e-mail'
-					label='E-mail'
-					name='email'
-					value={email}
-					onChange={(e) => setEmail(e.target.value)}
-					disabled={isPending}
-				/>
+			<AuthField
+				id='email'
+				type='email'
+				label='E-mail'
+				autoComplete='email'
+				placeholder='voce@exemplo.com'
+				required
+				value={email}
+				onChange={(e) => setEmail(e.target.value)}
+				disabled={isPending}
+			/>
 
-				<div className='flex flex-col gap-y-2'>
-					<Button type='submit' isLoading={isPending} disabled={isPending || !email}>
-						Enviar instruções
-					</Button>
-					<Button
-						variant='secondary'
-						type='button'
-						disabled={isPending}
-						onClick={() => navigate('/auth/sign-in')}
-					>
-						Voltar para o login
-					</Button>
-				</div>
-			</div>
+			<AuthSubmit isLoading={isPending} disabled={!email}>
+				{sent_to ? 'Enviar de novo' : 'Enviar link'}
+			</AuthSubmit>
+
+			{sent_to && (
+				<AuthStatus>
+					Enviamos o link para <strong className='font-semibold'>{sent_to}</strong>. Confira a caixa de entrada e o spam.
+				</AuthStatus>
+			)}
+
+			<AuthBackLink />
 		</form>
 	);
 };

@@ -5,7 +5,7 @@ import wordmark from '@/assets/brand/wordmark.svg';
 import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 
-type TLogoVariant = 'icon' | 'horizontal' | 'stacked';
+type TLogoVariant = 'icon' | 'horizontal' | 'stacked' | 'wordmark';
 
 interface IProps {
 	variant?: TLogoVariant;
@@ -50,6 +50,11 @@ const Logo = ({ variant = 'horizontal', size = 32, onDark = false, round = false
 			<img src={icon} alt='' width={size} height={size} />
 		</span>
 	);
+
+	/* Só o nome (as telas de autenticação desenham o ícone em vidro no shader). Tamanho pela `className` (altura). */
+	if (variant === 'wordmark') {
+		return <img src={wordmark_src} alt='MyFinance' className={cn('w-auto', className)} style={className ? undefined : { height: size }} />;
+	}
 
 	if (variant === 'icon') {
 		return <span className={className} role='img' aria-label='MyFinance'>{mark}</span>;

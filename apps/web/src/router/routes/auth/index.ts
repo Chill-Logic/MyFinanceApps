@@ -39,5 +39,14 @@ export const AuthPaths: IPath[] = [
 		element: ResetPasswordPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
+	},
+	{
+		/* Link que o backend manda no e-mail de redefinição (o código vem no caminho). */
+		id: 'change-password',
+		display: 'Redefinir senha',
+		path: 'auth/change-password/:token',
+		element: ResetPasswordPage,
+		template: AuthTemplate,
+		isGuestOnly: true,
 	}
 ];
