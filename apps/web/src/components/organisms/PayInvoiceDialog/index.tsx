@@ -12,7 +12,7 @@ import { useWallet } from '@/context/wallet';
 import { cn } from '@/lib/utils';
 
 import DateTimeField from '@/components/molecules/DateTimeField';
-import { AffixInput, Field, FIELD_LABEL, RadioCard, SheetDialog, SheetDialogFooter, SummaryTile } from '@/components/molecules/SheetDialog';
+import { AffixInput, Field, FIELD_INPUT, FIELD_LABEL, RadioCard, SheetDialog, SheetDialogFooter, SummaryTile } from '@/components/molecules/SheetDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
@@ -50,6 +50,8 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 	const [ account_id, setAccountId ] = useState('');
 	/* Valor do pagamento (string formatada); default = saldo restante da fatura. Permite pagamento parcial. */
 	const [ value, setValue ] = useState('');
+	/* Descrição do lançamento na conta pagadora (o backend usa "Fatura <crédito>" se vier vazia). */
+	const [ description, setDescription ] = useState('');
 	/* Quando o pagamento foi efetivado (data+hora); default = agora. Vai como `settled_date` no body. */
 	const [ settled_date, setSettledDate ] = useState<Date>(new Date());
 
@@ -70,6 +72,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 		if (open) {
 			setAccountId('');
 			setValue(MoneyUtils.formatMoney(remaining));
+			setDescription('');
 			setSettledDate(new Date());
 		}
 	}, [ open, remaining ]);
@@ -82,7 +85,7 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 
 		payInvoiceMutation({
 			id: creditBalance.id,
-			body: { account_id, value: value_cents, settled_date: settled_date.toISOString(), ...(reference ? { reference } : {}) },
+			body: { account_id, value: value_cents, settled_date: settled_date.toISOString(), ...(reference ? { reference } : {}), ...(description.trim() ? { description: description.trim() } : {}) },
 			onSuccess: () => {
 				toast.success('Pagamento registrado!');
 				onOpenChange(false);
@@ -185,7 +188,9 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 				<Field
 					label='Valor do pagamento'
 					htmlFor='pay-invoice-value'
-					hint='Pode ser parcial — o restante fica em aberto pra pagar depois.'
+					hint={value_cents > remaining && remaining > 0
+						? `${ MoneyUtils.formatMoney(value_cents - remaining) } a mais que o restante desta fatura.`
+						: 'Pode ser parcial — o restante fica em aberto pra pagar depois.'}
 				>
 					<AffixInput
 						id='pay-invoice-value'
@@ -208,6 +213,16 @@ const PayInvoiceDialog = ({ open, onOpenChange, creditBalance, invoice, referenc
 					<DateTimeField value={settled_date} disabled={isPending} onChange={setSettledDate} />
 				</Field>
 			</div>
+			<Field label='Descrição no extrato da conta' htmlFor='pay-invoice-description' hint={`Opcional. Em branco fica “Fatura ${ creditBalance?.name ?? '' }”.`}>
+				<input
+					id='pay-invoice-description'
+					className={FIELD_INPUT}
+					placeholder={`Fatura ${ creditBalance?.name ?? '' }`}
+					value={description}
+					onChange={(e) => setDescription(e.target.value)}
+					disabled={isPending}
+				/>
+			</Field>
 		</SheetDialog>
 	);
 };

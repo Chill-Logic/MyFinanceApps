@@ -46,7 +46,8 @@ const BankImportDialog = ({ open, onOpenChange, link }: IProps) => {
 		setDateFrom(period.date_from);
 		setDateTo(period.date_to);
 		setMode('preserve');
-		setAdjustBalance(false);
+		/* Abre com o que está gravado no vínculo: a escolha da importação manual vale também pra rotina diária. */
+		setAdjustBalance(Boolean(link?.adjust_balance));
 	}, [ open ]);
 
 	const is_bank = link?.external_type === 'BANK';
@@ -163,7 +164,7 @@ const BankImportDialog = ({ open, onOpenChange, link }: IProps) => {
 					/>
 					<span className='flex flex-col gap-0.5'>
 						<span className='font-medium'>Ajustar o saldo para bater com o banco</span>
-						<span className='text-xs text-muted-foreground'>Depois de importar, o saldo da conta fica igual ao que o banco informa.</span>
+						<span className='text-xs text-muted-foreground'>Depois de importar, o saldo da conta fica igual ao que o banco informa. A escolha também vale para a sincronização automática diária.</span>
 					</span>
 				</label>
 			)}
