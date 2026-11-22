@@ -4,6 +4,10 @@ export type TSegment = {
 	value: string;
 	label: string;
 	icon?: React.ComponentType<{ className?: string }>;
+	/* Segmento indisponível (ex.: Transferência sem duas contas) — aparece apagado e não clica. */
+	disabled?: boolean;
+	/* Dica ao passar o mouse (útil pra explicar por que está desabilitado). */
+	title?: string;
 };
 
 interface IProps {
@@ -45,6 +49,8 @@ const SegmentedControl = ({ segments, value, onChange, className }: IProps) => {
 					<button
 						key={segment.value}
 						type='button'
+						disabled={segment.disabled}
+						title={segment.title}
 						onClick={() => onChange(segment.value)}
 						className={cn(
 							/*
@@ -52,8 +58,9 @@ const SegmentedControl = ({ segments, value, onChange, className }: IProps) => {
 							 * não encolhe abaixo da palavra mais longa ("Recorrente"), esticando o trilho pra fora
 							 * do container. Assim o segmento cabe na fração dele e o rótulo quebra se precisar.
 							 */
-							'relative z-10 flex min-h-[30px] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1.5 py-1.5 text-center text-xs leading-tight transition-colors sm:px-4',
+							'pressable relative z-10 flex min-h-[30px] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1.5 py-1.5 text-center text-xs leading-tight sm:px-4',
 							active ? 'font-bold text-primary-foreground' : 'font-semibold text-muted-foreground hover:text-foreground',
+							'disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted-foreground',
 						)}
 					>
 						{Icon && <Icon className='h-4 w-4' />}

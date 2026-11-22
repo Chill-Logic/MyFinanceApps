@@ -959,10 +959,32 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
+    Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
+    O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
   - **Mesma lista agrupada por dia em todos os tamanhos (redesign 2026-11)** — no desktop ela fica dentro
     do cartão com as abas Contas/Cartões e o contador, e só o corpo do cartão rola. Já existiu uma tabela
     no desktop (Data | Descrição | Conta | Valor, ordenável por coluna); o dono achou esquisita e pediu a
     lista do celular no lugar, então a ordenação por coluna saiu junto. Não reintroduza a tabela.
+  - **Nova transação no visual do mockup (redesign 2026-11, `TransactionFormDialog`)** — só a apresentação
+    mudou; salvar/editar/repetir/escopo seguem iguais. Não existe mais a "etapa 1" (Conta/Cartão/
+    Transferência): o **tipo vem primeiro** (abas Saída/Entrada/Transferência no MESMO `SegmentedControl` do resto do app — já teve um grupo de abas próprio em marinho e o dono pediu padrão; segmento indisponível usa `disabled`/`title`) e define as
+    origens possíveis (saída: contas e cartões; entrada e transferência: só contas — trocar o tipo limpa uma
+    origem que não vale mais). Os campos viraram **chips** com popover (Origem/De, Para, Cartão quando o
+    crédito tem mais de um, Quando, Pagamento só em conta, Fatura só em cartão, Responsável quando a
+    carteira tem mais de um membro) — pílulas no celular e nos tablets, grade 2×2 com rótulo só no desktop; Repetir e
+    Rascunho são chips tracejados de liga/desliga, e o painel do Repetir abre inline. Dentro de popover
+    **não use o `Select` do Radix**: a lista dele abre num portal fora do popover e o clique fecha o
+    popover — por isso fatura (mês em grade + ano com setas) e as listas de origem/cartão/responsável são
+    botões. **Celular: tela cheia com teclado numérico próprio** (pedido do dono, como no mockup) — a
+    vírgula é AUTOMÁTICA, igual à máscara do campo (os dígitos entram pelos centavos; o teclado guarda
+    só dígitos, lidos do próprio `value` — já houve uma cópia separada que dessincronizava); no lugar da vírgula fica a tecla "00". Já existiu vírgula manual e o dono pediu a máscara
+    de volta. **Quatro layouts, como no mockup:** celular = tela cheia; tablet em pé (768–1023) = o mesmo
+    formulário de toque (valor grande, pílulas, teclado) num diálogo de 520px; tablet deitado (1024–1279)
+    = diálogo de 880px em duas colunas, formulário à esquerda e teclado + Salvar à direita; desktop (≥1280)
+    = campos digitados (Valor/Descrição) e chips em grade, com Cancelar/Salvar no rodapé. Já fiz o tablet
+    com o layout do desktop e estava errado. O chip Repetir é quem liga/desliga; o painel não tem
+    "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
   - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
     `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
     usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
@@ -1041,6 +1063,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     círculo; `SegmentedControl` em pílula com o item ativo oliva (`bg-primary`) e texto marinho, como no mockup; `ui/badge` (`Badge`, variantes
     `neutral`/`outline`/`brand`/`success`/`warning`/`info`/`danger`, prop `dot`) para selos como
     "pendente"/"prevista"/"2 para conferir" — use-o em vez de `span` com classes de cor à mão.
+  - **Toque "nativo" = classe `pressable`** (`index.css`): afunda pra 0,96 ao pressionar e volta com mola,
+    sem o flash cinza de toque e sem atraso de duplo toque. Já vem na base do `ui/button`; em botão feito à
+    mão (chips, teclado, abas, itens de lista) aplique `pressable` em vez de só `transition-colors` — o dono
+    reclamou que os cliques estavam "duros". Evite em elemento que já usa `transform` pra se posicionar
+    (o `:active` troca o transform).
   - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `webapp:dev`**: o Tailwind importa
     esse arquivo na config e o Vite não o observa, então o servidor segue com a config antiga (já deu
     `The font-sans class does not exist` no dev com o build passando).

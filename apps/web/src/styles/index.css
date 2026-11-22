@@ -188,6 +188,25 @@
 
 @layer utilities {
     /*
+     * Toque "nativo" em qualquer coisa clicável: afunda um pouco ao pressionar (escala 0,96, rápido) e volta
+     * com uma mola suave ao soltar, sem o flash cinza de toque do navegador no celular e sem o atraso de
+     * duplo toque (`touch-action: manipulation`). Usado pela base do `Button` e pelos chips/teclado/abas.
+     */
+    .pressable {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        transition-property: transform, background-color, color, border-color, opacity, box-shadow;
+        transition-duration: 220ms;
+        transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .pressable:active:not(:disabled) {
+        transform: scale(0.96);
+        transition-duration: 80ms;
+        transition-timing-function: ease-out;
+    }
+
+    /*
      * Rola sem mostrar a barra: ela ocupa largura, e abrir/fechar um grupo (que faz a barra aparecer ou
      * sumir) empurrava o conteúdo pros lados. Usado na lista da Home e na área de conteúdo do template.
      */

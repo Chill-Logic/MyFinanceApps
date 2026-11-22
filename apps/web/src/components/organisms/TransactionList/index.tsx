@@ -577,7 +577,7 @@ const TransactionList = () => {
 		<div className='relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-navy-light from-0% to-navy to-60% p-5 text-sand-light shadow-[0_18px_40px_rgba(8,36,53,0.22)] dark:shadow-none md:p-6'>
 			<div aria-hidden='true' className='pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(163,188,116,0.34)_0%,rgba(163,188,116,0)_70%)]' />
 
-			<div className='relative grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:grid-cols-1'>
+			<div className='relative grid gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:grid-cols-1'>
 				<div className='flex flex-col gap-3'>
 					<span className='text-[13px] font-medium text-[#A9B6BF]'>{hero_label}</span>
 					{is_loading ? (
@@ -620,7 +620,7 @@ const TransactionList = () => {
 				</div>
 
 				{/* Tablet: Entrou/Saiu/Pendente em lista à direita do saldo */}
-				<div className='hidden flex-col justify-center gap-3.5 border-l border-sand-light/15 pl-5 text-sm md:flex xl:hidden'>
+				<div className='hidden flex-col justify-center gap-3.5 border-l border-sand-light/15 pl-5 text-sm md:flex lg:hidden'>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Entrou</span><span className='font-semibold text-[#9FE0B6]'>+ {MoneyUtils.formatMoney(summary.deposit)}</span></span>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Saiu</span><span className='font-semibold text-[#F5A99F]'>− {MoneyUtils.formatMoney(summary.withdraw)}</span></span>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>A pagar</span><span className='font-semibold text-[#F5A99F]'>{signedMoney(-summary.pending_out, true)}</span></span>
@@ -677,6 +677,33 @@ const TransactionList = () => {
 		);
 	};
 
+	const renderPendingCard = () => renderStatCard(
+		'Pendente',
+		renderPendingValue(),
+		summary.pending_count > 0
+			? [ summary.pending_out_count > 0 && `${ summary.pending_out_count } a pagar`, summary.pending_in_count > 0 && `${ summary.pending_in_count } a receber` ].filter(Boolean).join(' · ')
+			: 'nada pendente',
+		'warning',
+	);
+
+	/* Tablet deitado: Entrou e Saiu empilhados num card só (como no mockup), pra caber ao lado do destaque. */
+	const renderInOutCard = () => (
+		<div className={cn('flex flex-col justify-between gap-3 rounded-3xl p-[18px]', SURFACE)}>
+			<span className='flex flex-col gap-0.5'>
+				<span className='text-xs text-muted-foreground'>Entrou</span>
+				{is_loading
+					? <Skeleton className='h-6 w-24' />
+					: <span className={cn('text-xl font-semibold tracking-[-0.03em]', summary.deposit > 0 && 'text-success')}>{signedMoney(summary.deposit)}</span>}
+			</span>
+			<span className='flex flex-col gap-0.5'>
+				<span className='text-xs text-muted-foreground'>Saiu</span>
+				{is_loading
+					? <Skeleton className='h-6 w-24' />
+					: <span className={cn('text-xl font-semibold tracking-[-0.03em]', summary.withdraw > 0 && 'text-danger')}>{signedMoney(-summary.withdraw)}</span>}
+			</span>
+		</div>
+	);
+
 	const plural = (count: number, singular: string, plural_word: string) => `${ count } ${ count === 1 ? singular : plural_word }`;
 
 	/* Situação curta de uma fatura: paga, quanto falta ou quando vence. */
@@ -716,22 +743,29 @@ const TransactionList = () => {
 		const all_loaded = invoice_cards.every((card) => card.invoice);
 
 		return (
-			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light'>
-				<span className='flex items-baseline justify-between gap-3'>
-					<span className='text-[13px] font-semibold'>Faturas do mês</span>
-					<span className='text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
-				</span>
-				<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
-				{all_loaded && (
-					invoices_open > 0
-						? <span className='text-xs font-medium text-[#F2D58A]'>{MoneyUtils.formatMoney(invoices_open)} em aberto</span>
-						: (
-							<span className='inline-flex items-center gap-1 self-start rounded-full bg-[rgba(125,211,160,0.18)] px-2.5 py-0.5 text-xs font-semibold text-[#9FE0B6]'>
-								<Check className='h-3 w-3' strokeWidth={3} /> Todas pagas
-							</span>
-						)
-				)}
-				<div className='flex flex-col'>
+			/*
+			 * Tablet em pé (768–1023px): o card ocupa a linha inteira acima da lista; em coluna única ele ficava
+			 * alto e espremia a lista. Lá ele vira resumo à esquerda + cartões em duas colunas à direita. Do tablet
+			 * deitado pra cima ele mora na coluna da direita, ao lado da lista, em coluna.
+			 */
+			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light md:max-lg:grid md:max-lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6'>
+				<div className='flex flex-col gap-3'>
+					<span className='flex items-baseline justify-between gap-3'>
+						<span className='text-[13px] font-semibold'>Faturas do mês</span>
+						<span className='text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
+					</span>
+					<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
+					{all_loaded && (
+						invoices_open > 0
+							? <span className='text-xs font-medium text-[#F2D58A]'>{MoneyUtils.formatMoney(invoices_open)} em aberto</span>
+							: (
+								<span className='inline-flex items-center gap-1 self-start rounded-full bg-[rgba(125,211,160,0.18)] px-2.5 py-0.5 text-xs font-semibold text-[#9FE0B6]'>
+									<Check className='h-3 w-3' strokeWidth={3} /> Todas pagas
+								</span>
+							)
+					)}
+				</div>
+				<div className='grid grid-cols-1 md:max-lg:grid-cols-2 md:max-lg:gap-x-4'>
 					{invoice_cards.map((card) => (
 						<button
 							key={card.id}
@@ -1048,25 +1082,26 @@ const TransactionList = () => {
 			</header>
 
 			{/* 2. Destaque do mês (só contas) + Entrou/Saiu/Pendente ao lado no desktop */}
-			<section className='grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]'>
+			{/*
+			 * Linha do destaque por tamanho: celular/tablet em pé = só o destaque (Entrou/Saiu/Pendente dentro dele);
+			 * tablet deitado (1024–1279px) = destaque + card Entrou/Saiu + card Pendente; desktop = destaque + 3 cards.
+			 */}
+			<section className='grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]'>
 				{renderHeroCard()}
+				<div className='hidden lg:max-xl:contents'>
+					{renderInOutCard()}
+					{renderPendingCard()}
+				</div>
 				<div className='hidden xl:contents'>
 					{renderStatCard('Entrou', signedMoney(summary.deposit), plural(summary.deposit_count, 'lançamento', 'lançamentos'), 'success', summary.deposit > 0 ? 'text-success' : undefined)}
 					{renderStatCard('Saiu', signedMoney(-summary.withdraw), plural(summary.withdraw_count, 'lançamento', 'lançamentos'), 'neutral', summary.withdraw > 0 ? 'text-danger' : undefined)}
-					{renderStatCard(
-						'Pendente',
-						renderPendingValue(),
-						summary.pending_count > 0
-							? [ summary.pending_out_count > 0 && `${ summary.pending_out_count } a pagar`, summary.pending_in_count > 0 && `${ summary.pending_in_count } a receber` ].filter(Boolean).join(' · ')
-							: 'nada pendente',
-						'warning',
-					)}
+					{renderPendingCard()}
 				</div>
 			</section>
 
 			{/* 3. Tablet: faturas do mês */}
 			{show_side_cards && (
-				<section className='hidden md:block xl:hidden'>
+				<section className='hidden md:block lg:hidden'>
 					{renderInvoicesCard()}
 				</section>
 			)}
@@ -1108,7 +1143,7 @@ const TransactionList = () => {
 				)}
 
 				{!is_loading && has_sources && (
-					<div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 md:h-full', show_side_cards && 'xl:grid-cols-[minmax(0,1fr)_360px]')}>
+					<div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 md:h-full', show_side_cards && 'lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]')}>
 						<div className='flex flex-col md:min-h-0 md:rounded-3xl md:px-5 md:pt-4 xl:px-[22px] md:border md:border-border md:bg-white md:shadow-[0_1px_2px_rgba(8,36,53,0.05)] md:dark:bg-[rgba(199,195,191,0.04)] md:dark:shadow-none'>
 							{/* Tablet/desktop: abas fixas no topo do cartão; só o corpo dele rola */}
 							<div className='hidden shrink-0 items-center justify-between gap-3 pb-2 md:flex'>
@@ -1152,7 +1187,7 @@ const TransactionList = () => {
 
 						{/* Desktop: faturas do mês na coluna da direita */}
 						{show_side_cards && (
-							<div className='no-scrollbar hidden min-h-0 flex-col gap-4 overflow-y-auto xl:flex'>
+							<div className='no-scrollbar hidden min-h-0 flex-col gap-4 overflow-y-auto lg:flex'>
 								{renderInvoicesCard()}
 							</div>
 						)}
