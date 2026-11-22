@@ -1043,6 +1043,12 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     diante a atividade da conexão escolhida num painel ao lado (filtro por ferramenta, argumentos ao abrir, "Carregar
     mais" aumenta o `per_page`); no celular abre por dentro do cartão (3 últimas + "Ver toda a atividade"). O
     `token_hint` da API é o COMEÇO do token (ex.: `mfc_ePPDAJ`) — exiba `mfc_ePPDAJ…`, não "•••• final".
+    Transições: no celular/tablet em pé a tela da seção entra pela direita e a lista volta pela esquerda; no desktop a
+    gota (`useLiquidBlob`) escorre no menu e o conteúdo entra com fade. A página fica num `overflow-x-clip` (com
+    `overflow-clip-margin` de 1rem, pras sombras) — sem isso o deslize dava rolagem horizontal ao `<main>`.
+    "Sobre": no app, a versão da loja (`App.getInfo()` do `@capacitor/app`: 0.3.105, build 105); no navegador,
+    `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `apps/web/package.json` —
+    fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API segue com branch · commit (não tem versão).
   - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
     tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
     aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
@@ -1400,7 +1406,7 @@ Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então
 - **CD: `.github/workflows/android-cd.yml`** — PR mesclado na `main` que mexe em `apps/web/**`,
   `packages/shared/**` ou nas dependências (ou disparo manual) → build web → `cap sync` → `bundleRelease`
   assinado → faixa **interna** da Play. O `versionCode` é o maior já enviado à Play + 1 (consultado na hora pela
-  API) e o `versionName` é `0.3.<versionCode>` (prefixo em `VERSION_NAME_PREFIX` no workflow). A publicação é
+  API) e o `versionName` é `0.3.<versionCode>` (prefixo = major.minor do `version` de `apps/web/package.json`, o mesmo que o webapp mostra no "Sobre"). A publicação é
   feita por `.github/scripts/play-publish.mjs` (Android Publisher API, só módulos do Node; roda local também,
   com `PLAY_SERVICE_ACCOUNT_FILE`). Secrets: `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_KEYSTORE_BASE64`,
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `VITE_API_URL`, `VITE_API_KEY`;
