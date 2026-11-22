@@ -3,6 +3,8 @@ import { cn } from '@/lib/utils';
 export type TSegment = {
 	value: string;
 	label: string;
+	/* Contador ao lado do rótulo (ex.: "Recorrentes 7"). */
+	count?: number;
 	icon?: React.ComponentType<{ className?: string }>;
 	/* Segmento indisponível (ex.: Transferência sem duas contas) — aparece apagado e não clica. */
 	disabled?: boolean;
@@ -75,6 +77,7 @@ const SegmentedControl = ({ segments, value, onChange, className, tone = 'defaul
 					>
 						{Icon && <Icon className='h-4 w-4' />}
 						{segment.label}
+						{segment.count !== undefined && <span className='text-[11px] font-semibold opacity-70'>{segment.count}</span>}
 					</button>
 				);
 			})}

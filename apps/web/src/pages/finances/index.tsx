@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { CreditCard, Link2, Repeat, Wallet } from 'lucide-react';
+import { CreditCard, Link2, Plus, Repeat, Wallet } from 'lucide-react';
 
 import { useCurrentUserContext } from '@/context/current_user';
 
+import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
 import SegmentedControl from '@/components/molecules/SegmentedControl';
 import AccountList from '@/components/organisms/AccountList';
@@ -32,6 +33,8 @@ const FinancesPage = () => {
 	const [ search_params ] = useSearchParams();
 	/* `?tab=connections` = voltar da tela "Contas do banco" direto na aba Bancos. */
 	const [ tab, setTab ] = useState<TTab>(() => initialTab(search_params.get('tab')));
+	/* "Nova recorrência" fica no cabeçalho (como no mockup); o formulário abre dentro da aba. */
+	const [ creating_recurrence, setCreatingRecurrence ] = useState(false);
 
 	const pluggy_enabled = Boolean(current_user.data?.pluggy_enabled);
 	const tabs = pluggy_enabled ? [ ...TABS, CONNECTIONS_TAB ] : TABS;
@@ -39,15 +42,23 @@ const FinancesPage = () => {
 
 	return (
 		<div className='flex flex-col gap-5'>
-			<Typography variant='large' className='dark:text-white'>
-				Contas &amp; Cartões
-			</Typography>
+			<div className='flex items-center justify-between gap-3'>
+				<Typography variant='large' className='dark:text-white'>
+					Contas &amp; Cartões
+				</Typography>
+				{active_tab === 'recurrences' && (
+					<Button type='button' variant='outline' onClick={() => setCreatingRecurrence(true)} aria-label='Nova recorrência' className='max-md:size-11 max-md:p-0'>
+						<Plus className='size-4' />
+						<span className='max-md:hidden'>Nova recorrência</span>
+					</Button>
+				)}
+			</div>
 
 			<SegmentedControl segments={tabs} value={active_tab} onChange={(next) => setTab(next as TTab)} />
 
 			{active_tab === 'accounts' && <AccountList />}
 			{active_tab === 'cards' && <CreditBalanceList />}
-			{active_tab === 'recurrences' && <RecurrenceList />}
+			{active_tab === 'recurrences' && <RecurrenceList creating={creating_recurrence} onCreatingChange={setCreatingRecurrence} />}
 			{active_tab === 'connections' && <BankConnectionList />}
 		</div>
 	);

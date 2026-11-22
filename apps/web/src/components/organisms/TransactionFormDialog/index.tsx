@@ -68,6 +68,8 @@ interface IProps {
 	/* Origem pré-selecionada na criação (ex.: a origem que a lista está filtrando). */
 	defaultSourceType?: TTransactionSourceType;
 	defaultSourceId?: string;
+	/* Abre com "Repetir" já ligado (ex.: "Nova recorrência" na aba Recorrências). Só na criação. */
+	defaultRepeatMode?: TRepeatMode;
 }
 
 type TFormValues = {
@@ -155,7 +157,7 @@ const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''
 	return { source_type: (source_type as TTransactionSourceType) || '', source_id: source_id || '' };
 };
 
-const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId }: IProps) => {
+const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId, defaultRepeatMode = 'none' }: IProps) => {
 	const navigate = useNavigate();
 	const { user_wallet } = useWallet();
 	const { current_user } = useCurrentUserContext();
@@ -277,9 +279,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			});
 		} else {
 			setOriginType(defaultSourceType ?? null);
-			setValues(buildDefaultValues(suggestedDate, default_origin, current_user_id));
+			setValues({ ...buildDefaultValues(suggestedDate, default_origin, current_user_id), repeat_mode: defaultRepeatMode });
 		}
-	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id ]);
+	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id, defaultRepeatMode ]);
 
 	/*
 	 * O autor precisa ser participante da carteira (o backend valida). Se a carteira mudou (troca de origem)

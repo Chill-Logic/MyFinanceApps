@@ -1232,7 +1232,19 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
   se for a 1ª ocorrência). Parcela não pergunta (só esta).
 - **Aba "Recorrências"** em Contas & Cartões (web `RecurrenceList`/`RecurrenceFormDialog`, mobile
   `RecurrenceList`/`RecurrenceFormModal`): filtro Recorrentes/Parceladas, editar a regra inteira, excluir (para
-  de gerar; as previstas de hoje em diante saem). Não há "nova recorrência" ali — nasce no formulário.
+  de gerar; as previstas de hoje em diante saem). No mobile não há "nova recorrência" ali — nasce no formulário.
+  - **Web, redesign 2026-11 (mockup v3):** Recorrentes = lista no celular, tabela do tablet em diante (a coluna
+    Origem só no desktop; nos tablets a origem vai embaixo do nome), com o card marinho "Por mês, nas recorrentes"
+    (só as mensais de intervalo 1, sem transferências — o resto é citado como "fica fora desta conta") e "Próximas"
+    do mês numa coluna à direita a partir do tablet deitado. Parceladas = cartões com barra segmentada "N de M
+    pagas", "falta pagar" (desconta a 1ª parcela, que leva os centavos da divisão) e o card "Falta pagar" em cima.
+    "Pagas" = parcelas antes da `next_occurrence` (sem próxima = todas) — a API não manda o índice da próxima.
+    Busca (`terms`, com atraso de 300ms) e filtro por origem vão pra API; a chave do `useIndexRecurrences` inclui os
+    dois. "Nova recorrência" (cabeçalho da página, só nessa aba) abre o `TransactionFormDialog` com
+    `defaultRepeatMode` = a aba atual. A edição (`RecurrenceFormDialog`) é folha no celular e tem "Aplicar a
+    mudança": todas as previstas ou "De <próxima> em diante" (= `effective_from`). Helpers em `util/recurrenceView.ts`.
+    Sem dígitos do cartão nem "na fatura de <mês>" (a próxima ocorrência não traz `invoice_month`) — o mockup foi
+    ajustado pra bater.
 - Mutações de transação invalidam também `recurrence.get_all` (a "próxima ocorrência" muda).
 
 ## Conexões com o Claude (MCP)
