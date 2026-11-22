@@ -1,52 +1,48 @@
 import { useVersion } from '@/hooks/api/core/useVersion';
 
+import { cn } from '@/lib/utils';
+
 /**
- * Normaliza a data do commit pra "DD/MM/AAAA às HH:MM". Cobre tanto o formato do Rails
- * ("2026-07-11 19:12:03 -0300") quanto o ISO do git ("2026-07-11T19:12:03-03:00") só extraindo os
- * campos com regex — sem passar por `new Date()` (o formato do Rails não é parseável de forma
- * confiável entre browsers, e aqui só interessa exibir o que veio, não fazer conta de fuso).
+ * "20/11 18:42" a partir do formato do Rails ("2026-07-11 19:12:03 -0300") ou do ISO do git — só regex, sem
+ * `new Date()` (o formato do Rails não é parseável de forma confiável e aqui só interessa exibir o que veio).
  */
 const formatVersionDate = (raw?: string) => {
 	if (!raw || raw === 'unknown') return raw ?? '—';
-
 	const match = raw.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
 	if (!match) return raw;
-
-	const [ , year, month, day, hour, minute ] = match;
-	return `${ day }/${ month }/${ year } às ${ hour }:${ minute }`;
+	const [ , , month, day, hour, minute ] = match;
+	return `${ day }/${ month } ${ hour }:${ minute }`;
 };
 
-const line_class = 'text-xs text-muted-foreground';
+const shortHash = (hash?: string) => (hash ? hash.slice(0, 7) : '…');
+
+/* Commits curtos do webapp e da API (linha "Sobre" do celular). */
+export const useShortVersions = () => {
+	const { data: api_version } = useVersion();
+	return { web: shortHash(__APP_GIT_COMMIT__), api: shortHash(api_version?.hash) };
+};
 
 /**
- * Bloco "Sobre": versões do webapp E da API, cada uma com branch/commit/data. O webapp lê de
- * globais injetadas pelo Vite em build (git); a API vem de GET /core/version. Usado na seção
- * "Sobre" da página de Configurações.
+ * Versões do webapp (globais do Vite, do git no build) e da API (GET /core/version): branch, commit e data.
+ * `inline` = uma linha só (tablet em pé); senão, dois blocos.
  */
-const AboutInfo = () => {
+const AboutInfo = ({ inline = false, className }: { inline?: boolean; className?: string }) => {
 	const { data: api_version } = useVersion();
 
-	return (
-		<div className='flex flex-col gap-3'>
-			<div className='flex flex-col gap-0.5'>
-				<p className='text-xs font-semibold text-foreground'>Webapp</p>
-				<p className={line_class}>Branch: {__APP_GIT_BRANCH__}</p>
-				<p className={line_class}>Commit: {__APP_GIT_COMMIT__}</p>
-				<p className={line_class}>Data: {formatVersionDate(__APP_GIT_DATE__)}</p>
-			</div>
+	const block = (label: string, branch?: string, hash?: string, date?: string) => (
+		<span className={cn('flex text-sm text-muted-foreground', inline ? 'items-baseline gap-1.5' : 'flex-col gap-0.5')}>
+			<span className={cn(!inline && 'text-xs font-semibold uppercase tracking-wide')}>{label}</span>
+			<span>
+				<span className='font-mono font-semibold text-foreground'>{branch ?? '…'} · {shortHash(hash)}</span>
+				<span> · {formatVersionDate(date)}</span>
+			</span>
+		</span>
+	);
 
-			<div className='flex flex-col gap-0.5'>
-				<p className='text-xs font-semibold text-foreground'>API</p>
-				{api_version ? (
-					<>
-						<p className={line_class}>Branch: {api_version.branch}</p>
-						<p className={line_class}>Commit: {api_version.hash}</p>
-						<p className={line_class}>Data: {formatVersionDate(api_version.date)}</p>
-					</>
-				) : (
-					<p className={line_class}>Carregando…</p>
-				)}
-			</div>
+	return (
+		<div className={cn('flex gap-6', inline ? 'flex-wrap items-center justify-end' : 'flex-col', className)}>
+			{block('Webapp', __APP_GIT_BRANCH__, __APP_GIT_COMMIT__, __APP_GIT_DATE__)}
+			{block('API', api_version?.branch, api_version?.hash, api_version?.date)}
 		</div>
 	);
 };

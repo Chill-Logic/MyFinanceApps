@@ -999,6 +999,15 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
+  - **Configurações (redesign 2026-11, `pages/settings`)**: desktop/tablet deitado = menu de seções (Conta, Aparência,
+    Carteira principal, Conexões com o Claude, Integração bancária, Sobre) com resumo de cada + o conteúdo; tablet em pé
+    = tudo empilhado; celular = lista agrupada que abre cada item numa tela com "Voltar", "Sair da conta" e a linha
+    "Sobre". Conta = cartão marinho do perfil ("Membro desde", carteira principal) + `AccountInfoForm` e
+    `AccountPasswordForm` lado a lado (cartões; senha valida 6–128 com o `passwordProblem` do AuthForm). Carteira
+    principal muda aqui (`PATCH /users/me main_wallet_id`). `ClaudeConnections`: endereço do MCP; do tablet deitado em
+    diante a atividade da conexão escolhida num painel ao lado (filtro por ferramenta, argumentos ao abrir, "Carregar
+    mais" aumenta o `per_page`); no celular abre por dentro do cartão (3 últimas + "Ver toda a atividade"). O
+    `token_hint` da API é o COMEÇO do token (ex.: `mfc_ePPDAJ`) — exiba `mfc_ePPDAJ…`, não "•••• final".
   - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
     tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
     aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
