@@ -881,7 +881,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     **Edição aproveita o que o backend aceita (2026-11-22)**, não só o que o app antigo fazia: recorrência edita data da
     próxima (`start_date` + `effective_from` = próxima original), cartão, responsável e, na parcelada, total e nº de
     parcelas; pagar fatura tem descrição opcional e avisa quando passa do restante; importação já vem com o
-    `adjust_balance` salvo no vínculo; saldo inicial da conta pode ser negativo ("Está negativo?"); limite de crédito
+    `adjust_balance` salvo no vínculo; saldo inicial da conta pode ser negativo ("Está negativo?"); o melhor dia de compra de um cartão do banco já confirmado
+    aparece no vínculo com "Mudar" (`PATCH /bank_account_links/:id best_purchase_day`); limite de crédito
     ligado ao banco avisa que a próxima atualização o troca; dígitos do cartão explicam o casamento das compras do banco.
     Fora de propósito: editar transferência e "Fatura automática" na edição (decisões do dono, ver abaixo).
     Botão principal diz o que faz ("Criar conta", "Pagar R$ X"). Na conferência o tipo é Saída/Entrada (não o
@@ -1104,8 +1105,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Nova transação no visual do mockup (redesign 2026-11, `TransactionFormDialog`)** — só a apresentação
     mudou; salvar/editar/repetir/escopo seguem iguais. Não existe mais a "etapa 1" (Conta/Cartão/
     Transferência): o **tipo vem primeiro** (abas Saída/Entrada/Transferência no MESMO `SegmentedControl` do resto do app — já teve um grupo de abas próprio em marinho e o dono pediu padrão; segmento indisponível usa `disabled`/`title`) e define as
-    origens possíveis (saída: contas e cartões; entrada e transferência: só contas — trocar o tipo limpa uma
-    origem que não vale mais). Os campos viraram **chips** com popover (Origem/De, Para, Cartão quando o
+    origens possíveis (saída e entrada: contas e cartões — entrada no cartão é estorno/crédito, desconta da fatura,
+    sem "Parcelado"; transferência: só contas — trocar o tipo limpa uma origem que não vale mais). Os campos viraram **chips** com popover (Origem/De, Para, Cartão quando o
     crédito tem mais de um, Quando, Pagamento só em conta, Fatura só em cartão, Responsável quando a
     carteira tem mais de um membro) — pílulas no celular e nos tablets, grade 2×2 com rótulo só no desktop; Repetir e
     Rascunho são chips tracejados de liga/desliga, e o painel do Repetir abre inline. Dentro de popover

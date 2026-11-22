@@ -232,7 +232,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		? [ ...kind_options ].sort((a, b) => KIND_ORDER.indexOf(a.value) - KIND_ORDER.indexOf(b.value))
 		: DEFAULT_KIND_OPTIONS;
 
-	/* Transferência só sai de conta — em crédito o `kind` é sempre saída (ver `effective_kind`). */
+	/* Transferência só sai de conta: escolher cartão como origem nunca deixa o tipo em transferência. */
 	const is_transfer = !is_credit && values.kind === 'transfer';
 	/*
 	 * Transferência é escolhida na etapa 1 (botão próprio) e NÃO é editável (a lista não oferece "Editar"
@@ -314,7 +314,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const [ is_rule_dialog_open, setIsRuleDialogOpen ] = useState(false);
 
 	/* Parcelado só existe em cartão: se a origem deixou de ser cartão, volta pra "Não repete". */
-	const repeat_mode: TRepeatMode = linked_recurrence_id || (!is_credit && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
+	const repeat_mode: TRepeatMode = linked_recurrence_id || ((!is_credit || values.kind !== 'withdraw') && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
 	const is_repeating = repeat_mode !== 'none';
 	/* Na criação a repetição substitui o lançamento avulso (some "Pago em"/fatura manual); na edição a transação continua existindo. */
 	const hides_single_fields = is_repeating && !is_editing;
@@ -339,7 +339,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	/* "Não repete" não entra: quem liga/desliga é o chip "Repetir" — o painel só escolhe o modo. */
 	const repeat_segments = [
 		{ value: 'recurring', label: 'Recorrente' },
-		...(is_credit ? [ { value: 'installment', label: 'Parcelado' } ] : []),
+		...(is_credit && values.kind === 'withdraw' ? [ { value: 'installment', label: 'Parcelado' } ] : []),
 	];
 
 	/* Transferência na criação precisa de duas contas nesta carteira (origem ≠ destino). */
@@ -418,7 +418,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		 * Cartão: na CRIAÇÃO só existe saída (compra). Na EDIÇÃO vale o tipo original — um estorno ou o pagamento da
 		 * fatura que aparece no cartão é `deposit`, e forçar `withdraw` virava compra ao salvar (inverte a fatura).
 		 */
-		const effective_kind: TTransactionKind = is_credit && !is_editing ? 'withdraw' : values.kind;
+		const effective_kind: TTransactionKind = values.kind;
 		const transaction_date = values.transaction_date.toISOString();
 		/*
 		 * "Pago em" só é controlável em conta, onde `null` = pendente. Em crédito não existe pendente (o gasto
@@ -589,13 +589,13 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	/*
 	 * ----- Tipo (Saída / Entrada / Transferência) -----
-	 * Na criação o tipo vem primeiro (como no mockup) e define as origens possíveis: saída sai de conta OU
-	 * cartão; entrada e transferência, só de conta. Trocar pra um tipo que a origem escolhida não aceita
+	 * Na criação o tipo vem primeiro (como no mockup) e define as origens possíveis: saída e entrada de conta OU
+	 * cartão (entrada no cartão = estorno/crédito, desconta da fatura); transferência, só de conta. Trocar pra um tipo que a origem escolhida não aceita
 	 * limpa a origem. Na edição: transferência não é editável e compra de cartão é sempre saída, então as
 	 * abas só aparecem (Saída/Entrada) em transação de conta.
 	 */
 	const setKind = (kind: TTransactionKind) => {
-		const clears_origin = kind !== 'withdraw' && is_credit;
+		const clears_origin = kind === 'transfer' && is_credit;
 		if (clears_origin) setOriginType(null);
 		setValues((prev) => ({
 			...prev,
@@ -612,7 +612,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	/* Contas listadas como origem (inclui a conta excluída de uma transação em edição) e se cartão vale aqui. */
 	const origin_accounts = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ];
-	const allows_credit_origin = is_editing ? !is_transfer : values.kind === 'withdraw';
+	const allows_credit_origin = is_editing ? !is_transfer : values.kind !== 'transfer';
 
 	/* Na criação, se só existe UMA origem possível pro tipo, ela já vem escolhida. */
 	useEffect(() => {
@@ -1148,7 +1148,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const keypad_display = MoneyUtils.formatMoney(keypad_digits || '0').replace(/^R\$\s?/, '');
 
 	const plain_value = values.value.replace(/^R\$\s?/, '');
-	const effective_kind_title = KIND_TITLE[is_credit && !is_editing ? 'withdraw' : values.kind];
+	const effective_kind_title = KIND_TITLE[values.kind];
 	const submit_label = is_editing ? 'Salvar alterações' : `Salvar ${ effective_kind_title }`;
 	const dialog_title = transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova transação';
 
@@ -1276,6 +1276,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								{is_credit && !hides_single_fields && renderInvoiceChip()}
 								{members.length > 1 && renderAuthorChip()}
 							</div>
+
+							{is_credit && values.kind === 'deposit' && !is_editing && (
+								<span className='text-center text-xs text-muted-foreground xl:text-left'>Estorno ou crédito no cartão: desconta da fatura em que cair.</span>
+							)}
 
 							{is_origin_locked && <span className='text-center text-xs text-muted-foreground xl:text-left'>Pagamento de fatura não pode trocar de origem.</span>}
 

@@ -66,6 +66,8 @@ const BankAccountLinkCard = ({ link, walletId, selected = false, onShowHistory, 
 	const [ changing, setChanging ] = useState(false);
 	const [ merging, setMerging ] = useState(false);
 	const [ best_purchase_day, setBestPurchaseDay ] = useState(String(link.suggested_best_purchase_day ?? ''));
+	/* Já confirmado: o dia fica numa linha com "Mudar", que abre o mesmo editor (o backend aceita de novo). */
+	const [ editing_best_day, setEditingBestDay ] = useState(false);
 
 	useEffect(() => {
 		setBestPurchaseDay(String(link.suggested_best_purchase_day ?? ''));
@@ -79,6 +81,9 @@ const BankAccountLinkCard = ({ link, walletId, selected = false, onShowHistory, 
 	const noun = is_credit ? { one: 'cartão', new: 'Criar cartão novo', merge: 'Juntar com um cartão', this: 'este cartão', existing: 'Usa um cartão que já existe aqui.', pick: 'Escolha o cartão' }
 		: { one: 'conta', new: 'Criar conta nova', merge: 'Juntar com uma conta', this: 'esta conta', existing: 'Usa uma conta que já existe aqui.', pick: 'Escolha a conta' };
 	const needs_best_purchase_day = is_credit && is_linked && link.best_purchase_day_status === 'pending';
+	const linked_credit = is_credit && is_linked ? credit_balances_data?.data?.find((item) => item.id === link.target_id) : undefined;
+	const current_best_day = linked_credit?.best_purchase_day;
+	const shows_best_day_row = is_credit && is_linked && !needs_best_purchase_day && current_best_day !== undefined;
 	const best_purchase_day_number = Number(best_purchase_day);
 	const is_best_purchase_day_valid = Number.isInteger(best_purchase_day_number) && best_purchase_day_number >= 1 && best_purchase_day_number <= 31;
 
@@ -99,6 +104,7 @@ const BankAccountLinkCard = ({ link, walletId, selected = false, onShowHistory, 
 				toast.success(success_message);
 				setChanging(false);
 				setMerging(false);
+				setEditingBestDay(false);
 			},
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao atualizar o vínculo')),
 		});
@@ -257,15 +263,37 @@ const BankAccountLinkCard = ({ link, walletId, selected = false, onShowHistory, 
 						</div>
 					)}
 
-					{needs_best_purchase_day && (
-						<div className='flex flex-col gap-3 rounded-2xl border border-warning-dot/40 bg-warning-soft p-4'>
-							<p className='flex items-start gap-2 text-sm'>
-								<TriangleAlert className='mt-0.5 size-4 shrink-0 text-warning' />
-								<span><strong className='font-semibold text-warning'>Confirme o melhor dia de compra.</strong> {BANK_BEST_PURCHASE_DAY_HELP(link.suggested_best_purchase_day)}</span>
-							</p>
+					{shows_best_day_row && !editing_best_day && (
+						<div className='flex items-center justify-between gap-3 rounded-2xl bg-secondary/60 px-4 py-3 text-sm'>
+							<span className='flex min-w-0 flex-col gap-0.5'>
+								<span className='font-semibold'>Melhor dia de compra · dia {current_best_day}</span>
+								<span className='text-xs text-muted-foreground'>A partir dele as compras entram na fatura seguinte.</span>
+							</span>
+							<button
+								type='button'
+								onClick={() => { setBestPurchaseDay(String(current_best_day)); setEditingBestDay(true); }}
+								className='shrink-0 font-semibold text-brand'
+							>
+								Mudar
+							</button>
+						</div>
+					)}
+
+					{(needs_best_purchase_day || (shows_best_day_row && editing_best_day)) && (
+						<div className={cn('flex flex-col gap-3 rounded-2xl p-4', needs_best_purchase_day ? 'border border-warning-dot/40 bg-warning-soft' : 'bg-secondary/60')}>
+							{needs_best_purchase_day ? (
+								<p className='flex items-start gap-2 text-sm'>
+									<TriangleAlert className='mt-0.5 size-4 shrink-0 text-warning' />
+									<span><strong className='font-semibold text-warning'>Confirme o melhor dia de compra.</strong> {BANK_BEST_PURCHASE_DAY_HELP(link.suggested_best_purchase_day)}</span>
+								</p>
+							) : (
+								<p className='text-sm text-muted-foreground'>
+									<strong className='font-semibold text-foreground'>Mudar o melhor dia de compra.</strong> Vale para as próximas compras; as que já estão numa fatura continuam onde estão.
+								</p>
+							)}
 							<div className='flex items-center gap-2'>
 								<label htmlFor={`best-day-${ link.id }`} className='min-w-0 flex-1 text-[13px] text-muted-foreground'>
-									Melhor dia de compra{link.suggested_best_purchase_day ? ' · sugerido' : ''}
+									Melhor dia de compra{needs_best_purchase_day && link.suggested_best_purchase_day ? ' · sugerido' : ''}
 								</label>
 								<input
 									id={`best-day-${ link.id }`}
@@ -280,11 +308,16 @@ const BankAccountLinkCard = ({ link, walletId, selected = false, onShowHistory, 
 									type='button'
 									isLoading={isPending}
 									disabled={!is_best_purchase_day_valid}
-									onClick={() => updateLink({ best_purchase_day: best_purchase_day_number }, 'Melhor dia de compra confirmado')}
+									onClick={() => updateLink({ best_purchase_day: best_purchase_day_number }, needs_best_purchase_day ? 'Melhor dia de compra confirmado' : 'Melhor dia de compra atualizado')}
 									className='h-11 px-5'
 								>
-									Confirmar
+									{needs_best_purchase_day ? 'Confirmar' : 'Salvar'}
 								</Button>
+								{!needs_best_purchase_day && (
+									<Button type='button' variant='ghost' onClick={() => setEditingBestDay(false)} className='h-11 px-3'>
+										Cancelar
+									</Button>
+								)}
 							</div>
 						</div>
 					)}
