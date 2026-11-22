@@ -138,6 +138,38 @@ export type TSettleTransactionBody = {
 
 export type TIndexAccountsResponse = TPaginatedResponse<TAccount>;
 
+/*
+ * Saldo projetado das contas de uma carteira, dia a dia (tela de Contas). Contrato no formato das outras
+ * respostas da API (`{ data: ... }`, centavos, datas "YYYY-MM-DD"), pensado pra `GET /accounts/projection`
+ * — que AINDA NÃO EXISTE no backend. Enquanto isso, `estimateCashProjection` monta exatamente esta resposta
+ * a partir dos endpoints atuais; quando o endpoint existir, o hook troca pra `getCashProjection` e nada mais muda.
+ */
+export type TCashProjectionParams = {
+	wallet_id: string;
+	/* Tamanho do período a partir de hoje: 7, 30 ou 90. */
+	days: number;
+};
+
+export type TCashProjectionPoint = {
+	date: string;
+	/* Saldo somado das contas ao fim do dia, em centavos. */
+	balance: number;
+};
+
+export type TCashProjection = {
+	today: string;
+	days: number;
+	/* Soma dos saldos efetivados das contas agora. */
+	start_balance: number;
+	end_balance: number;
+	/* Dia de menor saldo no período (o primeiro, em caso de empate). */
+	lowest: TCashProjectionPoint;
+	/* Um ponto por dia, de hoje até hoje + `days`. */
+	points: TCashProjectionPoint[];
+	/* Por conta: saldo agora e previsto pro fim do mês de hoje (sem faturas — não se sabe de qual conta sai). */
+	accounts: { id: string; balance: number; end_of_month_balance: number }[];
+};
+
 export type TAccountBody = {
 	name: string;
 	kind: TAccountKind;

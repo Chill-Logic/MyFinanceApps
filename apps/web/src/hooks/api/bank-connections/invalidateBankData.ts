@@ -10,6 +10,7 @@ export const invalidateBankData = () => {
 		QUERY_KEYS.bank_account_link.get_all,
 		QUERY_KEYS.bank_import.get_all,
 		QUERY_KEYS.account.get_all,
+		QUERY_KEYS.account.get_projection,
 		QUERY_KEYS.credit_balance.get_all,
 		QUERY_KEYS.credit_balance.get_invoice,
 		QUERY_KEYS.credit_card.get_all,

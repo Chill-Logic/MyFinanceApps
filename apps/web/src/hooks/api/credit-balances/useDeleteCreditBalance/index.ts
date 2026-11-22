@@ -17,6 +17,7 @@ export const useDeleteCreditBalance = () => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
 			// Sem o cartão, a fatura dele sai das somas de "Faturas do mês".
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_invoice ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_projection ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_card.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
 			onSuccess?.(data);

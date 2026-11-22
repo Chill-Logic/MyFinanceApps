@@ -18,6 +18,7 @@ export const usePayInvoice = () => {
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.credit_balance.get_invoice ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_all ] });
+			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.account.get_projection ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.transaction.get_all ] });
 			queryClient.invalidateQueries({ queryKey: [ QUERY_KEYS.wallet.get_main ] });
 			onSuccess?.(data);

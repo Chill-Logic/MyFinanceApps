@@ -36,6 +36,7 @@ export const QUERY_KEYS = {
 	},
 	[MODELS.account]: {
 		get_all: 'get-all-accounts',
+		get_projection: 'get-accounts-projection',
 	},
 	[MODELS.credit_balance]: {
 		get_all: 'get-all-credit-balances',

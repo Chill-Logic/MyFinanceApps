@@ -23,6 +23,8 @@ export const API_ROUTES = {
 		show: (id: string | number) => `/accounts/${ id }`,
 		update: (id: string | number) => `/accounts/${ id }`,
 		delete: (id: string | number) => `/accounts/${ id }`,
+		/* Ainda não existe no backend — ver `TCashProjection`. */
+		projection: '/accounts/projection',
 	},
 	creditBalances: {
 		index: '/credit_balances',

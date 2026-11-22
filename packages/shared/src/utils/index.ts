@@ -7,3 +7,4 @@ export * from './transaction';
 export * from './bankConnection';
 export * from './recurrence';
 export * from './claudeSession';
+export * from './projection';

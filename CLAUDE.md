@@ -959,6 +959,17 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Contas e saldo projetado (`organisms/AccountList` + `CashProjectionChart`, redesign 2026-11)**: cartão
+    marinho com o saldo de hoje, gráfico 7/30/90 dias, ponto mais baixo e aviso quando cai/fica negativo;
+    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). **A projeção ainda não existe
+    no backend** — o contrato já está definido como se existisse (`TCashProjection` em `api.ts`,
+    `GET /accounts/projection` em `routes.ts`, fetcher `getCashProjection`), e o `useCashProjection` usa,
+    por enquanto, `estimateCashProjection` (fetchers/projection.ts), que monta a MESMA resposta a partir dos
+    endpoints de hoje via `ProjectionUtils.build` (utils/projection.ts — as regras estão no comentário de
+    lá). Quando o backend implementar, troca-se uma linha no hook. A chave `QUERY_KEYS.account.get_projection`
+    é invalidada em toda mutação que mexe em conta, transação, recorrência ou fatura. A projeção só enxerga
+    o que está lançado (pendentes, recorrências previstas e faturas): sem entradas futuras cadastradas, a
+    linha só desce.
   - **Cartões (`organisms/CreditBalanceList`, redesign 2026-11)**: cartão selecionado como "cartão físico"
     (degradê do logo), trocado no tablet/desktop pelas setas ‹ › ao lado do nome + pontinhos ("2 de 4") —
     já houve uma lista compacta dos outros cartões, mas o selecionado saía dela e parecia que a lista mudava
