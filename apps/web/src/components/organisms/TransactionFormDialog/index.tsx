@@ -64,6 +64,11 @@ interface IProps {
 	open: boolean;
 	onOpenChange: (open: boolean)=> void;
 	transaction?: TTransaction | null;
+	/*
+	 * Duplicar: abre como NOVA transação já preenchida com esta (valor, tipo, origem, cartão, destino, rascunho,
+	 * responsável), com a data +1 mês e pendente. Tudo editável. Ignorado se `transaction` vier junto.
+	 */
+	duplicateFrom?: TTransaction | null;
 	suggestedDate?: Date;
 	/* Origem pré-selecionada na criação (ex.: a origem que a lista está filtrando). */
 	defaultSourceType?: TTransactionSourceType;
@@ -157,7 +162,7 @@ const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''
 	return { source_type: (source_type as TTransactionSourceType) || '', source_id: source_id || '' };
 };
 
-const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId, defaultRepeatMode = 'none' }: IProps) => {
+const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom, suggestedDate, defaultSourceType, defaultSourceId, defaultRepeatMode = 'none' }: IProps) => {
 	const navigate = useNavigate();
 	const { user_wallet } = useWallet();
 	const { current_user } = useCurrentUserContext();
@@ -167,6 +172,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	const wallet_id = user_wallet.data?.id;
 	const is_editing = Boolean(transaction);
+	const is_duplicating = !is_editing && Boolean(duplicateFrom);
 	const default_origin = defaultSourceType && defaultSourceId ? `${ defaultSourceType }:${ defaultSourceId }` : '';
 
 	const { mutate: createTransactionMutation, isPending: is_create_pending } = useCreateTransactions();
@@ -277,11 +283,32 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				value_varies: false,
 				installments: '2',
 			});
+		} else if (duplicateFrom) {
+			/*
+			 * Cópia = lançamento NOVO: data +1 mês no mesmo dia e MESMO HORÁRIO da original (o caso comum é a cobrança
+			 * do mês seguinte, que vence na mesma hora); pendente; fatura pelo ciclo (a da original não vale pra outra
+			 * data). Não repete — mesmo que a original seja de uma recorrência. Exceção: original em 00:00 (transação
+			 * antiga, de antes do campo de hora) ganha o horário de agora, senão a cópia nasceria 00:00 de novo.
+			 */
+			const original_date = duplicateFrom.transaction_date;
+			const next_date = DateUtils.addMonths(original_date, 1) ?? new Date(original_date);
+			const is_midnight = next_date.getHours() === 0 && next_date.getMinutes() === 0;
+			setOriginType(duplicateFrom.source_type);
+			setValues({
+				...buildDefaultValues(undefined, `${ duplicateFrom.source_type }:${ duplicateFrom.source_id }`, duplicateFrom.user_id),
+				credit_card_id: duplicateFrom.credit_card_id || '',
+				kind: duplicateFrom.kind,
+				description: duplicateFrom.description,
+				value: MoneyUtils.formatMoney(duplicateFrom.value),
+				transaction_date: is_midnight ? DateUtils.withCurrentTime(next_date) : next_date,
+				draft: duplicateFrom.draft,
+				destination_account_id: duplicateFrom.destination_account_id || '',
+			});
 		} else {
 			setOriginType(defaultSourceType ?? null);
 			setValues({ ...buildDefaultValues(suggestedDate, default_origin, current_user_id), repeat_mode: defaultRepeatMode });
 		}
-	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id, defaultRepeatMode ]);
+	}, [ open, transaction, duplicateFrom, suggestedDate, default_origin, defaultSourceType, current_user_id, defaultRepeatMode ]);
 
 	/*
 	 * O autor precisa ser participante da carteira (o backend valida). Se a carteira mudou (troca de origem)
@@ -511,7 +538,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				draft: values.draft,
 				user_id: values.user_id || undefined,
 			},
-			onSuccess: () => finalize('Transação criada!'),
+			onSuccess: () => finalize(is_duplicating ? 'Transação duplicada!' : 'Transação criada!'),
 			onError: (error) => toast.error(getApiErrorMessage(error, 'Erro ao criar transação')),
 		});
 	};
@@ -666,7 +693,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	 * todos os tamanhos. No celular já foram pílulas centralizadas — cabiam no pouco espaço que o teclado numérico
 	 * próprio deixava; com o teclado do sistema (que só abre com o valor em foco) sobra tela pra grade do desktop.
 	 * `empty` = campo obrigatório ainda sem escolha. `wide` = ocupa a linha inteira no celular (valor longo, ex.:
-	 * "Itaú · R$ 1.234,00" ou "Pago · 17 nov · 14:26", que em meia linha virava reticências).
+	 * "Itaú · R$ 1.234,00", "Pago · 17 nov · 14:26" ou "Dezembro 2026 · automática", que em meia linha virava
+	 * reticências).
 	 */
 	const FIELD_CHIP = (empty = false, wide = false) => cn(
 		wide && 'max-md:col-span-2',
@@ -907,7 +935,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const renderInvoiceChip = () => (
 		<Popover {...chipOpenProps('invoice')}>
 			<PopoverTrigger asChild>
-				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP(false, true)}>
 					{renderChipBody('Fatura', invoice_value)}
 				</button>
 			</PopoverTrigger>
@@ -1140,18 +1168,27 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		setValues((prev) => ({ ...prev, value: digits ? MoneyUtils.formatMoney(digits) : '' }));
 	};
 
-	/* Nova transação já abre com o valor em foco (teclado aberto); na edição nada ganha foco, pra o teclado não subir. */
+	/*
+	 * Nova transação já abre com o valor em foco (teclado aberto). Na edição e no duplicar nada ganha foco: o form
+	 * já vem preenchido, e o teclado subindo esconderia os campos (no duplicar o ajuste comum é a data).
+	 */
 	const focusValueOnOpen = (event: Event) => {
 		event.preventDefault();
-		if (is_editing) return;
+		if (is_editing || is_duplicating) return;
 		const is_desktop = window.matchMedia('(min-width: 1280px)').matches;
 		(is_desktop ? desktop_value_ref : value_input_ref).current?.focus();
 	};
 
 	const plain_value = values.value.replace(/^R\$\s?/, '');
 	const effective_kind_title = KIND_TITLE[values.kind];
-	const submit_label = is_editing ? 'Salvar alterações' : `Salvar ${ effective_kind_title }`;
-	const dialog_title = transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova transação';
+	const submit_label = (() => {
+		if (is_editing) return 'Salvar alterações';
+		return `${ is_duplicating ? 'Duplicar' : 'Salvar' } ${ effective_kind_title }`;
+	})();
+	const dialog_title = (() => {
+		if (transaction) return `Editar ${ KIND_TITLE[transaction.kind] }`;
+		return is_duplicating ? 'Duplicar transação' : 'Nova transação';
+	})();
 
 	/* ⌘/Ctrl + Enter salva de qualquer campo (o atalho mostrado no botão no desktop). */
 	const handleFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
