@@ -37,8 +37,6 @@ concurrency:
 
 env:
   PACKAGE_NAME: com.chilllogic.myfinance.app
-  # versionName = "<prefixo>.<versionCode>" (ex.: 0.3.101). Suba o prefixo em marcos maiores.
-  VERSION_NAME_PREFIX: "0.3"
 
 jobs:
   publish:
@@ -89,7 +87,10 @@ jobs:
         id: version
         run: |
           CODE=$(node .github/scripts/play-publish.mjs next-version-code "$PACKAGE_NAME")
-          NAME="$VERSION_NAME_PREFIX.$CODE"
+          # versionName = "<major.minor do apps/web/package.json>.<versionCode>" (ex.: 0.3.101). O webapp mostra o
+          # mesmo prefixo no "Sobre". Suba o `version` do package.json em marcos maiores.
+          PREFIX=$(node -p "require('./apps/web/package.json').version.split('.').slice(0, 2).join('.')")
+          NAME="$PREFIX.$CODE"
           echo "ANDROID_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
           echo "ANDROID_VERSION_NAME=$NAME" >> "$GITHUB_ENV"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"

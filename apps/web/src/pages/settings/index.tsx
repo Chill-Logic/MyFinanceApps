@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { getApiErrorMessage, MONTH_NAMES_PT, QUERY_KEYS } from '@myfinance/shared';
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
 
 import Button from '@/components/atoms/Button';
+import { LiquidBlob, useLiquidBlob } from '@/components/molecules/NavKit';
 import SegmentedControl, { type TSegment } from '@/components/molecules/SegmentedControl';
 import AboutInfo, { useShortVersions } from '@/components/organisms/AboutInfo';
 import AccountInfoForm, { SETTINGS_CARD } from '@/components/organisms/AccountInfoForm';
@@ -38,6 +39,14 @@ const THEME_SEGMENTS: TSegment[] = [
 /* Seções do menu (desktop/tablet deitado) e das telas de detalhe (celular/tablet em pé). */
 type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'main_wallet' | 'claude' | 'bank' | 'about';
 
+/*
+ * Transições (tailwindcss-animate). Celular/tablet em pé: a tela da seção entra pela direita e, ao voltar, a lista
+ * entra pela esquerda — como uma navegação nativa. Desktop: o conteúdo da seção troca com fade + leve subida.
+ */
+const ENTER_FORWARD = 'animate-in fade-in-0 slide-in-from-right-6 duration-300 ease-out motion-reduce:animate-none';
+const ENTER_BACK = 'animate-in fade-in-0 slide-in-from-left-6 duration-300 ease-out motion-reduce:animate-none';
+const ENTER_SECTION = 'animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ease-out motion-reduce:animate-none';
+
 const initials = (name?: string) => (name || '?').trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 
 /**
@@ -49,7 +58,7 @@ const initials = (name?: string) => (name || '?').trim().split(/\s+/).slice(0, 2
  *   - Celular: lista agrupada (Conta, Preferências, Integrações) que abre cada item numa tela própria, "Sair da
  *     conta" e a linha "Sobre".
  */
-const SettingsPage = () => {
+const SettingsContent = () => {
 	const { toast } = useToast();
 	const is_wide = useMediaQuery('(min-width: 1024px)');
 	const is_tablet = useMediaQuery('(min-width: 768px)');
@@ -62,8 +71,19 @@ const SettingsPage = () => {
 	const { data: claude_data } = useIndexClaudeSessions();
 	const versions = useShortVersions();
 
-	const [ section, setSection ] = useState<TSection | null>(null);
+	const [ section, setSectionState ] = useState<TSection | null>(null);
+	/* Pra onde a última troca foi: decide de que lado a tela entra (nada na primeira renderização). */
+	const [ direction, setDirection ] = useState<'forward' | 'back' | null>(null);
+	const setSection = (next: TSection | null) => {
+		if (next === section) return;
+		setDirection(next ? 'forward' : 'back');
+		setSectionState(next);
+	};
 	const active: TSection = section ?? 'account';
+
+	/* Desktop/tablet deitado: gota de vidro que escorre até o item ativo do menu (mesma peça da barra lateral). */
+	const menu_ref = useRef<HTMLElement>(null);
+	const menu_blob = useLiquidBlob(is_wide ? active : null, () => menu_ref.current?.querySelector<HTMLElement>(`[data-section="${ active }"]`) ?? null);
 
 	const wallets = wallets_data?.data ?? [];
 	const sessions = claude_data?.data ?? [];
@@ -176,10 +196,11 @@ const SettingsPage = () => {
 			<button
 				key={key}
 				type='button'
+				data-section={key}
 				onClick={onClick ?? (() => setSection(key))}
 				className={cn(
-					'pressable flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
-					is_wide && active === key ? 'bg-secondary' : 'hover:bg-accent/50'
+					'pressable relative z-10 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors',
+					!(is_wide && active === key) && 'hover:bg-accent/50'
 				)}
 			>
 				<span className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary'><Icon className='size-[18px]' /></span>
@@ -234,7 +255,7 @@ const SettingsPage = () => {
 	/* ---------- Tela de um item (celular e tablet em pé) ---------- */
 	if (!is_wide && section) {
 		return (
-			<div className='flex flex-col gap-4'>
+			<div key={section} className={cn('flex flex-col gap-4', ENTER_FORWARD)}>
 				<header className='flex items-center gap-3'>
 					<button type='button' aria-label='Voltar' onClick={() => setSection(null)} className='pressable flex size-11 shrink-0 items-center justify-center rounded-full border border-border'>
 						<ChevronLeft className='size-5' />
@@ -252,7 +273,8 @@ const SettingsPage = () => {
 			<div className='flex flex-col gap-5'>
 				{header}
 				<div className='grid grid-cols-[240px_minmax(0,1fr)] items-start gap-6 xl:grid-cols-[260px_minmax(0,1fr)]'>
-					<nav className='flex flex-col gap-1' aria-label='Seções das configurações'>
+					<nav ref={menu_ref} className='relative flex flex-col gap-1' aria-label='Seções das configurações'>
+						<LiquidBlob blob={menu_blob} className='rounded-2xl' />
 						{row('account', User, 'Conta', 'Nome, e-mail e senha')}
 						{row('appearance', Palette, 'Aparência', preference === 'system' ? 'Seguindo o sistema' : theme_summary)}
 						{row('main_wallet', Star, 'Carteira principal', main_wallet?.name ?? '—')}
@@ -260,7 +282,7 @@ const SettingsPage = () => {
 						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Ativa na sua conta' : 'Não liberada')}
 						{row('about', Info, 'Sobre', 'Versões do app e da API')}
 					</nav>
-					<div className='min-w-0'>{sectionContent(active)}</div>
+					<div key={active} className={cn('min-w-0', direction && ENTER_SECTION)}>{sectionContent(active)}</div>
 				</div>
 			</div>
 		);
@@ -269,7 +291,7 @@ const SettingsPage = () => {
 	/* ---------- Tablet em pé: tudo empilhado ---------- */
 	if (is_tablet) {
 		return (
-			<div className='flex flex-col gap-4'>
+			<div className={cn('flex flex-col gap-4', direction === 'back' && ENTER_BACK)}>
 				{header}
 				{sectionContent('account')}
 				<div className='grid grid-cols-2 gap-4'>
@@ -309,7 +331,7 @@ const SettingsPage = () => {
 	);
 
 	return (
-		<div className='flex flex-col gap-5'>
+		<div className={cn('flex flex-col gap-5', direction === 'back' && ENTER_BACK)}>
 			<h1 className='text-2xl font-bold tracking-[-0.03em]'>Configurações</h1>
 			{profileHero}
 			{group('Conta', (
@@ -345,10 +367,21 @@ const SettingsPage = () => {
 				<LogOut className='size-4' />Sair da conta
 			</button>
 			<button type='button' onClick={() => setSection('about')} className='flex items-center justify-center gap-1.5 text-xs text-muted-foreground'>
-				<Info className='size-3.5' />Sobre · webapp <span className='font-mono'>{versions.web}</span> · API <span className='font-mono'>{versions.api}</span>
+				<Info className='size-3.5' />Sobre · {versions.label.toLowerCase()} <span className='font-mono'>{versions.app}</span> · API <span className='font-mono'>{versions.api}</span>
 			</button>
 		</div>
 	);
 };
+
+/*
+ * As telas entram deslizando de lado (ENTER_FORWARD/ENTER_BACK) e, durante o deslize, passavam da borda e davam
+ * rolagem horizontal ao <main> por um instante. `overflow-x: clip` corta só na horizontal sem virar contêiner de
+ * rolagem; a margem de 1rem (= o padding lateral do template) deixa as sombras dos cartões aparecerem.
+ */
+const SettingsPage = () => (
+	<div className='overflow-x-clip [overflow-clip-margin:1rem]'>
+		<SettingsContent />
+	</div>
+);
 
 export default SettingsPage;
