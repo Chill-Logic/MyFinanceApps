@@ -866,18 +866,24 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Desktop (≥1280px)**: `Sidebar variant='full'` (260px): `Logo` horizontal, `WalletSwitcher`,
     destinos, Nova Carteira e, no rodapé, cartão do usuário (leva a `/settings`) + Sair.
   - **Tablet (768–1279px)**: `Sidebar variant='rail'` (84px), só ícones (com `title`/`aria-label`). O
-    botão manual de recolher a sidebar foi removido — o tamanho da tela decide.
+    botão redondo na borda direita da barra (`onToggle`) recolhe/expande no tablet e no
+    desktop; a escolha fica em `localStorage` (`sidebar-collapsed`) e, sem escolha salva, o desktop abre
+    expandido e o tablet recolhido. Já tentaram tirar esse botão e
+    deixar só o tamanho da tela decidir — o dono usa e pediu de volta.
   - **Celular (<768px)**: `BottomNav` **flutuante** (pílula de vidro `fixed`, só ícones com
     `aria-label`): Início, Contas, "+" central (só na Início), Carteiras e Menu (bottom sheet com o
     `NavMenu`). Pontos de troca: 768/1280 — mudou um, mude o outro (`DefaultTemplate`).
   - **Histórico da barra flutuante**: já existiu uma versão flutuante que foi revertida pra docked
     porque tampava a última transação — dependia de um `padding-bottom` exato no conteúdo, que
     ficava errado quando a barra mudava de altura com o FAB condicional. Ela voltou (pedido do dono)
-    com duas garantias: (1) **altura fixa** (`h-16`) — o "+" fica *dentro* da pílula e só a largura
+    com duas garantias: (1) **altura fixa** (`h-[62px]`) — o "+" fica *dentro* da pílula e só a largura
     dele anima, nada mais muda a altura; (2) o espaço ocupado é **uma variável só,
     `--bottom-nav-space`** (index.css), aplicada pelo `DefaultTemplate` como `padding-bottom` do
-    conteúdo no celular. Lista com rolagem própria (TransactionList) termina acima da barra; página
-    que rola inteira passa por trás do vidro mas o último item ainda para acima dela. Mudou altura,
+    conteúdo no celular. Página que rola inteira passa por trás do vidro e o último item para acima
+    dela. Lista com rolagem própria (TransactionList) também precisa passar por trás — se a caixa da
+    lista terminar acima da barra, o que fica atrás do vidro é fundo sólido e a barra deixa de parecer
+    flutuante: a Home soma o padding de volta na própria altura (`h-[calc(100%+var(--bottom-nav-space))]`)
+    e põe o respiro no fim da área rolável. Mudou altura,
     distância da borda ou formato da barra? Atualize `--bottom-nav-space` junto.
   `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
   (evita duplicar a lista em dois lugares) — inclui os destinos fixos, "Nova Carteira" (ação sempre
@@ -953,12 +959,10 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
-  - **Desktop usa tabela, mobile usa cards** — `TransactionList` renderiza os dois layouts (um
-    `hidden md:block`, o outro `md:hidden`) reaproveitando a mesma lógica de ícone por tipo e menu de
-    ações via funções auxiliares (`renderKindIcon`/`renderActionsMenu`), só a marcação (`<table>` vs
-    `<div>`) muda. A tabela (`ui/table.tsx`, HTML semântico puro, sem lib nova) tem ordenação por
-    coluna local (sem paginação/API, ordena o array já carregado do mês) — `react-data-table-component`
-    segue instalado mas sem uso (motor de estilo próprio, não usa os tokens daqui).
+  - **Mesma lista agrupada por dia em todos os tamanhos (redesign 2026-11)** — no desktop ela fica dentro
+    do cartão com as abas Contas/Cartões e o contador, e só o corpo do cartão rola. Já existiu uma tabela
+    no desktop (Data | Descrição | Conta | Valor, ordenável por coluna); o dono achou esquisita e pediu a
+    lista do celular no lugar, então a ordenação por coluna saiu junto. Não reintroduza a tabela.
   - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
     `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
     usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
@@ -1034,7 +1038,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     suave, todos via `ui/field.ts` (`FIELD_SURFACE`/`FIELD_METRICS`) — `atoms/TextInput` também usa
     o `FIELD_SURFACE` agora, para input/select/data/TextInput baterem; `Card` com raio 24px;
     diálogos/painéis com fundo `bg-card`, raio 24px, fundo escurecido marinho e botão de fechar em
-    círculo; `SegmentedControl` em pílula; `ui/badge` (`Badge`, variantes
+    círculo; `SegmentedControl` em pílula com o item ativo oliva (`bg-primary`) e texto marinho, como no mockup; `ui/badge` (`Badge`, variantes
     `neutral`/`outline`/`brand`/`success`/`warning`/`info`/`danger`, prop `dot`) para selos como
     "pendente"/"prevista"/"2 para conferir" — use-o em vez de `span` com classes de cor à mão.
   - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `webapp:dev`**: o Tailwind importa

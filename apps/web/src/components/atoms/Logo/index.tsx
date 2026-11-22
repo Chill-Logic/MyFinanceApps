@@ -16,6 +16,8 @@ interface IProps {
 	 * do tema. Sem isso, o nome segue o tema: marinho no claro, areia no escuro.
 	 */
 	onDark?: boolean;
+	/** Caixa do ícone em círculo (dentro de pílulas, como o seletor de carteira) em vez de quadrado arredondado. */
+	round?: boolean;
 	className?: string;
 }
 
@@ -24,7 +26,7 @@ interface IProps {
  * O quarto marinho do ícone some sobre fundo marinho/escuro — por isso, no tema escuro (ou com
  * `onDark`), o ícone ganha um quadrado areia por trás.
  */
-const Logo = ({ variant = 'horizontal', size = 32, onDark = false, className }: IProps) => {
+const Logo = ({ variant = 'horizontal', size = 32, onDark = false, round = false, className }: IProps) => {
 	const { theme } = useTheme();
 	const dark_surface = onDark || theme === 'dark';
 	const wordmark_src = dark_surface ? wordmark_on_dark : wordmark;
@@ -43,7 +45,7 @@ const Logo = ({ variant = 'horizontal', size = 32, onDark = false, className }: 
 	const mark = (
 		<span
 			className={cn('flex shrink-0 items-center justify-center', dark_surface && 'bg-sand-light')}
-			style={{ width: tile, height: tile, borderRadius: tile * 0.28 }}
+			style={{ width: tile, height: tile, borderRadius: round ? tile / 2 : tile * 0.28 }}
 		>
 			<img src={icon} alt='' width={size} height={size} />
 		</span>

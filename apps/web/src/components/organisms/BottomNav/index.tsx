@@ -16,12 +16,12 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
  * Histórico: já existiu uma versão flutuante que escondia a última transação da lista — dependia de
  * acertar um padding-bottom no conteúdo, e esse padding ficava errado quando a barra mudava de
  * altura com o "+" condicional. O que mudou para ela poder voltar:
- *   1. A altura é FIXA (`h-16`): o "+" fica DENTRO da pílula (só a largura anima), então nada muda
+ *   1. A altura é FIXA (`h-[62px]`): o "+" fica DENTRO da pílula (só a largura anima), então nada muda
  *      a altura da barra.
  *   2. O espaço que ela ocupa é uma variável única, `--bottom-nav-space` (index.css), usada pelo
  *      DefaultTemplate como padding-bottom da área de conteúdo. Lista com rolagem própria (ex.:
- *      TransactionList) termina ACIMA da barra; página que rola inteira passa por trás do vidro e
- *      ainda deixa o último item visível acima dela.
+ *      TransactionList) e página que rola inteira passam POR TRÁS do vidro (senão o que fica atrás
+ *      dele é fundo sólido e a barra deixa de parecer flutuante); a última linha ainda para acima dela.
  * Mudou altura/posição aqui? Mude `--bottom-nav-space` junto.
  */
 const BottomNav = () => {
@@ -43,13 +43,13 @@ const BottomNav = () => {
 
 	const link_class = ({ isActive }: { isActive: boolean }) => cn(
 		'flex h-12 w-12 items-center justify-center rounded-full transition-colors',
-		isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+		isActive ? 'bg-navy/[0.08] text-foreground dark:bg-[rgba(199,195,191,0.12)]' : 'text-muted-foreground hover:text-foreground',
 	);
 
 	return (
 		<nav
 			aria-label='Navegação principal'
-			className='fixed bottom-[calc(12px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-16 -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/80 px-2 shadow-[0_10px_40px_rgba(8,36,53,0.18)] backdrop-blur-xl dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)]'
+			className='fixed bottom-[calc(16px+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/45 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-2xl backdrop-saturate-[1.8] dark:border-white/[0.12] dark:bg-[rgba(11,34,48,0.42)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_40px_rgba(0,0,0,0.5)]'
 		>
 			<NavLink to={home_item.path} end aria-label={home_item.label} className={link_class}>
 				<home_item.icon className='h-5 w-5' />
@@ -61,7 +61,7 @@ const BottomNav = () => {
 			<div
 				className={cn(
 					'flex justify-center overflow-hidden transition-[width] duration-300 ease-out',
-					centerAction ? 'w-[60px]' : 'w-0',
+					centerAction ? 'w-[58px]' : 'w-0',
 				)}
 			>
 				{displayed_action && (
@@ -72,11 +72,11 @@ const BottomNav = () => {
 						aria-hidden={!centerAction}
 						tabIndex={centerAction ? 0 : -1}
 						className={cn(
-							'flex h-12 w-[56px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all duration-300 ease-out active:scale-95',
+							'flex h-12 w-[58px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-all duration-300 ease-out active:scale-95',
 							centerAction ? 'scale-100 opacity-100' : 'pointer-events-none scale-50 opacity-0',
 						)}
 					>
-						<displayed_action.icon className='h-6 w-6' strokeWidth={2.6} />
+						<displayed_action.icon className='h-[22px] w-[22px]' strokeWidth={2.6} />
 					</button>
 				)}
 			</div>

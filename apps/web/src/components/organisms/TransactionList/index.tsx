@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, InvoiceUtils, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
+import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-	ArrowDown,
 	ArrowRight,
-	ArrowUp,
-	ArrowUpDown,
 	ArrowUpRight,
 	Check,
 	CheckCircle2,
@@ -23,12 +20,13 @@ import {
 	Plus,
 	Receipt,
 	Repeat,
+	RotateCcw,
 	User,
 	Wallet,
 } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
-import { useGetInvoice } from '@/hooks/api/credit-balances/useGetInvoice';
+import { useGetInvoicesForMonth } from '@/hooks/api/credit-balances/useGetInvoicesForMonth';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteRecurrence } from '@/hooks/api/recurrences/useDeleteRecurrence';
 import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
@@ -67,11 +65,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-type TSortField = 'transaction_date' | 'description' | 'kind' | 'value';
-type TSortState = { field: TSortField; direction: 'asc' | 'desc' };
 type TListTab = 'accounts' | 'credits';
+type TCreditSection = { id: string; name: string; items: TTransaction[] };
 
 /* "Dom, 30 nov" — dia da semana abreviado + dia + mês abreviado, como no mockup do redesign. */
 const groupLabel = (date: Date) => {
@@ -79,19 +75,23 @@ const groupLabel = (date: Date) => {
 	return label.charAt(0).toUpperCase() + label.slice(1);
 };
 
-/* Iniciais da descrição para o quadrado da linha ("IRPF 7ª quota" → "I7", "Montador" → "MO"). */
-const initialsOf = (text: string) => {
-	const words = text.trim().split(/\s+/).filter(Boolean);
-	if (words.length === 0) return '?';
-	if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-	return (words[0][0] + words[1][0]).toUpperCase();
-};
-
 /* Separa "R$ 2.531,94" em "R$ 2.531" + ",94" para os centavos aparecerem apagados no destaque. */
 const splitCents = (formatted: string) => {
 	const comma = formatted.lastIndexOf(',');
 	return comma === -1 ? [ formatted, '' ] : [ formatted.slice(0, comma), formatted.slice(comma) ];
 };
+
+/* Valor sem o "R$": listas e cartões de resumo mostram só o número, como no mockup. */
+const plainMoney = (value: number) => MoneyUtils.formatMoney(Math.abs(value)).replace(/^R\$\s?/, '');
+
+/* "+ 1.612,00" / "− 390,00" com o menos tipográfico; `symbol` mantém o "R$". */
+const signedMoney = (value: number, symbol = false) => {
+	const body = symbol ? MoneyUtils.formatMoney(Math.abs(value)) : plainMoney(value);
+	return `${ value < 0 ? '−' : '+' } ${ body }`;
+};
+
+/* Superfície dos cartões claros/translúcidos do mockup (branco no claro, véu areia no escuro). */
+const SURFACE = 'border border-border bg-white shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:bg-[rgba(199,195,191,0.04)] dark:shadow-none';
 
 const groupTransactionsByDay = (transactions: TTransaction[]) => {
 	const groups = new Map<string, { label: string; items: TTransaction[] }>();
@@ -140,7 +140,14 @@ const buildSummary = (group: TTransactionGroup | undefined, account_ids: Readonl
 		.filter((item) => TransactionUtils.direction(item, account_ids) === direction).length;
 	const settled = group?.total_settled ?? 0;
 	const projected = group?.total_projected ?? 0;
-	const pending_count = non_draft.filter((i) => !i.settled).length;
+	const pending = non_draft.filter((item) => !item.settled);
+	/* Soma com sinal do que ainda não foi efetivado nas contas (entrada +, saída −; transferência interna 0). */
+	const pending_net = pending.reduce((acc, item) => {
+		const direction = TransactionUtils.direction(item, account_ids);
+		if (direction === 'in') return acc + item.value;
+		if (direction === 'out') return acc - item.value;
+		return acc;
+	}, 0);
 
 	return {
 		deposit,
@@ -149,27 +156,17 @@ const buildSummary = (group: TTransactionGroup | undefined, account_ids: Readonl
 		withdraw_count: countBy('out'),
 		settled,
 		projected,
-		/* O que ainda falta acontecer no mês: diferença entre o previsto e o já efetivado (com sinal). */
-		pending_net: projected - settled,
-		pending_count,
+		pending_net,
+		pending_count: pending.length,
+		/*
+		 * O previsto do backend também desconta a fatura de cartão ainda em aberto, que não é transação de
+		 * conta. O que sobra entre "efetivado + pendentes" e o previsto é essa fatura.
+		 */
+		invoices_due: Math.max(0, settled + pending_net - projected),
 	};
 };
 
 const formatShortDate = (iso: string) => format(new Date(iso), 'd MMM', { locale: ptBR });
-
-const sortTransactions = (transactions: TTransaction[], sort: TSortState) => {
-	const sign = sort.direction === 'asc' ? 1 : -1;
-
-	return [ ...transactions ].sort((a, b) => {
-		if (sort.field === 'transaction_date') {
-			return sign * (new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime());
-		}
-		if (sort.field === 'value') {
-			return sign * (a.value - b.value);
-		}
-		return sign * a[sort.field].localeCompare(b[sort.field]);
-	});
-};
 
 const TransactionList = () => {
 	const navigate = useNavigate();
@@ -188,7 +185,6 @@ const TransactionList = () => {
 	/* Transação sendo efetivada no modal de "Efetivar pagamento" + a data/hora escolhida. */
 	const [ settling_transaction, setSettlingTransaction ] = useState<TTransaction | null>(null);
 	const [ settle_date, setSettleDate ] = useState<Date>(new Date());
-	const [ sort, setSort ] = useState<TSortState>({ field: 'transaction_date', direction: 'desc' });
 	/* Aba da lista: contas (fluxo de caixa) ou cartões (compras das faturas do mês). */
 	const [ list_tab, setListTab ] = useState<TListTab>('accounts');
 
@@ -248,51 +244,67 @@ const TransactionList = () => {
 	const is_current_month = month_year.year === now.getFullYear() && month_year.month === now.getMonth();
 
 	/*
-	 * Cartão em destaque (tablet/desktop) DO MÊS EXIBIDO: o crédito com mais compras líquidas nas transações de
-	 * crédito deste mês (o grupo `credits` já vem no bucket da fatura do mês); sem compra no mês, o primeiro.
-	 * Nunca usar `current_invoice` aqui — ela é a fatura de HOJE e ficaria igual em todos os meses.
+	 * Aba Cartões: uma seção por cartão, na ordem das linhas de crédito (o que sobrar, origem não listada,
+	 * vai no fim). O total da seção é o líquido das compras do mês no cartão (estorno abate).
 	 */
-	const featured_credit = useMemo(() => {
-		const spent = new Map<string, number>();
-		credit_txs
-			.filter((item) => !item.draft)
-			.forEach((item) => {
-				const delta = item.kind === 'deposit' ? -item.value : item.value;
-				spent.set(item.source_id, (spent.get(item.source_id) ?? 0) + delta);
-			});
+	const credit_sections = useMemo<TCreditSection[]>(() => {
+		const map = new Map<string, TTransaction[]>();
+		credit_txs.forEach((transaction_item) => {
+			const list = map.get(transaction_item.source_id) || [];
+			list.push(transaction_item);
+			map.set(transaction_item.source_id, list);
+		});
 
-		const ranked = credit_balances
-			.filter((credit_balance) => (spent.get(credit_balance.id) ?? 0) > 0)
-			.sort((a, b) => (spent.get(b.id) ?? 0) - (spent.get(a.id) ?? 0));
+		const ordered: TCreditSection[] = [];
+		credit_balances.forEach((credit_balance) => {
+			const items = map.get(credit_balance.id);
+			if (items) {
+				ordered.push({ id: credit_balance.id, name: credit_balance.name, items });
+				map.delete(credit_balance.id);
+			}
+		});
+		map.forEach((items, id) => ordered.push({ id, name: source_names.get(id) || 'Crédito', items }));
+		return ordered;
+	}, [ credit_txs, credit_balances, source_names ]);
 
-		return ranked[0] ?? credit_balances[0];
-	}, [ credit_txs, credit_balances ]);
-
-	/* A fatura do cartão em destaque NO MÊS EXIBIDO (`reference` = mesmo bucket da aba Cartões). */
-	const { data: featured_invoice, isFetching: is_featured_invoice_fetching } = useGetInvoice({
-		id: featured_credit?.id || '',
-		enabled: Boolean(featured_credit),
-		params: { reference },
+	/* Fatura do mês exibido de cada cartão da carteira (o total que importa — ver o hook). */
+	const { invoices } = useGetInvoicesForMonth({
+		ids: credit_balances.map((credit_balance) => credit_balance.id),
+		reference,
+		enabled: credit_balances.length > 0,
 	});
 
-	/*
-	 * Próximos 7 dias: pendentes de conta com data entre hoje e daqui a 7 dias. Só no mês atual, e só enxerga
-	 * o que veio na busca do mês — perto da virada, o que cai no mês seguinte ainda não aparece.
-	 */
-	const upcoming = useMemo(() => {
-		if (!is_current_month) return [];
-		const today = new Date();
-		const start_time = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-		const limit_time = start_time + 8 * 24 * 60 * 60 * 1000;
-		return account_txs
-			.filter((item) => !item.draft && !item.settled)
-			.filter((item) => {
-				const time = new Date(item.transaction_date).getTime();
-				return time >= start_time && time < limit_time;
-			})
-			.sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime())
-			.slice(0, 4);
-	}, [ account_txs, is_current_month ]);
+	/* Cartões que aparecem em "Faturas do mês": com fatura no mês OU com alguma transação nele. */
+	const invoice_cards = credit_balances
+		.map((credit_balance) => ({ id: credit_balance.id, name: credit_balance.name, invoice: invoices.get(credit_balance.id) }))
+		.filter((card) => (card.invoice?.amount ?? 0) > 0 || credit_sections.some((section) => section.id === card.id));
+
+	/* Cartões abertos na aba Cartões (fora do Set = fechado, que é o padrão). */
+	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
+	/* Dias recolhidos na lista (chave `escopo:dia`); fora do Set = aberto, que é o padrão. */
+	const [ collapsed_days, setCollapsedDays ] = useState<Set<string>>(new Set());
+	const toggleDay = (key: string) => {
+		setCollapsedDays((current) => {
+			const next = new Set(current);
+			if (next.has(key)) next.delete(key);
+			else next.add(key);
+			return next;
+		});
+	};
+	const toggleExpanded = (id: string) => {
+		setExpanded((current) => {
+			const next = new Set(current);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	};
+
+	/* Abre a aba Cartões já com o cartão escolhido aberto (atalho do cartão "Faturas do mês"). */
+	const openCreditSection = (id: string) => {
+		setListTab('credits');
+		setExpanded((current) => new Set(current).add(id));
+	};
 
 	const summary = buildSummary(data_all?.accounts, account_ids); // total do mês = SÓ contas (fluxo de caixa real)
 
@@ -302,19 +314,6 @@ const TransactionList = () => {
 	const changeMonth = (offset: number) => {
 		const date = new Date(month_year.year, month_year.month + offset, 1);
 		setMonthYear({ month: date.getMonth(), year: date.getFullYear() });
-	};
-
-	const toggleSort = (field: TSortField) => {
-		setSort((current) => (
-			current.field === field
-				? { field, direction: current.direction === 'asc' ? 'desc' : 'asc' }
-				: { field, direction: 'asc' }
-		));
-	};
-
-	const renderSortIcon = (field: TSortField) => {
-		if (sort.field !== field) return <ArrowUpDown className='h-3 w-3 opacity-50' />;
-		return sort.direction === 'asc' ? <ArrowUp className='h-3 w-3' /> : <ArrowDown className='h-3 w-3' />;
 	};
 
 	const isFormOpen = is_new_transaction_open || Boolean(editing_transaction);
@@ -399,16 +398,6 @@ const TransactionList = () => {
 
 	const isPending = (transaction_item: TTransaction) => !transaction_item.draft && !transaction_item.settled;
 
-	/* Quadrado com as iniciais da descrição; bolinha âmbar no canto quando ainda está pendente. */
-	const renderKindIcon = (transaction_item: TTransaction) => (
-		<div className='relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] bg-accent text-[13px] font-bold text-foreground'>
-			{initialsOf(transaction_item.description)}
-			{isPending(transaction_item) && (
-				<span aria-hidden='true' className='absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-warning-dot' />
-			)}
-		</div>
-	);
-
 	/*
 	 * Valor com sinal pela visão: + entrada (verde), − saída (cor do texto, sem vermelho), movimento interno
 	 * (transferência) sem sinal. Pendente fica apagado: ainda não aconteceu.
@@ -420,7 +409,7 @@ const TransactionList = () => {
 			? 'text-muted-foreground'
 			: { in: 'text-success', out: 'text-foreground', internal: 'text-muted-foreground' }[direction];
 
-		return <span className={cn('whitespace-nowrap', className, color)}>{sign}{MoneyUtils.formatMoney(transaction_item.value)}</span>;
+		return <span className={cn('whitespace-nowrap', className, color)}>{sign}{plainMoney(transaction_item.value)}</span>;
 	};
 
 	/* Ícone de repetição: só em recorrência comum — parcela já tem o "n/N" na descrição. */
@@ -435,29 +424,28 @@ const TransactionList = () => {
 	 * cabeçalho já diz), selos de estado e, só em carteira compartilhada, quem lançou. Datas de previsão e
 	 * pagamento ficam fora da lista (cabeçalho do dia + detalhe), pra linha caber em duas linhas.
 	 */
-	const renderMeta = (transaction_item: TTransaction, hide_source = false) => {
+	/*
+	 * Quando: o dia já está no cabeçalho do grupo, então a linha só diz a hora — "pago 13:47" ou
+	 * "previsto 10:00" — e o dia previsto quando ele é diferente do dia em que foi pago. Crédito mostra só a
+	 * hora da compra (ela nasce efetivada).
+	 */
+	const whenText = (transaction_item: TTransaction) => {
+		const time = (iso: string) => format(new Date(iso), 'HH:mm');
+		if (transaction_item.source_type === 'CreditBalance') return time(transaction_item.transaction_date);
+		if (!transaction_item.settled_date) return `previsto ${ time(transaction_item.transaction_date) }`;
+
+		const same_day = format(new Date(transaction_item.settled_date), 'yyyy-MM-dd') === format(new Date(transaction_item.transaction_date), 'yyyy-MM-dd');
+		const planned = same_day ? '' : ` · previsto ${ format(new Date(transaction_item.transaction_date), 'dd/MM') }`;
+		return `pago ${ time(transaction_item.settled_date) }${ planned }`;
+	};
+
+	/* Selos de estado da transação (rascunho, pendente, prevista, conferências). */
+	const renderBadges = (transaction_item: TTransaction) => {
 		const is_credit = transaction_item.source_type === 'CreditBalance';
-		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
 		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id);
-		const name = source_label && isDeletedSource(transaction_item) ? `${ source_label } (excluída)` : source_label;
-		const is_transfer = transaction_item.kind === 'transfer';
 
 		return (
-			<div className='mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground'>
-				{!hide_source && (
-					<span className='inline-flex min-w-0 items-center gap-1 truncate'>
-						{is_credit && <CreditCard className='h-3 w-3 shrink-0 text-info' />}
-						<span className='truncate'>{name || (is_credit ? 'Crédito' : 'Conta')}</span>
-						{/* Transferência: "De X para Y" */}
-						{is_transfer && (
-							<>
-								<ArrowRight className='h-3 w-3 shrink-0' />
-								<span className='truncate'>{transaction_item.destination_account_name || 'Conta'}</span>
-							</>
-						)}
-					</span>
-				)}
-
+			<>
 				{transaction_item.draft && <Badge variant='neutral'>Rascunho</Badge>}
 				{isPending(transaction_item) && <Badge variant='warning' dot>Pendente</Badge>}
 				{transaction_item.projected && (
@@ -491,6 +479,34 @@ const TransactionList = () => {
 						<Badge variant='info'>Conferir</Badge>
 					</button>
 				)}
+			</>
+		);
+	};
+
+	const renderMeta = (transaction_item: TTransaction, hide_source = false, hide_when = false) => {
+		const is_credit = transaction_item.source_type === 'CreditBalance';
+		/* `source_name` vem do backend e cobre origem de outra carteira (transferência recebida). */
+		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id);
+		const name = source_label && isDeletedSource(transaction_item) ? `${ source_label } (excluída)` : source_label;
+		const is_transfer = transaction_item.kind === 'transfer';
+
+		return (
+			<div className='mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground'>
+				{!hide_source && (
+					<span className='inline-flex min-w-0 items-center gap-1 truncate'>
+						{is_credit && <CreditCard className='h-3 w-3 shrink-0 text-info' />}
+						<span className='truncate'>{name || (is_credit ? 'Crédito' : 'Conta')}</span>
+						{/* Transferência: "De X para Y" */}
+						{is_transfer && (
+							<>
+								<ArrowRight className='h-3 w-3 shrink-0' />
+								<span className='truncate'>{transaction_item.destination_account_name || 'Conta'}</span>
+							</>
+						)}
+					</span>
+				)}
+
+				{renderBadges(transaction_item)}
 
 				{show_author && (
 					<span className='inline-flex items-center gap-1'>
@@ -498,6 +514,8 @@ const TransactionList = () => {
 						{transaction_item.user_name}
 					</span>
 				)}
+
+				{!hide_when && <span className='whitespace-nowrap'>{whenText(transaction_item)}</span>}
 			</div>
 		);
 	};
@@ -541,7 +559,13 @@ const TransactionList = () => {
 						{summary.pending_count > 0 && (
 							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB]'>
 								<span className='h-1.5 w-1.5 rounded-full bg-[#E9B949]' />
-								{summary.pending_count} pendente{summary.pending_count > 1 ? 's' : ''} · {MoneyUtils.formatMoney(Math.abs(summary.pending_net))}
+								{summary.pending_count} pendente{summary.pending_count > 1 ? 's' : ''} · {signedMoney(summary.pending_net, true)}
+							</span>
+						)}
+						{summary.invoices_due > 0 && (
+							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB]'>
+								<CreditCard className='h-3 w-3' />
+								faturas · − {MoneyUtils.formatMoney(summary.invoices_due)}
 							</span>
 						)}
 					</div>
@@ -551,7 +575,7 @@ const TransactionList = () => {
 				<div className='hidden flex-col justify-center gap-3.5 border-l border-sand-light/15 pl-5 text-sm md:flex xl:hidden'>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Entrou</span><span className='font-semibold text-[#9FE0B6]'>+ {MoneyUtils.formatMoney(summary.deposit)}</span></span>
 					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Saiu</span><span className='font-semibold text-[#F5A99F]'>− {MoneyUtils.formatMoney(summary.withdraw)}</span></span>
-					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Pendente</span><span className='font-semibold text-[#F2D58A]'>{MoneyUtils.formatSignedMoney(summary.pending_net)}</span></span>
+					<span className='flex justify-between gap-3'><span className='text-[#A9B6BF]'>Pendente</span><span className='font-semibold text-[#F2D58A]'>{signedMoney(summary.pending_net, true)}</span></span>
 				</div>
 			</div>
 
@@ -574,7 +598,7 @@ const TransactionList = () => {
 		<div
 			className={cn(
 				'flex flex-col justify-between gap-2 rounded-3xl p-5',
-				tone === 'warning' ? 'bg-warning-soft' : 'border border-border bg-card shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:shadow-none',
+				tone === 'warning' ? 'bg-warning-soft' : SURFACE,
 			)}
 		>
 			<span className={cn('flex items-center gap-1.5 text-[13px] font-medium', tone === 'warning' ? 'font-semibold text-warning' : 'text-muted-foreground')}>
@@ -590,89 +614,77 @@ const TransactionList = () => {
 
 	const plural = (count: number, singular: string, plural_word: string) => `${ count } ${ count === 1 ? singular : plural_word }`;
 
-	/* Situação de uma fatura que não é a atual (o limite disponível é um dado de hoje, não dela). */
-	const invoiceStatus = (invoice: NonNullable<typeof featured_invoice>) => {
-		if (invoice.amount <= 0) return 'sem compras nesta fatura';
-		if (invoice.paid) return 'fatura paga';
-		if (invoice.paid_amount > 0) return `restante ${ MoneyUtils.formatMoney(invoice.remaining) }`;
-		return 'em aberto';
+	/* Situação curta de uma fatura: paga, quanto falta ou quando vence. */
+	const invoiceHint = (invoice?: TCurrentInvoice) => {
+		if (!invoice) return '';
+		if (invoice.amount <= 0) return 'sem compras';
+		if (invoice.paid) return 'paga';
+		if (invoice.paid_amount > 0) return `restante ${ plainMoney(invoice.remaining) }`;
+		return `vence ${ formatShortDate(invoice.due_date) }`;
 	};
 
 	/*
-	 * Cartão da fatura (tablet e desktop), no degradê azul-petróleo do logo: a fatura do cartão em destaque
-	 * NO MÊS EXIBIDO. A barra de limite só aparece quando essa fatura é a atual (o limite disponível é de
-	 * hoje); nos outros meses, mostra se a fatura está paga, quanto falta ou se está em aberto.
-	 * Leva para Contas & Cartões.
+	 * Situação no cartão azul de "Faturas do mês": paga ganha selo verde com check (e o valor apaga), em
+	 * aberto fica em âmbar — dá pra bater o olho e ver o que ainda falta pagar.
 	 */
-	const renderInvoiceCard = () => {
-		if (!featured_credit) return null;
-
-		const invoice = featured_invoice;
-		const is_current_invoice = Boolean(invoice && InvoiceUtils.isCurrent(invoice));
-		const used_ratio = featured_credit.credit_limit > 0
-			? Math.min(1, Math.max(0, featured_credit.used / featured_credit.credit_limit))
-			: 0;
-
-		return (
-			<button
-				type='button'
-				onClick={() => navigate('/accounts')}
-				className={cn(
-					'flex flex-col gap-2 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-left text-sand-light transition-[transform,opacity] hover:-translate-y-0.5',
-					is_featured_invoice_fetching && 'opacity-70',
-				)}
-			>
-				<span className='flex justify-between gap-3 text-[13px]'>
-					<span className='truncate font-semibold'>{featured_credit.name}</span>
-					{invoice?.due_date && <span className='shrink-0 text-[#A9B6BF]'>vence {formatShortDate(invoice.due_date)}</span>}
+	const renderInvoiceStatus = (invoice?: TCurrentInvoice) => {
+		if (!invoice) return null;
+		if (invoice.paid && invoice.amount > 0) {
+			return (
+				<span className='inline-flex items-center gap-1 rounded-full bg-[rgba(125,211,160,0.18)] px-2 py-px text-[11px] font-semibold text-[#9FE0B6]'>
+					<Check className='h-3 w-3' strokeWidth={3} /> Paga
 				</span>
-
-				{invoice ? (
-					<>
-						<span className='text-xs text-[#A9B6BF]'>
-							Fatura de {InvoiceUtils.label(invoice)}{is_current_invoice ? ' · atual' : ''}
-						</span>
-						<span className='text-[28px] font-semibold tracking-[-0.04em]'>{MoneyUtils.formatMoney(invoice.amount)}</span>
-						{is_current_invoice ? (
-							<>
-								<span aria-hidden='true' className='flex h-1.5 overflow-hidden rounded-full bg-sand-light/15'>
-									<span className='rounded-full bg-[#A3BC74]' style={{ width: `${ Math.round(used_ratio * 100) }%` }} />
-								</span>
-								<span className='text-xs text-[#A9B6BF]'>
-									{invoice.paid_amount > 0 && invoice.remaining > 0 ? `restante ${ MoneyUtils.formatMoney(invoice.remaining) } · ` : ''}
-									{MoneyUtils.formatMoney(featured_credit.available)} de limite disponível
-								</span>
-							</>
-						) : (
-							<span className='text-xs text-[#A9B6BF]'>{invoiceStatus(invoice)}</span>
-						)}
-					</>
-				) : (
-					<>
-						<Skeleton className='h-3 w-32 bg-sand-light/10' />
-						<Skeleton className='h-8 w-40 bg-sand-light/10' />
-						<Skeleton className='h-3 w-48 bg-sand-light/10' />
-					</>
-				)}
-			</button>
-		);
+			);
+		}
+		const tone = invoice.amount > 0 ? 'text-[#F2D58A]' : 'text-[#A9B6BF]';
+		return <span className={cn('text-xs font-medium', tone)}>{invoiceHint(invoice)}</span>;
 	};
 
-	/* Próximos 7 dias (tablet e desktop, só no mês atual): o que ainda vai sair/entrar das contas. */
-	const renderUpcoming = () => {
-		if (!is_current_month) return null;
+	/*
+	 * Faturas do mês (tablet e desktop), no degradê azul-petróleo do logo: TODOS os cartões com fatura ou compra
+	 * no mês exibido, cada um com o total e a situação. Tocar num cartão abre a aba Cartões nele.
+	 */
+	const renderInvoicesCard = () => {
+		if (invoice_cards.length === 0) return null;
+
+		const total = invoice_cards.reduce((acc, card) => acc + (card.invoice?.amount ?? 0), 0);
+		const open_total = invoice_cards.reduce((acc, card) => acc + (card.invoice?.remaining ?? 0), 0);
+		const all_loaded = invoice_cards.every((card) => card.invoice);
 
 		return (
-			<div className='flex flex-col gap-3 rounded-3xl border border-border bg-card p-5 shadow-[0_1px_2px_rgba(8,36,53,0.05)] dark:shadow-none'>
-				<span className='text-sm font-bold'>Próximos 7 dias</span>
-				{upcoming.length === 0 ? (
-					<span className='text-sm text-muted-foreground'>Nada pendente nos próximos dias.</span>
-				) : upcoming.map((item) => (
-					<span key={item.id} className='flex items-center justify-between gap-3 text-sm'>
-						<span className='truncate'>{item.description}</span>
-						<span className='shrink-0 text-muted-foreground'>{formatShortDate(item.transaction_date)}</span>
-					</span>
-				))}
+			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light'>
+				<span className='flex items-baseline justify-between gap-3'>
+					<span className='text-[13px] font-semibold'>Faturas do mês</span>
+					<span className='text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
+				</span>
+				<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
+				{all_loaded && (
+					open_total > 0
+						? <span className='text-xs font-medium text-[#F2D58A]'>{MoneyUtils.formatMoney(open_total)} em aberto</span>
+						: (
+							<span className='inline-flex items-center gap-1 self-start rounded-full bg-[rgba(125,211,160,0.18)] px-2.5 py-0.5 text-xs font-semibold text-[#9FE0B6]'>
+								<Check className='h-3 w-3' strokeWidth={3} /> Todas pagas
+							</span>
+						)
+				)}
+				<div className='flex flex-col'>
+					{invoice_cards.map((card) => (
+						<button
+							key={card.id}
+							type='button'
+							onClick={() => openCreditSection(card.id)}
+							className='-mx-2 flex items-center justify-between gap-3 rounded-xl px-2 py-2 text-left text-sm transition-colors hover:bg-sand-light/10'
+						>
+							<span className='flex min-w-0 flex-col items-start gap-0.5'>
+								<span className='truncate font-medium'>{card.name}</span>
+								{renderInvoiceStatus(card.invoice)}
+							</span>
+							<span className={cn('shrink-0 font-semibold', card.invoice?.paid && 'text-[#A9B6BF]')}>
+								{card.invoice ? plainMoney(card.invoice.amount) : '…'}
+							</span>
+						</button>
+					))}
+				</div>
 			</div>
 		);
 	};
@@ -683,9 +695,9 @@ const TransactionList = () => {
 			<PopoverTrigger asChild>
 				<button
 					type='button'
-					className='flex h-10 min-w-0 items-center gap-2.5 rounded-full border border-border bg-card pl-1 pr-3.5 text-sm font-semibold'
+					className='flex h-10 min-w-0 items-center gap-2.5 rounded-full border border-border bg-white dark:bg-[rgba(199,195,191,0.05)] pl-1 pr-3.5 text-sm font-semibold'
 				>
-					<Logo variant='icon' size={24} />
+					<Logo variant='icon' size={26} round />
 					<span className='truncate'>{user_wallet.data?.name || 'Carteira'}</span>
 					<ChevronDown className='h-3.5 w-3.5 shrink-0 text-muted-foreground' />
 				</button>
@@ -711,9 +723,28 @@ const TransactionList = () => {
 
 	const short_month_label = format(new Date(month_year.year, month_year.month, 1), 'MMM yyyy', { locale: ptBR }).replace('.', '');
 
+	/*
+	 * Volta pro mês atual. Só aparece quando o mês exibido não é o atual — no mês atual não tem pra onde
+	 * voltar, e um botão sempre visível seria ruído.
+	 */
+	const goToCurrentMonth = () => setMonthYear({ month: now.getMonth(), year: now.getFullYear() });
+	const renderTodayButton = (height: string) => (
+		!is_current_month && (
+			<button
+				type='button'
+				onClick={goToCurrentMonth}
+				aria-label='Voltar para o mês atual'
+				className={cn('flex shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-brand transition-colors hover:bg-accent', 'border border-border bg-white dark:bg-[rgba(199,195,191,0.05)]', height)}
+			>
+				<RotateCcw className='h-3.5 w-3.5' />
+				Hoje
+			</button>
+		)
+	);
+
 	/* Celular: pílula do mês com as setas. */
 	const renderMonthPill = () => (
-		<div className='flex h-10 shrink-0 items-center rounded-full border border-border bg-card'>
+		<div className='flex h-10 shrink-0 items-center rounded-full border border-border bg-white dark:bg-[rgba(199,195,191,0.05)]'>
 			<button type='button' onClick={() => changeMonth(-1)} aria-label='Mês anterior' className='flex h-10 w-9 items-center justify-center text-muted-foreground'>
 				<ChevronLeft className='h-3.5 w-3.5' />
 			</button>
@@ -762,47 +793,18 @@ const TransactionList = () => {
 		</DropdownMenu>
 	);
 
-	/* ----- Desktop: linhas da tabela (Data | Descrição | Conta | Valor) ----- */
-	const renderTableRow = (transaction_item: TTransaction) => {
-		const source_label = transaction_item.source_name || source_names.get(transaction_item.source_id) || '';
-		const deleted_suffix = isDeletedSource(transaction_item) ? ' (excluída)' : '';
-		const source_text = transaction_item.kind === 'transfer'
-			? `${ source_label } → ${ transaction_item.destination_account_name || 'Conta' }`
-			: `${ source_label }${ deleted_suffix }`;
-
-		return (
-			<TableRow key={transaction_item.id} className={cn('hover:bg-accent/40', transaction_item.draft && 'opacity-60')}>
-				<TableCell className='py-3.5 pl-0 align-top capitalize text-muted-foreground'>{formatShortDate(transaction_item.transaction_date)}</TableCell>
-				<TableCell className='py-3.5 align-top'>
-					<div className='flex min-w-0 flex-col'>
-						<span className='flex min-w-0 items-center gap-1.5 font-semibold'>
-							<span className='truncate'>{transaction_item.description}</span>
-							{renderRecurrenceIcon(transaction_item)}
-						</span>
-						{renderMeta(transaction_item, true)}
-					</div>
-				</TableCell>
-				<TableCell className='py-3.5 align-top text-muted-foreground'><span className='line-clamp-2'>{source_text}</span></TableCell>
-				<TableCell className='py-3.5 text-right align-top'>{renderValue(transaction_item, 'font-semibold')}</TableCell>
-				<TableCell className='w-10 py-2.5 pr-0 align-top'>{renderActionsMenu(transaction_item)}</TableCell>
-			</TableRow>
-		);
-	};
-
-	/* ----- Celular/tablet: transação em duas linhas ----- */
-	const renderRow = (transaction_item: TTransaction) => (
+	/* ----- Transação em duas linhas (todos os tamanhos) ----- */
+	const renderRow = (transaction_item: TTransaction, hide_source = false) => (
 		<div
 			key={transaction_item.id}
 			className={cn('flex items-center gap-3 py-2.5', transaction_item.draft && 'opacity-60')}
 		>
-			{renderKindIcon(transaction_item)}
-
 			<div className='flex min-w-0 flex-1 flex-col'>
 				<span className='flex min-w-0 items-center gap-1.5 text-[15px] font-semibold'>
 					<span className='truncate'>{transaction_item.description}</span>
 					{renderRecurrenceIcon(transaction_item)}
 				</span>
-				{renderMeta(transaction_item)}
+				{renderMeta(transaction_item, hide_source)}
 			</div>
 
 			{renderValue(transaction_item, 'shrink-0 text-[15px] font-semibold')}
@@ -821,24 +823,117 @@ const TransactionList = () => {
 			return acc;
 		}, 0);
 
-	const renderDayGroups = (items: TTransaction[]) =>
+	/*
+	 * Dias com mais de uma transação podem ser recolhidos tocando no cabeçalho (o total do dia continua
+	 * visível). `scope` separa a lista de contas da seção de cada cartão, que têm dias iguais.
+	 */
+	const renderDayGroups = (items: TTransaction[], scope: string, hide_source = false) =>
 		groupTransactionsByDay(items).map((group) => {
 			const net = dayNet(group.items);
+			const key = `${ scope }:${ group.label }`;
+			const can_collapse = group.items.length > 1;
+			const is_collapsed = can_collapse && collapsed_days.has(key);
+
+			const header_content = (
+				<>
+					<span className='flex items-center gap-1.5'>
+						{group.label}
+						{can_collapse && (
+							<>
+								<span className='font-medium opacity-70'>· {group.items.length}</span>
+								<ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', is_collapsed && '-rotate-90')} />
+							</>
+						)}
+					</span>
+					{net !== 0 && <span>{signedMoney(net)}</span>}
+				</>
+			);
 
 			return (
 				<section key={group.label} aria-label={group.label}>
-					<div className='flex items-baseline justify-between pb-1.5 pt-4 text-xs font-semibold text-muted-foreground'>
-						<span>{group.label}</span>
-						{net !== 0 && <span>{MoneyUtils.formatSignedMoney(net)}</span>}
+					{can_collapse ? (
+						<button
+							type='button'
+							onClick={() => toggleDay(key)}
+							aria-expanded={!is_collapsed}
+							className='flex w-full items-baseline justify-between pb-1.5 pt-4 text-left text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground'
+						>
+							{header_content}
+						</button>
+					) : (
+						<div className='flex items-baseline justify-between pb-1.5 pt-4 text-xs font-semibold text-muted-foreground'>{header_content}</div>
+					)}
+
+					{/* Altura animada via grid-rows (0fr↔1fr), sem JS */}
+					<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
+						<div className='-mr-2 min-h-0 overflow-hidden pr-2'>
+							{group.items.map((transaction_item) => renderRow(transaction_item, hide_source))}
+						</div>
 					</div>
-					{group.items.map((transaction_item) => renderRow(transaction_item))}
 				</section>
 			);
 		});
 
+	/* Situação da fatura no cabeçalho do cartão (aba Cartões): selo verde "Paga" ou âmbar em aberto. */
+	const renderSectionInvoiceStatus = (invoice?: TCurrentInvoice) => {
+		if (!invoice) return null;
+		if (invoice.paid && invoice.amount > 0) {
+			return (
+				<Badge variant='success' className='px-2 py-0 text-[11px]'>
+					<Check className='h-3 w-3' strokeWidth={3} /> Paga
+				</Badge>
+			);
+		}
+		return <span className={cn('truncate', invoice.amount > 0 && 'font-medium text-warning')}>· {invoiceHint(invoice)}</span>;
+	};
+
+	const renderCreditSection = (section: TCreditSection) => {
+		const is_open = expanded.has(section.id);
+
+		return (
+			<section key={section.id} aria-label={section.name} className='border-b border-border last:border-b-0'>
+				<button
+					type='button'
+					onClick={() => toggleExpanded(section.id)}
+					aria-expanded={is_open}
+					className='flex w-full items-center gap-3 py-3 text-left'
+				>
+					<span className='flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] bg-info-soft text-info'>
+						<CreditCard className='h-[18px] w-[18px]' />
+					</span>
+					<span className='flex min-w-0 flex-1 flex-col'>
+						<span className='truncate text-[15px] font-semibold'>{section.name}</span>
+						<span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
+							<span className='truncate'>{plural(section.items.length, 'lançamento', 'lançamentos')}</span>
+							{renderSectionInvoiceStatus(invoices.get(section.id))}
+						</span>
+					</span>
+					<span className={cn('shrink-0 text-[15px] font-semibold', invoices.get(section.id)?.paid && 'text-muted-foreground')}>
+						{invoices.get(section.id) ? plainMoney(invoices.get(section.id)!.amount) : '…'}
+					</span>
+					<ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300', !is_open && '-rotate-90')} />
+				</button>
+
+				{/* Altura animada via grid-rows (0fr↔1fr), sem JS */}
+				<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+					<div className='overflow-hidden'>
+						<div className='pb-2 pl-[54px]'>{renderDayGroups(section.items, section.id, true)}</div>
+					</div>
+				</div>
+			</section>
+		);
+	};
+
+	const renderTabsRow = () => (
+		<>
+			{renderTabs()}
+			<span className='text-xs text-muted-foreground'>{plural(tab_txs.length, 'transação', 'transações')}</span>
+		</>
+	);
+
 	const renderTabs = () => (
 		<SegmentedControl
-			className='w-[200px] shrink-0'
+			className='w-[180px] shrink-0'
 			segments={[ { value: 'accounts', label: 'Contas' }, { value: 'credits', label: 'Cartões' } ]}
 			value={list_tab}
 			onChange={(value) => setListTab(value as TListTab)}
@@ -848,14 +943,22 @@ const TransactionList = () => {
 	const tab_empty_text = list_tab === 'accounts' ? 'Nenhuma transação em contas neste mês' : 'Nenhuma compra no cartão neste mês';
 
 	const month_label = format(new Date(month_year.year, month_year.month, 1), 'MMMM yyyy', { locale: ptBR });
-	const show_side_cards = Boolean(featured_credit) || is_current_month;
+	const show_side_cards = invoice_cards.length > 0;
 
 	return (
-		<div className='flex h-full flex-col gap-4 md:gap-5'>
-			{/* 1a. Celular: pílula da carteira + pílula do mês */}
-			<div className='flex items-center justify-between gap-2 md:hidden'>
+		/*
+		 * Celular: a Home vai até o rodapé da tela e a lista passa POR TRÁS da barra flutuante de vidro. O
+		 * template reserva `--bottom-nav-space` como padding; aqui a altura soma esse padding de volta e o
+		 * respiro vai pro fim da área rolável (a última linha ainda para acima da barra).
+		 */
+		<div className='flex h-[calc(100%+var(--bottom-nav-space))] flex-col gap-4 md:h-full md:gap-5'>
+			{/* 1a. Celular: pílula da carteira + (fora do mês atual) "Hoje" + pílula do mês */}
+			<div className='flex items-center gap-2 md:hidden'>
 				{renderWalletPill()}
-				{renderMonthPill()}
+				<div className='ml-auto flex shrink-0 items-center gap-2'>
+					{renderTodayButton('h-10')}
+					{renderMonthPill()}
+				</div>
 			</div>
 
 			{/* 1b. Tablet e desktop: carteira (só no tablet — no desktop está na barra lateral) + mês + Nova transação */}
@@ -870,6 +973,7 @@ const TransactionList = () => {
 						<Button type='button' variant='outline' size='icon' className='h-[34px] w-[34px] bg-card text-muted-foreground' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
 							<ChevronRight className='h-3.5 w-3.5' />
 						</Button>
+						{renderTodayButton('h-[34px]')}
 					</div>
 				</div>
 
@@ -880,30 +984,37 @@ const TransactionList = () => {
 			</header>
 
 			{/* 2. Destaque do mês (só contas) + Entrou/Saiu/Pendente ao lado no desktop */}
-			<section className='grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]'>
+			<section className='grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.7fr)_repeat(3,minmax(0,1fr))]'>
 				{renderHeroCard()}
 				<div className='hidden xl:contents'>
-					{renderStatCard('Entrou', `+ ${ MoneyUtils.formatMoney(summary.deposit) }`, plural(summary.deposit_count, 'lançamento', 'lançamentos'), 'success')}
-					{renderStatCard('Saiu', `− ${ MoneyUtils.formatMoney(summary.withdraw) }`, plural(summary.withdraw_count, 'lançamento', 'lançamentos'), 'neutral')}
+					{renderStatCard('Entrou', signedMoney(summary.deposit), plural(summary.deposit_count, 'lançamento', 'lançamentos'), 'success')}
+					{renderStatCard('Saiu', signedMoney(-summary.withdraw), plural(summary.withdraw_count, 'lançamento', 'lançamentos'), 'neutral')}
 					{renderStatCard(
 						'Pendente',
-						MoneyUtils.formatSignedMoney(summary.pending_net),
+						signedMoney(summary.pending_net),
 						summary.pending_count > 0 ? `${ summary.pending_count } até o fim do mês` : 'nada pendente',
 						'warning',
 					)}
 				</div>
 			</section>
 
-			{/* 3. Tablet: fatura + próximos 7 dias lado a lado */}
+			{/* 3. Tablet: faturas do mês */}
 			{show_side_cards && (
-				<section className='hidden gap-4 md:grid md:grid-cols-2 xl:hidden'>
-					{renderInvoiceCard()}
-					{renderUpcoming()}
+				<section className='hidden md:block xl:hidden'>
+					{renderInvoicesCard()}
 				</section>
 			)}
 
+			{/*
+			 * Celular: as abas ficam FORA da área rolável — cabeçalho, destaque e abas fixos; só a lista rola.
+			 * (No tablet/desktop elas moram dentro do cartão da lista, presas no topo com sticky.)
+			 */}
+			{!is_loading && has_sources && (
+				<div className='-mb-2 flex items-center justify-between gap-3 md:hidden'>{renderTabsRow()}</div>
+			)}
+
 			{/* 4. Transações */}
-			<div className='min-h-0 flex-1 overflow-y-auto'>
+			<div className='no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--bottom-nav-space)] md:overflow-hidden md:pb-0'>
 				{is_loading && (
 					<div className='flex flex-col gap-2'>
 						{Array.from({ length: 6 }).map((_, index) => (
@@ -931,76 +1042,52 @@ const TransactionList = () => {
 				)}
 
 				{!is_loading && has_sources && (
-					<div className='grid gap-4 pb-2 xl:grid-cols-[minmax(0,1fr)_360px]'>
-						<div className='flex flex-col md:rounded-3xl md:border md:border-border md:bg-card md:px-5 md:pb-2 md:pt-4 md:shadow-[0_1px_2px_rgba(8,36,53,0.05)] md:dark:shadow-none xl:px-6'>
-							<div className='flex items-center justify-between gap-3'>
-								{renderTabs()}
-								<span className='text-xs text-muted-foreground'>{plural(tab_txs.length, 'transação', 'transações')}</span>
+					<div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4 md:h-full', show_side_cards && 'xl:grid-cols-[minmax(0,1fr)_360px]')}>
+						<div className='flex flex-col md:min-h-0 md:rounded-3xl md:px-5 md:pt-4 xl:px-[22px] md:border md:border-border md:bg-white md:shadow-[0_1px_2px_rgba(8,36,53,0.05)] md:dark:bg-[rgba(199,195,191,0.04)] md:dark:shadow-none'>
+							{/* Tablet/desktop: abas fixas no topo do cartão; só o corpo dele rola */}
+							<div className='hidden shrink-0 items-center justify-between gap-3 pb-2 md:flex'>
+								{renderTabsRow()}
 							</div>
 
-							{!has_transactions && (
-								<div className='flex flex-col items-center gap-3 px-6 py-12 text-center'>
-									<span className='flex h-14 w-14 items-center justify-center rounded-2xl bg-accent'>
-										<Receipt className='h-6 w-6 text-muted-foreground' />
-									</span>
-									<div className='flex flex-col gap-1'>
-										<span className='font-semibold'>Nenhuma transação neste mês</span>
-										<span className='text-sm text-muted-foreground'>Registre uma entrada, saída ou transferência pra começar</span>
-									</div>
-									<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id}>
-										<Plus className='h-4 w-4' />
+							<div className='no-scrollbar md:min-h-0 md:flex-1 md:overflow-y-auto md:pb-2'>
+
+								{!has_transactions && (
+									<div className='flex flex-col items-center gap-3 px-6 py-12 text-center'>
+										<span className='flex h-14 w-14 items-center justify-center rounded-2xl bg-accent'>
+											<Receipt className='h-6 w-6 text-muted-foreground' />
+										</span>
+										<div className='flex flex-col gap-1'>
+											<span className='font-semibold'>Nenhuma transação neste mês</span>
+											<span className='text-sm text-muted-foreground'>Registre uma entrada, saída ou transferência pra começar</span>
+										</div>
+										<Button type='button' variant='secondary' onClick={() => setIsNewTransactionOpen(true)} disabled={!wallet_id}>
+											<Plus className='h-4 w-4' />
 										Adicionar transação
-									</Button>
-								</div>
-							)}
-
-							{has_transactions && tab_txs.length === 0 && (
-								<p className='py-10 text-center text-sm text-muted-foreground'>{tab_empty_text}</p>
-							)}
-
-							{has_transactions && tab_txs.length > 0 && (
-								<>
-									{/* Celular e tablet: agrupado por dia */}
-									<div className='xl:hidden'>{renderDayGroups(tab_txs)}</div>
-
-									{/* Desktop: tabela ordenável */}
-									<div className='hidden pt-2 xl:block'>
-										<Table>
-											<TableHeader>
-												<TableRow className='hover:bg-transparent'>
-													<TableHead className='w-24 pl-0'>
-														<button type='button' onClick={() => toggleSort('transaction_date')} className='flex items-center gap-1 text-xs font-semibold hover:text-foreground'>
-															Data {renderSortIcon('transaction_date')}
-														</button>
-													</TableHead>
-													<TableHead>
-														<button type='button' onClick={() => toggleSort('description')} className='flex items-center gap-1 text-xs font-semibold hover:text-foreground'>
-															Descrição {renderSortIcon('description')}
-														</button>
-													</TableHead>
-													<TableHead className='w-44 text-xs font-semibold'>{list_tab === 'accounts' ? 'Conta' : 'Cartão'}</TableHead>
-													<TableHead className='w-32 text-right'>
-														<button type='button' onClick={() => toggleSort('value')} className='ml-auto flex items-center gap-1 text-xs font-semibold hover:text-foreground'>
-															Valor {renderSortIcon('value')}
-														</button>
-													</TableHead>
-													<TableHead className='w-10 pr-0' />
-												</TableRow>
-											</TableHeader>
-											<TableBody>
-												{sortTransactions(tab_txs, sort).map((transaction_item) => renderTableRow(transaction_item))}
-											</TableBody>
-										</Table>
+										</Button>
 									</div>
-								</>
-							)}
+								)}
+
+								{has_transactions && tab_txs.length === 0 && (
+									<p className='py-10 text-center text-sm text-muted-foreground'>{tab_empty_text}</p>
+								)}
+
+								{has_transactions && tab_txs.length > 0 && list_tab === 'credits' && (
+									<div className='flex flex-col pt-1'>{credit_sections.map(renderCreditSection)}</div>
+								)}
+
+								{has_transactions && tab_txs.length > 0 && list_tab === 'accounts' && (
+									<>
+										{/* Agrupado por dia em todos os tamanhos (no desktop, dentro do cartão com as abas) */}
+										{renderDayGroups(tab_txs, 'accounts')}
+									</>
+								)}
+							</div>
 						</div>
 
-						{/* Desktop: fatura + próximos 7 dias na coluna da direita */}
+						{/* Desktop: faturas do mês na coluna da direita */}
 						{show_side_cards && (
-							<div className='hidden flex-col gap-4 xl:flex'>
-								{renderInvoiceCard()}
-								{renderUpcoming()}
+							<div className='no-scrollbar hidden min-h-0 flex-col gap-4 overflow-y-auto xl:flex'>
+								{renderInvoicesCard()}
 							</div>
 						)}
 					</div>

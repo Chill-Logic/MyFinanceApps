@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronsUpDown } from 'lucide-react';
 
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 
@@ -29,8 +29,7 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 	if (isLoading) {
 		return (
 			<div className='flex flex-col gap-1'>
-				<span className='px-3 text-xs font-medium text-muted-foreground'>Visualizando a carteira</span>
-				<Skeleton className='h-[54px] w-full rounded-xl' />
+				<Skeleton className='h-[50px] w-full rounded-xl' />
 			</div>
 		);
 	}
@@ -54,13 +53,14 @@ const WalletSwitcher = ({ onAfterSelect }: IProps) => {
 			<button
 				type='button'
 				onClick={() => setIsOpen((prev) => !prev)}
-				className='flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5 transition-colors hover:bg-accent'
+				aria-expanded={is_open}
+				className='flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-1.5 transition-colors hover:bg-accent dark:bg-[rgba(199,195,191,0.04)]'
 			>
-				<div className='min-w-0 flex-1 text-left'>
-					<p className='text-xs text-muted-foreground'>Visualizando a carteira</p>
+				<div className='min-w-0 flex-1 text-left leading-tight'>
+					<p className='text-[11px] font-medium text-muted-foreground'>Carteira</p>
 					<p className='truncate text-sm font-semibold text-foreground'>{selected_label}</p>
 				</div>
-				<ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', is_open && 'rotate-180')} />
+				<ChevronsUpDown className='h-4 w-4 shrink-0 text-muted-foreground' />
 			</button>
 
 			<div className={cn('grid transition-[grid-template-rows] duration-200 ease-out', is_open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
