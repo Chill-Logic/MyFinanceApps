@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
@@ -37,6 +37,8 @@ import { useListTransactions } from '@/hooks/api/transactions/useListTransaction
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
+import useMediaQuery from '@/hooks/useMediaQuery';
+import useMonthTransition from '@/hooks/useMonthTransition';
 import useToast from '@/hooks/useToast';
 
 import { useMonthSelection } from '@/context/monthSelection';
@@ -317,10 +319,35 @@ const TransactionList = () => {
 	const has_transactions = account_txs.length + credit_txs.length > 0;
 	const has_sources = accounts.length > 0 || credit_balances.length > 0;
 
+	/*
+	 * Forma funcional de propósito: o mês novo sai do estado MAIS RECENTE, nunca de uma closure antiga. No app antigo
+	 * o gesto guardava o mês da primeira renderização e "pulava" meses ao ir e voltar várias vezes.
+	 */
 	const changeMonth = (offset: number) => {
-		const date = new Date(month_year.year, month_year.month + offset, 1);
-		setMonthYear({ month: date.getMonth(), year: date.getFullYear() });
+		setMonthYear((previous) => {
+			const date = new Date(previous.year, previous.month + offset, 1);
+			return { month: date.getMonth(), year: date.getFullYear() };
+		});
 	};
+
+	/*
+	 * Troca de mês com efeito líquido (hooks/useMonthTransition): setas e "voltar ao mês atual" em qualquer tamanho;
+	 * arrastar a lista pros lados no celular e nos tablets. `jump_to` = destino que não é ±1 (o mês atual).
+	 */
+	const is_touch_layout = useMediaQuery('(max-width: 1279px)');
+	const jump_to = useRef<{ month: number; year: number } | null>(null);
+	const month_transition = useMonthTransition<HTMLDivElement>({
+		gesture: is_touch_layout,
+		onChange: (direction) => {
+			if (jump_to.current) {
+				setMonthYear(jump_to.current);
+				jump_to.current = null;
+			} else {
+				changeMonth(direction);
+			}
+		},
+	});
+	const stepMonth = (direction: 1 | -1) => month_transition.play(direction);
 
 	const isFormOpen = is_new_transaction_open || Boolean(editing_transaction);
 
@@ -798,7 +825,12 @@ const TransactionList = () => {
 	 * Volta pro mês atual. Só aparece quando o mês exibido não é o atual — no mês atual não tem pra onde
 	 * voltar, e um botão sempre visível seria ruído.
 	 */
-	const goToCurrentMonth = () => setMonthYear({ month: now.getMonth(), year: now.getFullYear() });
+	const goToCurrentMonth = () => {
+		const target = { month: now.getMonth(), year: now.getFullYear() };
+		const is_future = month_year.year * 12 + month_year.month > target.year * 12 + target.month;
+		jump_to.current = target;
+		month_transition.play(is_future ? -1 : 1);
+	};
 	const renderTodayButton = (height: string) => (
 		!is_current_month && (
 			<button
@@ -816,11 +848,11 @@ const TransactionList = () => {
 	/* Celular: pílula do mês com as setas. */
 	const renderMonthPill = () => (
 		<div className='flex h-10 shrink-0 items-center rounded-full border border-border bg-white dark:bg-[rgba(199,195,191,0.05)]'>
-			<button type='button' onClick={() => changeMonth(-1)} aria-label='Mês anterior' className='flex h-10 w-9 items-center justify-center text-muted-foreground'>
+			<button type='button' onClick={() => stepMonth(-1)} aria-label='Mês anterior' className='flex h-10 w-9 items-center justify-center text-muted-foreground'>
 				<ChevronLeft className='h-3.5 w-3.5' />
 			</button>
 			<span className='text-[13px] font-semibold capitalize'>{short_month_label}</span>
-			<button type='button' onClick={() => changeMonth(1)} aria-label='Próximo mês' className='flex h-10 w-9 items-center justify-center text-muted-foreground'>
+			<button type='button' onClick={() => stepMonth(1)} aria-label='Próximo mês' className='flex h-10 w-9 items-center justify-center text-muted-foreground'>
 				<ChevronRight className='h-3.5 w-3.5' />
 			</button>
 		</div>
@@ -1078,7 +1110,7 @@ const TransactionList = () => {
 		 * template reserva `--bottom-nav-space` como padding; aqui a altura soma esse padding de volta e o
 		 * respiro vai pro fim da área rolável (a última linha ainda para acima da barra).
 		 */
-		<div className='flex h-[calc(100%+var(--bottom-nav-space))] flex-col gap-4 md:h-full md:gap-5'>
+		<div className='flex h-[calc(100%+var(--bottom-nav-space))] flex-col gap-4 overflow-x-clip md:h-full md:gap-5'>
 			{/* 1a. Celular: pílula da carteira + (fora do mês atual) "Hoje" + pílula do mês */}
 			<div className='flex items-center gap-2 md:hidden'>
 				{renderWalletPill()}
@@ -1094,10 +1126,10 @@ const TransactionList = () => {
 					{user_wallet.data?.name && <span className='truncate text-[13px] font-medium text-muted-foreground xl:hidden'>{user_wallet.data.name}</span>}
 					<div className='flex items-center gap-2.5'>
 						<h1 className='text-2xl font-bold capitalize tracking-[-0.03em] xl:text-[26px]'>{month_label}</h1>
-						<Button type='button' variant='outline' size='icon' className='h-[34px] w-[34px] bg-card text-muted-foreground' onClick={() => changeMonth(-1)} aria-label='Mês anterior'>
+						<Button type='button' variant='outline' size='icon' className='h-[34px] w-[34px] bg-card text-muted-foreground' onClick={() => stepMonth(-1)} aria-label='Mês anterior'>
 							<ChevronLeft className='h-3.5 w-3.5' />
 						</Button>
-						<Button type='button' variant='outline' size='icon' className='h-[34px] w-[34px] bg-card text-muted-foreground' onClick={() => changeMonth(1)} aria-label='Próximo mês'>
+						<Button type='button' variant='outline' size='icon' className='h-[34px] w-[34px] bg-card text-muted-foreground' onClick={() => stepMonth(1)} aria-label='Próximo mês'>
 							<ChevronRight className='h-3.5 w-3.5' />
 						</Button>
 						{renderTodayButton('h-[34px]')}
@@ -1144,7 +1176,7 @@ const TransactionList = () => {
 			)}
 
 			{/* 4. Transações */}
-			<div className='no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--bottom-nav-space)] md:overflow-hidden md:pb-0'>
+			<div ref={month_transition.ref} className='no-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--bottom-nav-space)] [will-change:transform] md:overflow-hidden md:pb-0'>
 				{is_loading && (
 					<div className='flex flex-col gap-2'>
 						{Array.from({ length: 6 }).map((_, index) => (

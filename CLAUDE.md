@@ -1057,6 +1057,15 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
     Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
     O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
+  - **Troca de mês com efeito líquido (`hooks/useMonthTransition`, 2026-11-22)**: setas e "Hoje" em qualquer tamanho;
+    arrastar a lista pros lados só no celular e nos tablets (até 1279px — só eventos de toque). O conteúdo sai pro lado
+    ondulando (filtro SVG `#month-liquid`: turbulência + deslocamento, criado uma vez no `<body>`, ligado só durante a
+    animação) e esticando de leve, o mês troca e o novo entra pelo outro lado com quique. O gesto só é assumido quando
+    é claramente horizontal. Distorção forte (escala ~46, frequência alta) rasgava as bordas dos cartões e parecia
+    defeito — ficou em escala 26 e ondas largas. Os cartões de resumo do topo não animam (trocam o valor na hora).
+    Contagem exata: o `changeMonth` usa a forma funcional do `setMonthYear` (nunca o mês de uma closure — no app
+    antigo isso fazia o gesto "pular" meses ao ir e voltar) e um clique/gesto DURANTE a animação troca o mês na hora em
+    vez de ser ignorado. Testado: +3/−4/+1, 4 arrastos em 0,4s, 5 cliques em 0,3s — cada pedido anda exatamente um mês.
   - **Mesma lista agrupada por dia em todos os tamanhos (redesign 2026-11)** — no desktop ela fica dentro
     do cartão com as abas Contas/Cartões e o contador, e só o corpo do cartão rola. Já existiu uma tabela
     no desktop (Data | Descrição | Conta | Valor, ordenável por coluna); o dono achou esquisita e pediu a
