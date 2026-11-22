@@ -1140,6 +1140,14 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     pé; desktop (≥1280) = campos digitados (Valor/Descrição) e cartões em grade, com Cancelar/Salvar no rodapé.
     O chip Repetir é quem liga/desliga; o painel não tem
     "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
+    **Duplicar = este mesmo formulário** (`duplicateFrom`, 2026-11-22): abre como NOVA transação já preenchida com a
+    original (valor, tipo, origem, cartão, destino, rascunho, responsável), data +1 mês com o MESMO horário da
+    original (se ela estiver em 00:00 — transação antiga, de antes do campo de hora — usa o horário de agora;
+    isso substitui a regra antiga de "a cópia sempre nasce com a hora de agora", da seção de 2026-09-06),
+    pendente, fatura automática, sem repetir — tudo editável, título "Duplicar transação", botão "Duplicar saída",
+    sem foco inicial (o ajuste comum é a data). Já existiu uma janela própria (`TransactionDuplicateDialog`, apagada)
+    com valor/tipo/conta travados e só descrição e datas editáveis; o dono achou feia e destoante do formulário.
+    Menções a ela nas seções antigas deste arquivo são históricas.
   - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
     `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
     usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
