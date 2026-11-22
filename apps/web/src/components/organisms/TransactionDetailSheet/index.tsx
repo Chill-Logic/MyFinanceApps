@@ -158,12 +158,12 @@ const TransactionDetailSheet = ({
 				className={cn(
 					'flex flex-col gap-4',
 					/* Celular: tela cheia */
-					'max-md:inset-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-5',
+					'max-md:inset-0 max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-5 max-md:pt-[calc(1.25rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))]',
 					/* Tablet/desktop: painel flutuante à direita, deslizando da borda */
 					'md:bottom-3 md:left-auto md:right-3 md:top-3 md:h-auto md:max-h-none md:w-[460px] md:max-w-none md:translate-x-0 md:translate-y-0 md:rounded-[28px] md:p-[22px]',
 					'md:shadow-[-20px_0_60px_rgba(0,0,0,0.30)] md:data-[state=closed]:slide-out-to-right-10 md:data-[state=open]:slide-in-from-right-10 md:data-[state=closed]:zoom-out-100 md:data-[state=open]:zoom-in-100',
 				)}
-				closeClassName='max-md:left-5 max-md:right-auto max-md:top-5 max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.04)] md:right-[22px] md:top-[22px]'
+				closeClassName='max-md:left-5 max-md:right-auto max-md:top-[calc(1.25rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.04)] md:right-[22px] md:top-[22px]'
 			>
 				{/* Cabeçalho: título (tablet/desktop) e ações. No celular o X fica à esquerda, as ações à direita. */}
 				<header className='flex items-center justify-between gap-3 max-md:pl-12 md:pr-11'>
