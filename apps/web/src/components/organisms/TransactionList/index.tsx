@@ -50,6 +50,7 @@ import DateTimeField from '@/components/molecules/DateTimeField';
 import SegmentedControl from '@/components/molecules/SegmentedControl';
 import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
 import MatchReviewDialog, { type TMatchReviewSource } from '@/components/organisms/MatchReviewDialog';
+import TransactionDetailSheet from '@/components/organisms/TransactionDetailSheet';
 import TransactionDuplicateDialog from '@/components/organisms/TransactionDuplicateDialog';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
 import {
@@ -198,6 +199,8 @@ const TransactionList = () => {
 	const [ reviewing_match_source, setReviewingMatchSource ] = useState<TMatchReviewSource | null>(null);
 	/* Transação sendo efetivada no modal de "Efetivar pagamento" + a data/hora escolhida. */
 	const [ settling_transaction, setSettlingTransaction ] = useState<TTransaction | null>(null);
+	/* Detalhe aberto: guarda o id e lê a transação da lista atual (assim reflete efetivar/desfazer na hora). */
+	const [ detail_id, setDetailId ] = useState<string | null>(null);
 	const [ settle_date, setSettleDate ] = useState<Date>(new Date());
 	/* Aba da lista: contas (fluxo de caixa) ou cartões (compras das faturas do mês). */
 	const [ list_tab, setListTab ] = useState<TListTab>('accounts');
@@ -892,10 +895,63 @@ const TransactionList = () => {
 	);
 
 	/* ----- Transação em duas linhas (todos os tamanhos) ----- */
+	/*
+	 * Detalhe da transação (painel/tela cheia). As ações são as mesmas do "⋮"; editar, duplicar e excluir
+	 * fecham o Detalhe antes de abrir o diálogo deles. Se a transação some da lista (excluída), ele fecha.
+	 */
+	const detail_transaction = detail_id ? [ ...account_txs, ...credit_txs ].find((item) => item.id === detail_id) ?? null : null;
+	const renderDetail = () => {
+		const item = detail_transaction;
+		const source_label = item ? (item.source_name || source_names.get(item.source_id) || '') : '';
+		const source_text = (() => {
+			if (!item) return '';
+			if (item.kind === 'transfer') return `${ source_label } → ${ item.destination_account_name || 'Conta' }`;
+			return isDeletedSource(item) ? `${ source_label } (excluída)` : source_label;
+		})();
+		const closeThen = (action: ()=> void) => () => {
+			setDetailId(null);
+			action();
+		};
+
+		return (
+			<TransactionDetailSheet
+				transaction={item}
+				open={Boolean(item)}
+				onOpenChange={(open) => !open && setDetailId(null)}
+				direction={item ? directionOf(item) : 'out'}
+				sourceLabel={source_text}
+				onEdit={item && item.kind !== 'transfer' ? closeThen(() => setEditingTransaction(item)) : undefined}
+				onDuplicate={closeThen(() => item && setDuplicatingTransaction(item))}
+				onDelete={closeThen(() => item && setDeletingTransaction(item))}
+				onSettle={() => item && openSettle(item)}
+				onUnsettle={() => item && handleUnsettle(item)}
+				onReviewMatch={item ? closeThen(() => setReviewingMatchSource({
+					type: item.source_type,
+					id: item.source_id,
+					name: source_label || (item.source_type === 'CreditBalance' ? 'Crédito' : 'Conta'),
+				})) : undefined}
+			/>
+		);
+	};
+
+	/* Tocar na linha abre o Detalhe; o "⋮" continua com as ações rápidas (e não abre o Detalhe). */
 	const renderRow = (transaction_item: TTransaction, hide_source = false) => (
 		<div
 			key={transaction_item.id}
-			className={cn('flex items-center gap-3 py-2.5', transaction_item.draft && 'opacity-60')}
+			role='button'
+			tabIndex={0}
+			aria-label={`Ver ${ transaction_item.description }`}
+			onClick={() => setDetailId(transaction_item.id)}
+			onKeyDown={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					setDetailId(transaction_item.id);
+				}
+			}}
+			className={cn(
+				'-mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none active:bg-accent/70',
+				transaction_item.draft && 'opacity-60',
+			)}
 		>
 			<div className='flex min-w-0 flex-1 flex-col'>
 				<span className='flex min-w-0 items-center gap-1.5 text-[15px] font-semibold'>
@@ -907,7 +963,10 @@ const TransactionList = () => {
 
 			{renderValue(transaction_item, 'shrink-0 text-[15px] font-semibold')}
 
-			<div className='shrink-0'>{renderActionsMenu(transaction_item)}</div>
+			{/* `stopPropagation`: o menu (e os itens dele, que estão num portal mas na mesma árvore React) não abre o Detalhe. */}
+			<div className='shrink-0' onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+				{renderActionsMenu(transaction_item)}
+			</div>
 		</div>
 	);
 
@@ -1194,6 +1253,8 @@ const TransactionList = () => {
 					</div>
 				)}
 			</div>
+
+			{renderDetail()}
 
 			<MatchReviewDialog
 				open={Boolean(reviewing_match_source)}

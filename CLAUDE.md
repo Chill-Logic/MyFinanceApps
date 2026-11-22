@@ -959,6 +959,13 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
+  - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
+    painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
+    MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
+    o `detail_id` e relê a transação dos dados atuais — efetivar/desfazer aparece na hora, e se ela some
+    (excluída) o painel fecha. O "⋮" da linha tem `stopPropagation` (os itens do menu estão num portal, mas
+    na mesma árvore React, e o clique subiria até a linha). Celular usa linha do tempo (Criada → Vence →
+    Pago); tablet/desktop usam grade de fatos + "Criada em · editada em" (`created_at`/`user_edited_at`).
   - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
     Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
     O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
