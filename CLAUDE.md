@@ -982,6 +982,18 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
+  - **Bancos (redesign 2026-11, `BankConnectionList` + página `bank-connection`)**: cartão por conexão com status em
+    palavras (`BankConnectionUtils.statusView`: "Em dia", "Precisa entrar de novo"...) e "atualizado há X" pelo
+    `last_imported_at` mais recente dos vínculos (`lastUpdatedAt`) — o backend NÃO grava `last_synced_at`, por isso
+    antes aparecia sempre "Ainda não atualizada". Os vínculos de cada conexão vêm por `useQueries` com a mesma chave
+    do `useIndexBankAccountLinks` (cache compartilhado com "Contas do banco"). "Para conferir" lista contas/cartões
+    com `pending_match_reviews_count > 0` e abre o `MatchReviewDialog`. "Conectar banco" fica no cabeçalho da página
+    (incrementa `connectRequest`); o widget da Pluggy mora em `hooks/useBankConnectWidget` (lista e detalhe usam).
+    Detalhe: cartão marinho da conexão, um card por vínculo (sem destino = três opções à vista; ignorado = recolhido
+    com "Mudar"; cartão mostra crédito disponível/fechamento/vencimento do `external_data`, em REAIS) e, do tablet
+    deitado em diante, o histórico do card selecionado num painel ao lado (`BankImportHistoryList`, `compact` no
+    tablet); abaixo disso, o histórico abre em folha. Número de cartão sai mascarado ("•••• 4821"); de conta, como o
+    banco manda. Peças comuns em `util/bankView.ts`, logo em `molecules/ConnectorLogo` (iniciais na cor da marca).
   - **Autenticação (redesign 2026-11, `templates/Auth` + `organisms/LiquidBrand` + `molecules/AuthForm`)**: fundo
     líquido marinho/petróleo/oliva com o losango do logo em "vidro", desenhados por UM shader WebGL2
     (`LiquidBrand/shader.ts`, 3D simulado — sem Three.js, de propósito, pra pesar poucos KB). O shader mede a cada quadro

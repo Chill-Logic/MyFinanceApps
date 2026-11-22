@@ -8,6 +8,7 @@ import { useUndoBankImport } from '@/hooks/api/bank-imports/useUndoBankImport';
 import useToast from '@/hooks/useToast';
 
 import { cn } from '@/lib/utils';
+import { STATUS_TEXT } from '@/util/bankView';
 
 import Button from '@/components/atoms/Button';
 import {
@@ -23,27 +24,32 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface IProps {
-	open: boolean;
-	onOpenChange: (open: boolean)=> void;
-	link: TBankAccountLink | null;
-}
+const TONE = { success: 'success', warning: 'warning', error: 'error', neutral: 'neutral' } as const;
 
-const TONE_CLASS = {
-	success: 'text-success',
-	warning: 'text-warning',
-	error: 'text-destructive',
-	neutral: 'text-muted-foreground',
-} as const;
+/* "Automática · atualizar" / "Manual · não sobrescrever · 02/11/2025 a 02/11/2026". */
+const detailLine = (bank_import: TBankImport) => {
+	const parts = [ BankConnectionUtils.importTriggerLabel(bank_import.trigger), BankConnectionUtils.importModeLabel(bank_import.mode).toLowerCase() ];
+	if (bank_import.trigger === 'manual') parts.push(BankConnectionUtils.importPeriodLabel(bank_import));
+	return parts.join(' · ');
+};
 
-const BankImportHistoryDialog = ({ open, onOpenChange, link }: IProps) => {
+const resultLine = (bank_import: TBankImport) => {
+	if (bank_import.status === 'failed') return bank_import.error_message || 'A importação falhou.';
+	if (bank_import.status === 'undone' && bank_import.undone_at) {
+		return `Desfeita em ${ DateUtils.formateTo(bank_import.undone_at, 'dd/MM \'às\' HH:mm') }`;
+	}
+	return BankConnectionUtils.shortImportSummary(bank_import);
+};
+
+/*
+ * Histórico de importações de uma conta/cartão do banco (redesign 2026-11): mais recente primeiro, com status,
+ * tipo (manual/automática), modo, período e resultado. "Desfazer" fica desabilitado com o motivo quando a API
+ * bloqueia (`undo_blocker`). Usado no painel lateral de "Contas do banco" e dentro do diálogo/folha abaixo.
+ */
+export const BankImportHistoryList = ({ link, enabled = true, compact = false }: { link: TBankAccountLink; enabled?: boolean; compact?: boolean }) => {
 	const { toast } = useToast();
-	const { data, isLoading } = useIndexBankImports({
-		enabled: open && Boolean(link),
-		params: { bank_account_link_id: link?.id || '' },
-	});
+	const { data, isLoading } = useIndexBankImports({ enabled, params: { bank_account_link_id: link.id } });
 	const { mutate: undoMutation, isPending: is_undo_pending } = useUndoBankImport();
-
 	const [ undoing_import, setUndoingImport ] = useState<TBankImport | null>(null);
 
 	const imports = data?.data || [];
@@ -66,82 +72,56 @@ const BankImportHistoryDialog = ({ open, onOpenChange, link }: IProps) => {
 
 	return (
 		<>
-			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogContent className='max-h-[85vh] overflow-y-auto'>
-					<DialogHeader>
-						<DialogTitle>Histórico {link?.name ? `· ${ link.name }` : ''}</DialogTitle>
-						<DialogDescription>Importações manuais e automáticas desta conta, da mais recente para a mais antiga.</DialogDescription>
-					</DialogHeader>
+			{isLoading && (
+				<div className='flex flex-col gap-2'>
+					{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className='h-20 w-full rounded-2xl' />)}
+				</div>
+			)}
 
-					{isLoading && (
-						<div className='flex flex-col gap-2'>
-							{Array.from({ length: 3 }).map((_, index) => (
-								<Skeleton key={index} className='h-20 w-full' />
-							))}
-						</div>
-					)}
+			{!isLoading && imports.length === 0 && (
+				<div className='flex flex-col items-center gap-2 py-8 text-center'>
+					<History className='size-8 text-muted-foreground' />
+					<span className='font-semibold'>Nenhuma importação ainda</span>
+					<span className='text-sm text-muted-foreground'>Importe um período ou ligue a sincronização automática.</span>
+				</div>
+			)}
 
-					{!isLoading && imports.length === 0 && (
-						<div className='flex flex-col items-center gap-2 py-8 text-center'>
-							<History className='h-10 w-10 text-muted-foreground' />
-							<span className='font-medium'>Nenhuma importação ainda</span>
-						</div>
-					)}
-
-					{!isLoading && imports.length > 0 && (
-						<ul className='flex flex-col gap-2'>
-							{imports.map((bank_import) => {
-								const status = BankConnectionUtils.importStatus(bank_import.status);
-
-								return (
-									<li key={bank_import.id} className='flex flex-col gap-2 rounded-lg border border-border p-3'>
-										<div className='flex items-start justify-between gap-3'>
-											<div className='min-w-0'>
-												<p className='text-sm font-medium text-foreground'>
-													{DateUtils.formateTo(bank_import.created_at, 'dd/MM/yyyy \'às\' HH:mm')}
-												</p>
-												<p className='text-xs text-muted-foreground'>
-													{BankConnectionUtils.importPeriodLabel(bank_import)}
-													{' · '}
-													{BankConnectionUtils.importModeLabel(bank_import.mode)}
-													{' · '}
-													{BankConnectionUtils.importTriggerLabel(bank_import.trigger)}
-												</p>
-											</div>
-											<span className={cn('shrink-0 text-xs font-semibold', TONE_CLASS[status.tone])}>{status.label}</span>
-										</div>
-
-										<p className='text-xs text-muted-foreground'>
-											{bank_import.status === 'failed'
-												? bank_import.error_message || 'A importação falhou.'
-												: BankConnectionUtils.importSummaryMessage([ bank_import ])}
-										</p>
-
-										{bank_import.status === 'completed' && (
-											<div className='flex flex-col items-end gap-1'>
-												<Button
-													type='button'
-													size='sm'
-													variant='secondary'
-													onClick={() => setUndoingImport(bank_import)}
-													disabled={!bank_import.undoable}
-													className='gap-2'
-												>
-													<Undo2 className='h-4 w-4' />
-													Desfazer
-												</Button>
-												{!bank_import.undoable && bank_import.undo_blocker && (
-													<span className='text-right text-xs text-muted-foreground'>{bank_import.undo_blocker}</span>
-												)}
-											</div>
+			{!isLoading && imports.length > 0 && (
+				<ul className='flex flex-col divide-y divide-border'>
+					{imports.map((bank_import) => {
+						const status = BankConnectionUtils.importStatus(bank_import.status);
+						return (
+							<li key={bank_import.id} className={cn('flex gap-3 py-3.5', compact ? 'flex-col' : 'items-start')}>
+								<div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+									<span className='flex flex-wrap items-baseline gap-x-2'>
+										<span className='font-bold'>{BankConnectionUtils.whenLabel(bank_import.created_at)}</span>
+										<span className={cn('text-xs font-semibold', STATUS_TEXT[TONE[status.tone]])}>{status.label}</span>
+									</span>
+									<span className='text-xs text-muted-foreground'>{detailLine(bank_import)}</span>
+									<span className='text-sm'>{resultLine(bank_import)}</span>
+								</div>
+								{bank_import.status === 'completed' && (
+									<div className={cn('flex shrink-0 gap-1', compact ? 'flex-row items-center gap-3' : 'max-w-[150px] flex-col items-end')}>
+										<Button
+											type='button'
+											variant='outline'
+											onClick={() => setUndoingImport(bank_import)}
+											disabled={!bank_import.undoable}
+											className='h-9 gap-1.5 px-3.5'
+										>
+											<Undo2 className='size-4' />
+											Desfazer
+										</Button>
+										{!bank_import.undoable && bank_import.undo_blocker && (
+											<span className={cn('text-[11px] leading-tight text-muted-foreground', !compact && 'text-right')}>{bank_import.undo_blocker}</span>
 										)}
-									</li>
-								);
-							})}
-						</ul>
-					)}
-				</DialogContent>
-			</Dialog>
+									</div>
+								)}
+							</li>
+						);
+					})}
+				</ul>
+			)}
 
 			<AlertDialog open={Boolean(undoing_import)} onOpenChange={(next) => !next && setUndoingImport(null)}>
 				<AlertDialogContent>
@@ -160,5 +140,37 @@ const BankImportHistoryDialog = ({ open, onOpenChange, link }: IProps) => {
 		</>
 	);
 };
+
+/* Nome + "•••• 4821" (quando há número). */
+export const linkTitle = (link: TBankAccountLink) => [ link.name, link.external_type === 'CREDIT' ? BankConnectionUtils.maskedNumber(link.number) : link.number ].filter(Boolean).join(' · ');
+
+interface IProps {
+	open: boolean;
+	onOpenChange: (open: boolean)=> void;
+	link: TBankAccountLink | null;
+}
+
+/* Histórico em diálogo (tablet) ou folha presa embaixo (celular). No desktop ele fica no painel ao lado. */
+const BankImportHistoryDialog = ({ open, onOpenChange, link }: IProps) => (
+	<Dialog open={open} onOpenChange={onOpenChange}>
+		<DialogContent
+			/* Sem foco automático: o primeiro botão é "Desfazer", e um Enter sem querer abriria a confirmação. */
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			className={cn(
+				'max-h-[85dvh] md:max-w-[560px]',
+				'max-md:bottom-0 max-md:top-auto max-md:w-full max-md:max-w-none max-md:translate-y-0 max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-x-0 max-md:border-b-0',
+				'max-md:data-[state=open]:slide-in-from-bottom-8 max-md:data-[state=open]:zoom-in-100'
+			)}
+		>
+			<span aria-hidden='true' className='mx-auto -mt-2 mb-1 h-1 w-10 rounded-full bg-border md:hidden' />
+			<DialogHeader className='pr-10 text-left'>
+				<DialogTitle className='text-xl font-bold tracking-[-0.02em]'>Histórico de importações</DialogTitle>
+				{link && <span className='text-sm text-muted-foreground'>{linkTitle(link)}</span>}
+				<DialogDescription>Desfazer apaga o que a importação criou, volta o que ela mudou e traz de volta o que ela removeu.</DialogDescription>
+			</DialogHeader>
+			{link && <BankImportHistoryList link={link} enabled={open} />}
+		</DialogContent>
+	</Dialog>
+);
 
 export default BankImportHistoryDialog;

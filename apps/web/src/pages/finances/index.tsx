@@ -35,6 +35,8 @@ const FinancesPage = () => {
 	const [ tab, setTab ] = useState<TTab>(() => initialTab(search_params.get('tab')));
 	/* "Nova recorrência" fica no cabeçalho (como no mockup); o formulário abre dentro da aba. */
 	const [ creating_recurrence, setCreatingRecurrence ] = useState(false);
+	/* "Conectar banco" (aba Bancos): cada incremento abre o widget da Pluggy dentro da aba. */
+	const [ connect_request, setConnectRequest ] = useState(0);
 
 	const pluggy_enabled = Boolean(current_user.data?.pluggy_enabled);
 	const tabs = pluggy_enabled ? [ ...TABS, CONNECTIONS_TAB ] : TABS;
@@ -46,6 +48,12 @@ const FinancesPage = () => {
 				<Typography variant='large' className='dark:text-white'>
 					Contas &amp; Cartões
 				</Typography>
+				{active_tab === 'connections' && (
+					<Button type='button' onClick={() => setConnectRequest((count) => count + 1)} aria-label='Conectar banco' className='font-bold max-md:size-11 max-md:p-0'>
+						<Plus className='size-4' />
+						<span className='max-md:hidden'>Conectar banco</span>
+					</Button>
+				)}
 				{active_tab === 'recurrences' && (
 					<Button type='button' variant='outline' onClick={() => setCreatingRecurrence(true)} aria-label='Nova recorrência' className='max-md:size-11 max-md:p-0'>
 						<Plus className='size-4' />
@@ -59,7 +67,7 @@ const FinancesPage = () => {
 			{active_tab === 'accounts' && <AccountList />}
 			{active_tab === 'cards' && <CreditBalanceList />}
 			{active_tab === 'recurrences' && <RecurrenceList creating={creating_recurrence} onCreatingChange={setCreatingRecurrence} />}
-			{active_tab === 'connections' && <BankConnectionList />}
+			{active_tab === 'connections' && <BankConnectionList connectRequest={connect_request} />}
 		</div>
 	);
 };
