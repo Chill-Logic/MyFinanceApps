@@ -16,7 +16,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 		<div
 			className={
 				classNames(
-					'relative h-screen overflow-auto py-8 transition-all duration-300',
+					'relative h-dvh overflow-auto py-8 pt-safe pb-safe transition-all duration-300',
 					'bg-background-light dark:bg-background-default'
 				)
 			}
@@ -25,7 +25,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 				type='button'
 				variant='secondary'
 				size='icon'
-				className='fixed right-4 top-4'
+				className='fixed right-4 top-safe-4'
 				onClick={toggleTheme}
 				aria-label='Alternar tema'
 			>

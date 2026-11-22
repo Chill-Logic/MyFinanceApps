@@ -156,3 +156,35 @@
         backdrop-filter: none !important;
     }
 }
+
+/*
+ * Safe areas (status bar / barra de gestos) — relevantes na casca nativa do Capacitor, que roda
+ * edge-to-edge (viewport-fit=cover no index.html). `--safe-area-inset-*` é injetado pelo
+ * Capacitor (SystemBars insetsHandling: 'css') porque `env()` não vem certo em WebViews
+ * Chromium < 140; o fallback `env()` cobre WebViews novas e o iOS. No navegador comum os
+ * valores são 0 (ou o inset real, num PWA/iOS em tela cheia), então é inofensivo no web.
+ */
+@layer utilities {
+    .pt-safe {
+        padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+    }
+    .pb-safe {
+        padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+    }
+    .top-safe-4 {
+        top: calc(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 1rem);
+    }
+    /* Altura máxima de um modal centralizado: a tela visível menos 1rem de folga em cima e embaixo e as safe areas. */
+    .max-h-safe-screen {
+        max-height: calc(
+            100dvh - 2rem
+            - var(--safe-area-inset-top, env(safe-area-inset-top, 0px))
+            - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
+        );
+    }
+}
+
+/* Classe posta no <html> só dentro do app nativo (src/native). */
+html.native {
+    -webkit-tap-highlight-color: transparent;
+}

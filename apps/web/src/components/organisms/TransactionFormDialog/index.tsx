@@ -767,7 +767,12 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
+			{/*
+			 * Altura limitada à tela com scroll interno: com todos os campos (ex.: transferência, ou
+			 * cartão com fatura manual), o formulário passava da altura do celular e o topo/rodapé
+			 * ficavam inalcançáveis — o Dialog é `fixed` e centralizado, não rola junto com a página.
+			 */}
+			<DialogContent className='max-h-safe-screen overflow-y-auto'>
 				<DialogHeader>
 					<DialogTitle>{dialog_title}</DialogTitle>
 				</DialogHeader>

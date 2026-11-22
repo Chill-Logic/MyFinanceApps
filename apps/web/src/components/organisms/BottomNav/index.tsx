@@ -42,7 +42,7 @@ const BottomNav = ({ className }: IProps) => {
 	return (
 		<nav
 			className={cn(
-				'relative flex items-center border-t border-border bg-background',
+				'relative flex items-center border-t border-border bg-background pb-safe',
 				className,
 			)}
 		>
@@ -100,7 +100,7 @@ const BottomNav = ({ className }: IProps) => {
 						Menu
 					</button>
 				</SheetTrigger>
-				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-2xl p-0'>
+				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-2xl p-0 pb-safe'>
 					<div className='mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border' />
 					<NavMenu onClose={() => setOpen(false)} />
 				</SheetContent>
