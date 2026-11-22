@@ -91,6 +91,18 @@
     body {
         @apply text-foreground;
     }
+
+    /*
+     * Barra de rolagem fina e na cor do tema em TODA área que rola. Sem isso, cada container com
+     * overflow (lista da Home, diálogos, popovers) mostrava a barra clássica do Chrome no Windows —
+     * grossa, cinza-clara e com setinhas — destoando do resto. Antes só o NavMenu/Sidebar tinham a
+     * barra estilizada (classes `scrollbar-*` aplicadas uma a uma); classes por elemento continuam
+     * vencendo este padrão, que tem especificidade zero.
+     */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+    }
 }
 
 @layer base {

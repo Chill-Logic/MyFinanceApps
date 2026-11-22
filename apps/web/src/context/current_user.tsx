@@ -4,6 +4,7 @@ import type { AxiosError } from 'axios';
 
 import useShowCurrentUser from '@/hooks/api/user/useShowCurrentUser';
 
+import { queryClient } from '@/services/query-client';
 import { AuthStorage } from '@/services/storage';
 
 import { TUser } from '@/types';
@@ -81,6 +82,13 @@ export const CurrentUserProvider = ({ children }: { children: ReactNode }) => {
 	 * a cada mudança de estado daqui, sem nunca convergir (já aconteceu no mobile).
 	 */
 	const login = useCallback((token: string) => {
+		/*
+		 * Zera o cache do React Query antes de autenticar: depois de um 401, o erro do `/users/me` fica
+		 * no cache, e ao reabilitar a query o 401 VELHO voltava na hora, o efeito de `is_unauthorized`
+		 * apagava o token recém-salvo e o usuário ficava preso no login até recarregar a página.
+		 * Também impede que dados em cache de um usuário apareçam pro próximo.
+		 */
+		queryClient.clear();
 		AuthStorage.setToken(token);
 		setIsAuthenticated(true);
 	}, []);
