@@ -861,17 +861,79 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   tinha por conta própria — como o template não fornecia padding nenhum na época, isso sumiu com o
   único respiro lateral que existia. Se alguma tela nova parecer sem espaçamento, o lugar certo pra
   conferir é o template, não a página.
-- **Navegação** (`src/components/organisms/{NavLinks,Sidebar,BottomNav}`, `src/hooks/useNavItems`):
-  desktop usa `Sidebar` (lista colapsável, sem tratamento especial de ação central — só
-  `NavLinks` + toggle de colapsar); mobile usa `BottomNav`, **grudada na borda** (`relative`, parte do
-  fluxo normal do flex do `DefaultTemplate`, não `fixed`) com até 3 destinos + botão de hambúrguer, mais
-  uma ação central elevada (FAB) condicional por rota.
-  - **Histórico (pra não reintroduzir)**: chegou a existir uma versão flutuante (`fixed bottom-4`, com
-    margens e cantos arredondados, "ilha" separada da borda) — foi revertida porque exigia calcular um
-    `padding-bottom` exato no conteúdo rolável pra não tampar a última transação da lista, e esse
-    padding fica errado sempre que a altura da barra muda (ex: FAB condicional aparecendo/sumindo).
-    Docked, a barra reserva o próprio espaço no flex — fica estruturalmente impossível esconder
-    conteúdo atrás dela, então não existe padding nenhum pra manter sincronizado.
+- **Navegação** (`src/components/organisms/{Sidebar,BottomNav,NavMenu}`, `src/hooks/useNavItems`) —
+  **redesign 2026-11, três layouts escolhidos no `DefaultTemplate` por `useMediaQuery`**:
+  - **Desktop (≥1280px)**: `Sidebar variant='full'` (260px): `Logo` horizontal, `WalletSwitcher`,
+    destinos, Nova Carteira e, no rodapé, cartão do usuário (leva a `/settings`) + Sair.
+  - **Tablet (768–1279px)**: `Sidebar variant='rail'` (84px), só ícones (com `title`/`aria-label`). O
+    botão redondo na borda direita da barra (`onToggle`) recolhe/expande no tablet e no
+    desktop; a escolha fica em `localStorage` (`sidebar-collapsed`) e, sem escolha salva, o desktop abre
+    expandido e o tablet recolhido. Já tentaram tirar esse botão e
+    deixar só o tamanho da tela decidir — o dono usa e pediu de volta.
+  - **Celular (<768px)**: `BottomNav` **flutuante** (pílula de vidro `fixed`, só ícones com
+    `aria-label`): Início, Contas, "+" central (só na Início), Carteiras e Menu (bottom sheet com o
+    `NavMenu`). Pontos de troca: 768/1280 — mudou um, mude o outro (`DefaultTemplate`).
+  - **Janelas menores (2026-11-22, mockups v3 "Dlg*")**: todas no casco `molecules/SheetDialog` — no celular folha de
+    vidro (8px das bordas, raio 32, alça, um botão principal de largura total, SEM "Cancelar": fecha pelo × e por
+    fora); do tablet em diante diálogo de vidro de 560px (`wide` = 600) com "Cancelar" + principal à direita e ação
+    extra à esquerda. Peças: `Field`, `FIELD_INPUT`, `AffixInput` (prefixo/sufixo — o `prefix` nativo do input sai do
+    tipo), `RadioCard` (opção única; `warning` = opção perigosa), `Notice`, `SummaryTile`. Use-as em toda janela nova.
+    **Edição aproveita o que o backend aceita (2026-11-22)**, não só o que o app antigo fazia: recorrência edita data da
+    próxima (`start_date` + `effective_from` = próxima original), cartão, responsável e, na parcelada, total e nº de
+    parcelas; pagar fatura tem descrição opcional e avisa quando passa do restante; importação já vem com o
+    `adjust_balance` salvo no vínculo; saldo inicial da conta pode ser negativo ("Está negativo?"); o melhor dia de compra de um cartão do banco já confirmado
+    aparece no vínculo com "Mudar" (`PATCH /bank_account_links/:id best_purchase_day`); limite de crédito
+    ligado ao banco avisa que a próxima atualização o troca; dígitos do cartão explicam o casamento das compras do banco.
+    Fora de propósito: editar transferência e "Fatura automática" na edição (decisões do dono, ver abaixo).
+    Botão principal diz o que faz ("Criar conta", "Pagar R$ X"). Na conferência o tipo é Saída/Entrada (não o
+    `translated_kind` da API). Textos sobre regra de backend só se confirmados (ex.: "ajustar o saldo" não diz COMO).
+  - **Menu redesenhado (2026-11-22, mockup v3 "Menu")**: peças em `molecules/NavKit` — `GLASS_PANEL`/`GLASS_TILE`
+    (vidro), `useLiquidBlob` + `LiquidBlob` (a "gota" que mede o alvo e escorre até ele; estica na direção do
+    movimento — keyframes `nav-blob-*` na horizontal e `nav-blob-v-*` na vertical), `WalletPanel` (troca de carteira),
+    `ThemeSwitch` (Sistema/Claro/Escuro) e `useRefreshAll`. Celular: a folha do ☰ (`NavMenu`) FLUTUA logo acima da
+    barra com a altura do conteúdo (antes era 70% fixo e sobrava metade vazia em aparelho alto), carteiras em cartões
+    lado a lado (a em foco vem primeiro — ordem congelada ao abrir; setas ‹ › de vidro nas pontas, só do lado em que ainda há cartão — tem
+    gente que não percebe que dá pra deslizar), destinos em grade 2×2, rodapé Configurações/tema/Sair; com ela aberta a
+    gota da barra vai pro ☰, que vira ×. A barra fica fora da folha (modal): tocar nela conta como "fora" e fecha a
+    folha — não navega. Tablets e desktop: `Sidebar` virou painel de vidro flutuante (trilho 76px / barra 260px) com a
+    gota no item ativo, carteira em foco no topo (avatar no trilho, cartão com saldo na barra) abrindo o `WalletPanel`,
+    e o perfil no rodapé abrindo Configurações/Atualizar dados/Tema/Sair. O antigo `WalletSwitcher` foi apagado.
+    O brilho oliva do topo mora na RAIZ do `DefaultTemplate` (atrás do menu também): dentro do `<main>` ele começava
+    na borda do trilho e desenhava uma linha vertical no fundo. Recuo dos ícones do trilho = 16px (15px no "+", que tem
+    borda) — centro exato em 38 de 76; o botão de recolher fica na altura do logo (aberta, `top: 44`) e centrado na
+    linha divisória no trilho (`top: 63`), deslizando entre as duas posições junto com a largura.
+    A gota NÃO anima na primeira medida (`animated` no `useLiquidBlob`): ao abrir um painel ela nascia com largura 0
+    e crescia com o quique, passando da largura e criando rolagem horizontal. Os painéis também cortam o excesso
+    horizontal (`overflow-x-hidden`).
+  - **O "+" do meio da barra flutuante é a AÇÃO PRINCIPAL DA TELA (regra do dono, 2026-11-22)**: cada tela — e
+    cada aba, quando a tela é a mesma — registra a sua com `usePrimaryAction({ label, onClick })`
+    (`context/primaryAction.tsx`): Carteiras = nova carteira; Contas & Cartões = nova conta / novo cartão / nova
+    recorrência / conectar banco, conforme a aba; Convites = convidar. Sem registro, a Início cai na nova transação e
+    as outras telas ficam sem "+". No celular, o botão equivalente some (`max-md:hidden`) — o do cabeçalho E o tracejado
+    no fim da lista ("Nova conta", "Adicionar cartão", "Conectar outro banco"). Não duplique. Fica só o botão do estado
+    vazio, que explica o que fazer.
+    Formulários que moram dentro de uma aba abrem por um contador (`createRequest`/`connectRequest`) passado pela página.
+  - **Conteúdo atrás da barra**: só a Início tem altura fixa no template (`h-full`, a lista rola por dentro); as outras
+    telas usam `min-h-full`. Com `h-full`, conteúdo maior que a tela vazava da caixa e o padding de baixo
+    (`--bottom-nav-space`) ficava no meio — o último item terminava escondido atrás da barra.
+  - **"Gota" do item ativo da barra**: pílula de vidro atrás dos ícones que escorre até o destino ao navegar (desliza
+    com quique por `cubic-bezier(0.34,1.45,0.64,1)` e estica/achata pelos keyframes `nav-blob-a`/`-b` do index.css,
+    alternados pra reiniciar sem remontar). A transição fica em `style` inline: em classe, a duração perdia pra a
+    padrão de 150ms do utilitário de transição e a gota "teleportava". Respeita "reduzir movimento".
+  - **Vidro da barra**: desfoque moderado (`backdrop-blur-md`) e fundo bem translúcido. Com desfoque forte e fundo mais
+    opaco ela virava uma mancha sólida sobre conteúdo simples e perdia o efeito de vidro.
+  - **Histórico da barra flutuante**: já existiu uma versão flutuante que foi revertida pra docked
+    porque tampava a última transação — dependia de um `padding-bottom` exato no conteúdo, que
+    ficava errado quando a barra mudava de altura com o FAB condicional. Ela voltou (pedido do dono)
+    com duas garantias: (1) **altura fixa** (`h-[62px]`) — o "+" fica *dentro* da pílula e só a largura
+    dele anima, nada mais muda a altura; (2) o espaço ocupado é **uma variável só,
+    `--bottom-nav-space`** (index.css), aplicada pelo `DefaultTemplate` como `padding-bottom` do
+    conteúdo no celular. Página que rola inteira passa por trás do vidro e o último item para acima
+    dela. Lista com rolagem própria (TransactionList) também precisa passar por trás — se a caixa da
+    lista terminar acima da barra, o que fica atrás do vidro é fundo sólido e a barra deixa de parecer
+    flutuante: a Home soma o padding de volta na própria altura (`h-[calc(100%+var(--bottom-nav-space))]`)
+    e põe o respiro no fim da área rolável. Mudou altura,
+    distância da borda ou formato da barra? Atualize `--bottom-nav-space` junto.
   `NavLinks` é o conteúdo compartilhado entre o `Sidebar` e o popover do hambúrguer do mobile
   (evita duplicar a lista em dois lugares) — inclui os destinos fixos, "Nova Carteira" (ação sempre
   disponível, não amarrada a rota) e o toggle de tema/logout.
@@ -946,12 +1008,119 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - `queryClient` saiu do `App.tsx` pra `services/query-client/index.ts` (mesma localização do
     mobile) — os hooks de mutação de transação (`useCreateTransactions`, etc.) precisam importar ele
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
-  - **Desktop usa tabela, mobile usa cards** — `TransactionList` renderiza os dois layouts (um
-    `hidden md:block`, o outro `md:hidden`) reaproveitando a mesma lógica de ícone por tipo e menu de
-    ações via funções auxiliares (`renderKindIcon`/`renderActionsMenu`), só a marcação (`<table>` vs
-    `<div>`) muda. A tabela (`ui/table.tsx`, HTML semântico puro, sem lib nova) tem ordenação por
-    coluna local (sem paginação/API, ordena o array já carregado do mês) — `react-data-table-component`
-    segue instalado mas sem uso (motor de estilo próprio, não usa os tokens daqui).
+  - **Contas e saldo projetado (`organisms/AccountList` + `CashProjectionChart`, redesign 2026-11)**: cartão
+    marinho com o saldo de hoje, gráfico 7/30/90 dias, ponto mais baixo e aviso quando cai/fica negativo;
+    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). **A projeção ainda não existe
+    no backend** — o contrato já está definido como se existisse (`TCashProjection` em `api.ts`,
+    `GET /accounts/projection` em `routes.ts`, fetcher `getCashProjection`), e o `useCashProjection` usa,
+    por enquanto, `estimateCashProjection` (fetchers/projection.ts), que monta a MESMA resposta a partir dos
+    endpoints de hoje via `ProjectionUtils.build` (utils/projection.ts — as regras estão no comentário de
+    lá). Quando o backend implementar, troca-se uma linha no hook. A chave `QUERY_KEYS.account.get_projection`
+    é invalidada em toda mutação que mexe em conta, transação, recorrência ou fatura. A projeção só enxerga
+    o que está lançado (pendentes, recorrências previstas e faturas): sem entradas futuras cadastradas, a
+    linha só desce.
+  - **Cartões (`organisms/CreditBalanceList`, redesign 2026-11)**: cartão selecionado como "cartão físico"
+    (degradê do logo), trocado no tablet/desktop pelas setas ‹ › ao lado do nome + pontinhos ("2 de 4") —
+    já houve uma lista compacta dos outros cartões, mas o selecionado saía dela e parecia que a lista mudava
+    de ordem a cada clique; ao lado (≥1024px) ou embaixo, o detalhe dele
+    (`CreditBalanceDetail`, com `key` = id pra zerar a navegação de fatura ao trocar): ‹ fatura ›, Pagar,
+    ⋮ editar/excluir crédito, total/limite/ciclo, plásticos e "Nesta fatura" (compras via
+    `useListTransactions` com `source_type/source_id` — só leitura, agrupadas por dia com o mesmo
+    `util/groupTransactionsByDay` da Home e dias recolhíveis). Celular: carrossel com scroll-snap; o
+    cartão no centro vira o selecionado, e um efeito (com `ResizeObserver`, porque o carrossel fica
+    `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
+    fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
+    — com modificador o navegador cai no branco.
+  - **Configurações (redesign 2026-11, `pages/settings`)**: desktop/tablet deitado = menu de seções (Conta, Aparência,
+    Carteira principal, Conexões com o Claude, Integração bancária, Sobre) com resumo de cada + o conteúdo; tablet em pé
+    = tudo empilhado; celular = lista agrupada que abre cada item numa tela com "Voltar", "Sair da conta" e a linha
+    "Sobre". Conta = cartão marinho do perfil ("Membro desde", carteira principal) + `AccountInfoForm` e
+    `AccountPasswordForm` lado a lado (cartões; senha valida 6–128 com o `passwordProblem` do AuthForm). Carteira
+    principal muda aqui (`PATCH /users/me main_wallet_id`). `ClaudeConnections`: endereço do MCP; do tablet deitado em
+    diante a atividade da conexão escolhida num painel ao lado (filtro por ferramenta, argumentos ao abrir, "Carregar
+    mais" aumenta o `per_page`); no celular abre por dentro do cartão (3 últimas + "Ver toda a atividade"). O
+    `token_hint` da API é o COMEÇO do token (ex.: `mfc_ePPDAJ`) — exiba `mfc_ePPDAJ…`, não "•••• final".
+  - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
+    tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
+    aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
+    agora" e "Definir como principal". "Como funcionam os convites" ao lado (desktop) ou embaixo (tablet); no celular,
+    só a nota do e-mail. O "+" da barra é "Convidar": convite pra carteira em foco se você administra; senão, Carteiras.
+    Convites enviados não existem na API.
+  - **Carteiras (redesign 2026-11, `WalletList`)**: a carteira em foco (a do contexto, `useWallet()`) num cartão
+    marinho com selos Principal/Compartilhada, saldo efetivado, membros (`GET /wallets/:id/members`, por `useQueries`
+    com a chave `wallet.get_members`) e as ações de quem administra; as outras em lista (celular, tablet deitado) ou
+    cartões (tablet em pé, desktop) com "Visualizar" (só troca o contexto, não salva nada). Convites recebidos viram
+    faixa (celular/tablet em pé) ou botão no cabeçalho. Excluir mostra tudo o que vai junto (contas, cartões, conexões e
+    quem perde acesso). Textos sem gênero: "você administra", "de Jéssica", selo "Admin" — não "dono/dona" (não
+    sabemos o gênero de ninguém). `TWallet.total` pode ser negativo e o `MoneyUtils.formatMoney` TIRA o sinal: use o
+    `signedMoney` local. A API não tem remover membro, sair da carteira nem transferir — não desenhe.
+  - **Bancos (redesign 2026-11, `BankConnectionList` + página `bank-connection`)**: cartão por conexão com status em
+    palavras (`BankConnectionUtils.statusView`: "Em dia", "Precisa entrar de novo"...) e "atualizado há X" pelo
+    `last_imported_at` mais recente dos vínculos (`lastUpdatedAt`) — o backend NÃO grava `last_synced_at`, por isso
+    antes aparecia sempre "Ainda não atualizada". Os vínculos de cada conexão vêm por `useQueries` com a mesma chave
+    do `useIndexBankAccountLinks` (cache compartilhado com "Contas do banco"). "Para conferir" lista contas/cartões
+    com `pending_match_reviews_count > 0` e abre o `MatchReviewDialog`. "Conectar banco" fica no cabeçalho da página
+    (incrementa `connectRequest`); o widget da Pluggy mora em `hooks/useBankConnectWidget` (lista e detalhe usam).
+    Detalhe: cartão marinho da conexão, um card por vínculo (sem destino = três opções à vista; ignorado = recolhido
+    com "Mudar"; cartão mostra crédito disponível/fechamento/vencimento do `external_data`, em REAIS) e, do tablet
+    deitado em diante, o histórico do card selecionado num painel ao lado (`BankImportHistoryList`, `compact` no
+    tablet); abaixo disso, o histórico abre em folha. Número de cartão sai mascarado ("•••• 4821"); de conta, como o
+    banco manda. Peças comuns em `util/bankView.ts`, logo em `molecules/ConnectorLogo` (iniciais na cor da marca).
+  - **Autenticação (redesign 2026-11, `templates/Auth` + `organisms/LiquidBrand` + `molecules/AuthForm`)**: fundo
+    líquido marinho/petróleo/oliva com o losango do logo em "vidro", desenhados por UM shader WebGL2
+    (`LiquidBrand/shader.ts`, 3D simulado — sem Three.js, de propósito, pra pesar poucos KB). O shader mede a cada quadro
+    um bloco vazio do tamanho do ícone (`markRef`) e desenha o losango ali; só o nome é imagem (`Logo variant='wordmark'`).
+    Desktop/tablet deitado: painel da marca à esquerda + formulário à direita; tablet em pé: cartão de 460px sobre o
+    líquido; celular: folha presa embaixo. Mexe com o ponteiro e, no celular, com o giroscópio (no iPhone só depois de
+    permissão, pedida no primeiro toque no fundo). Já testamos um fundo "mais líquido" (relevo + brilho + ondas) e o dono
+    achou enjoativo — ficou o de fumaça. O mesmo shader está no canvas do mockup: mudou um, mude o outro. Em dev o
+    StrictMode monta duas vezes: NÃO chame `loseContext()` na limpeza (o canvas devolve o mesmo contexto já perdido e o
+    fundo fica branco). Regras: senha de 6 a 128 checada no cliente (a mensagem da API pode vir em inglês); cadastro
+    entra sozinho logo depois (a API não devolve token, então chama o sign-in com a mesma senha); "Esqueci a senha"
+    fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
+    `/auth/reset-password?token=` continua valendo).
+  - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
+    painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
+    MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
+    o `detail_id` e relê a transação dos dados atuais — efetivar/desfazer aparece na hora, e se ela some
+    (excluída) o painel fecha. O "⋮" da linha tem `stopPropagation` (os itens do menu estão num portal, mas
+    na mesma árvore React, e o clique subiria até a linha). Celular usa linha do tempo (Criada → Vence →
+    Pago); tablet/desktop usam grade de fatos + "Criada em · editada em" (`created_at`/`user_edited_at`).
+  - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
+    Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
+    O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
+  - **Troca de mês com efeito líquido (`hooks/useMonthTransition`, 2026-11-22)**: setas e "Hoje" em qualquer tamanho;
+    arrastar a lista pros lados só no celular e nos tablets (até 1279px — só eventos de toque). O conteúdo sai pro lado
+    ondulando (filtro SVG `#month-liquid`: turbulência + deslocamento, criado uma vez no `<body>`, ligado só durante a
+    animação) e esticando de leve, o mês troca e o novo entra pelo outro lado com quique. O gesto só é assumido quando
+    é claramente horizontal. Distorção forte (escala ~46, frequência alta) rasgava as bordas dos cartões e parecia
+    defeito — ficou em escala 26 e ondas largas. Os cartões de resumo do topo não animam (trocam o valor na hora).
+    Contagem exata: o `changeMonth` usa a forma funcional do `setMonthYear` (nunca o mês de uma closure — no app
+    antigo isso fazia o gesto "pular" meses ao ir e voltar) e um clique/gesto DURANTE a animação troca o mês na hora em
+    vez de ser ignorado. Testado: +3/−4/+1, 4 arrastos em 0,4s, 5 cliques em 0,3s — cada pedido anda exatamente um mês.
+  - **Mesma lista agrupada por dia em todos os tamanhos (redesign 2026-11)** — no desktop ela fica dentro
+    do cartão com as abas Contas/Cartões e o contador, e só o corpo do cartão rola. Já existiu uma tabela
+    no desktop (Data | Descrição | Conta | Valor, ordenável por coluna); o dono achou esquisita e pediu a
+    lista do celular no lugar, então a ordenação por coluna saiu junto. Não reintroduza a tabela.
+  - **Nova transação no visual do mockup (redesign 2026-11, `TransactionFormDialog`)** — só a apresentação
+    mudou; salvar/editar/repetir/escopo seguem iguais. Não existe mais a "etapa 1" (Conta/Cartão/
+    Transferência): o **tipo vem primeiro** (abas Saída/Entrada/Transferência no MESMO `SegmentedControl` do resto do app — já teve um grupo de abas próprio em marinho e o dono pediu padrão; segmento indisponível usa `disabled`/`title`) e define as
+    origens possíveis (saída e entrada: contas e cartões — entrada no cartão é estorno/crédito, desconta da fatura,
+    sem "Parcelado"; transferência: só contas — trocar o tipo limpa uma origem que não vale mais). Os campos viraram **chips** com popover (Origem/De, Para, Cartão quando o
+    crédito tem mais de um, Quando, Pagamento só em conta, Fatura só em cartão, Responsável quando a
+    carteira tem mais de um membro) — pílulas no celular e nos tablets, grade 2×2 com rótulo só no desktop; Repetir e
+    Rascunho são chips tracejados de liga/desliga, e o painel do Repetir abre inline. Dentro de popover
+    **não use o `Select` do Radix**: a lista dele abre num portal fora do popover e o clique fecha o
+    popover — por isso fatura (mês em grade + ano com setas) e as listas de origem/cartão/responsável são
+    botões. **Celular: tela cheia com teclado numérico próprio** (pedido do dono, como no mockup) — a
+    vírgula é AUTOMÁTICA, igual à máscara do campo (os dígitos entram pelos centavos; o teclado guarda
+    só dígitos, lidos do próprio `value` — já houve uma cópia separada que dessincronizava); no lugar da vírgula fica a tecla "00". Já existiu vírgula manual e o dono pediu a máscara
+    de volta. **Quatro layouts, como no mockup:** celular = tela cheia; tablet em pé (768–1023) = o mesmo
+    formulário de toque (valor grande, pílulas, teclado) num diálogo de 520px; tablet deitado (1024–1279)
+    = diálogo de 880px em duas colunas, formulário à esquerda e teclado + Salvar à direita; desktop (≥1280)
+    = campos digitados (Valor/Descrição) e chips em grade, com Cancelar/Salvar no rodapé. Já fiz o tablet
+    com o layout do desktop e estava errado. O chip Repetir é quem liga/desliga; o painel não tem
+    "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
   - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
     `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
     usado com `asChild` dentro de `DropdownMenuTrigger`/`PopoverTrigger` (que dependem de anexar ref no
@@ -995,11 +1164,51 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   sincronizado só via `localStorage` lido no mount; qualquer toggle ficava "preso" ao componente que
   clicou, sem refletir em outros lugares até um reload. Se precisar ler/trocar o tema em código novo,
   sempre consuma o contexto, nunca reimplemente um state local pra isso.
+  - **Segue o sistema por padrão (redesign 2026-11):** o contexto guarda uma *preferência*
+    (`system`/`light`/`dark`, `setPreference`) e expõe o `theme` já resolvido; em `system` acompanha o
+    `prefers-color-scheme` em tempo real. A preferência fica na chave `theme-preference` — a antiga
+    `theme` foi abandonada de propósito, porque gravava "light" na primeira visita de todo mundo e
+    impediria usuários existentes de seguir o sistema. `index.html` tem um script inline que aplica a
+    classe `.dark` antes do React montar (mesma regra), para não piscar o tema errado; mudou a regra
+    num lado, mude no outro. A escolha fica em Configurações → Aparência (Sistema/Claro/Escuro).
   - As variáveis CSS do shadcn (`--background`, `--primary`, `--secondary`, etc., em
-    `src/styles/index.css`, dentro de `:root`/`.dark`) são a paleta de marca de
-    `packages/shared/src/tokens.ts` **convertida pra HSL** (não é uma paleta nova) — se adicionar um
-    token de marca novo lá, recalcule o HSL e adicione aqui também, os dois lados não sincronizam
-    sozinhos.
+    `src/styles/index.css`, dentro de `:root`/`.dark`) são `brandTheme`/`brandPalette` de
+    `packages/shared/src/tokens.ts` (paleta do redesign) **convertidos pra HSL** — se mudar um valor
+    lá, recalcule o HSL e mude aqui também, os dois lados não sincronizam sozinhos. Além das do
+    shadcn existem papéis próprios: `sidebar`, `brand` (oliva legível como texto), `success`,
+    `warning` (+`warning-dot`), `info`, `danger`, cada um com `*-soft` (fundo translúcido, ex.
+    `bg-success-soft text-success`), e as fixas da marca `navy`/`navy-light`/`teal`/`sand-light`
+    (iguais nos dois temas). Use esses papéis em vez dos tokens planos antigos (`feedback-*`,
+    `brand-secondary`, `background-default`…), que não acompanham o tema. As cores aceitam
+    modificador de opacidade (`bg-primary/15`), **exceto** `border`, `input` e os `*-soft`, cujas
+    variáveis já carregam o alfa. `primary-foreground` é marinho nos dois temas: o oliva não tem
+    contraste com texto branco.
+  - **Fonte: Geist** (`@fontsource-variable/geist`, importada em `src/index.tsx`), com números de
+    largura fixa (`tnum`) no `body`. `font-noto-sans`/`font-roboto` viraram apelidos da Geist só para
+    não quebrar quem ainda os usa; a Noto Sans e os 12 MB de arquivos dela foram removidos.
+  - **Logo**: SVGs em `src/assets/brand` (ícone redesenhado em geometria + nome traçado do PNG
+    original, com variante clara para fundo escuro), sempre via o átomo `components/atoms/Logo`
+    (`icon`/`horizontal`/`stacked`, prop `onDark` para fundo marinho fixo). No escuro o ícone ganha um
+    quadrado areia por trás, porque o quarto marinho dele some sobre fundo escuro.
+  - **Componentes base do redesign** (`components/ui`): botões em pílula (`rounded-full`; variantes
+    `default` oliva, `navy` marinho fixo para seleção forte, `secondary`, `outline`, `ghost`,
+    `destructive`, `link`; tamanhos 32/40/48px); campos com 44px, raio 16px e foco com anel oliva
+    suave, todos via `ui/field.ts` (`FIELD_SURFACE`/`FIELD_METRICS`) — `atoms/TextInput` também usa
+    o `FIELD_SURFACE` agora, para input/select/data/TextInput baterem; `Card` com raio 24px;
+    diálogos/painéis com fundo `bg-card`, raio 24px, fundo escurecido marinho e botão de fechar em
+    círculo; `SegmentedControl` em pílula com o item ativo oliva (`bg-primary`) e texto marinho, como no mockup; `ui/badge` (`Badge`, variantes
+    `neutral`/`outline`/`brand`/`success`/`warning`/`info`/`danger`, prop `dot`) para selos como
+    "pendente"/"prevista"/"2 para conferir" — use-o em vez de `span` com classes de cor à mão.
+  - **`hover:` só com mouse** (`future.hoverOnlyWhenSupported` no tailwind.config, 2026-11-22): no celular/Capacitor o
+    último elemento tocado ficava "em hover" e o fundo grudava (linhas da lista). Feedback de toque é `active:`/`pressable`.
+  - **Toque "nativo" = classe `pressable`** (`index.css`): afunda pra 0,96 ao pressionar e volta com mola,
+    sem o flash cinza de toque e sem atraso de duplo toque. Já vem na base do `ui/button`; em botão feito à
+    mão (chips, teclado, abas, itens de lista) aplique `pressable` em vez de só `transition-colors` — o dono
+    reclamou que os cliques estavam "duros". Evite em elemento que já usa `transform` pra se posicionar
+    (o `:active` troca o transform).
+  - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `webapp:dev`**: o Tailwind importa
+    esse arquivo na config e o Vite não o observa, então o servidor segue com a config antiga (já deu
+    `The font-sans class does not exist` no dev com o build passando).
   - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
     texto sem cor explícita (ex: `Label` do shadcn, que não define cor própria de propósito) herda o
     preto padrão do browser em vez de acompanhar o tema — foi exatamente isso que quebrou as labels
@@ -1118,7 +1327,19 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
   se for a 1ª ocorrência). Parcela não pergunta (só esta).
 - **Aba "Recorrências"** em Contas & Cartões (web `RecurrenceList`/`RecurrenceFormDialog`, mobile
   `RecurrenceList`/`RecurrenceFormModal`): filtro Recorrentes/Parceladas, editar a regra inteira, excluir (para
-  de gerar; as previstas de hoje em diante saem). Não há "nova recorrência" ali — nasce no formulário.
+  de gerar; as previstas de hoje em diante saem). No mobile não há "nova recorrência" ali — nasce no formulário.
+  - **Web, redesign 2026-11 (mockup v3):** Recorrentes = lista no celular, tabela do tablet em diante (a coluna
+    Origem só no desktop; nos tablets a origem vai embaixo do nome), com o card marinho "Por mês, nas recorrentes"
+    (só as mensais de intervalo 1, sem transferências — o resto é citado como "fica fora desta conta") e "Próximas"
+    do mês numa coluna à direita a partir do tablet deitado. Parceladas = cartões com barra segmentada "N de M
+    pagas", "falta pagar" (desconta a 1ª parcela, que leva os centavos da divisão) e o card "Falta pagar" em cima.
+    "Pagas" = parcelas antes da `next_occurrence` (sem próxima = todas) — a API não manda o índice da próxima.
+    Busca (`terms`, com atraso de 300ms) e filtro por origem vão pra API; a chave do `useIndexRecurrences` inclui os
+    dois. "Nova recorrência" (cabeçalho da página, só nessa aba) abre o `TransactionFormDialog` com
+    `defaultRepeatMode` = a aba atual. A edição (`RecurrenceFormDialog`) é folha no celular e tem "Aplicar a
+    mudança": todas as previstas ou "De <próxima> em diante" (= `effective_from`). Helpers em `util/recurrenceView.ts`.
+    Sem dígitos do cartão nem "na fatura de <mês>" (a próxima ocorrência não traz `invoice_month`) — o mockup foi
+    ajustado pra bater.
 - Mutações de transação invalidam também `recurrence.get_all` (a "próxima ocorrência" muda).
 
 ## Conexões com o Claude (MCP)
@@ -1192,5 +1413,9 @@ Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então
   imediata da Play (tela da loja por cima do app) e cai pra página da loja. Checa ao abrir e ao voltar pro app
   (no máximo a cada 30 min). Só funciona com o app instalado PELA PLAY — num APK via `adb` a Play responde
   "sem atualização".
+  Visual (2026-11-22, mockup v3 "DlgUpdate"/"DlgUpdateRequired"): casco `SheetDialog` — folha de vidro no celular,
+  diálogo do tablet em diante — com a versão atual, o app e o selo Nova/Obrigatória. A obrigatória usa
+  `dismissible={false}` (sem ×, não fecha por fora, pelo Escape nem pelo voltar do Android). Para ver no navegador
+  (só em dev): `?preview-update=available` ou `?preview-update=required`.
 - O CORS do backend aceita qualquer origem — a origem do app (`https://localhost`) funciona sem mudança. API em
   `http://` não funciona (mixed content).

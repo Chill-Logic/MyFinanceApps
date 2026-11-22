@@ -14,8 +14,8 @@ import { is_native } from '@/services/native';
 
 export type TAppUpdateStatus =
 	| { kind: 'none' }
-	| { kind: 'available'; version_code: string }
-	| { kind: 'required'; version_code?: string };
+	| { kind: 'available'; version_code: string; current_version?: string }
+	| { kind: 'required'; version_code?: string; current_version?: string };
 
 type TVersionPolicy = { android?: { min_version_code?: number } };
 
@@ -51,9 +51,9 @@ export const AppUpdateService = {
 			: undefined;
 
 		if (min_version_code !== null && Number(info.currentVersionCode) < min_version_code) {
-			return { kind: 'required', version_code: available };
+			return { kind: 'required', version_code: available, current_version: info.currentVersionName };
 		}
-		if (available) return { kind: 'available', version_code: available };
+		if (available) return { kind: 'available', version_code: available, current_version: info.currentVersionName };
 		return { kind: 'none' };
 	},
 

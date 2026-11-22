@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
 	DateUtils,
 	getApiErrorMessage,
+	InvoiceUtils,
 	MONTH_NAMES_PT,
 	MoneyUtils,
 	RECURRENCE_FREQUENCY_OPTIONS,
@@ -16,7 +17,9 @@ import {
 	type TTransactionSourceType,
 	type TUpdateTransactionBody,
 } from '@myfinance/shared';
-import { AlertTriangle, ArrowLeftRight, CalendarIcon, CreditCard, Landmark, Repeat, UserRound, Wallet, X } from 'lucide-react';
+import { addMonths, format, isToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { AlertTriangle, ArrowRight, CalendarIcon, Check, CheckCircle2, ChevronLeft, CircleDashed, ChevronRight, CreditCard, Delete, Landmark, Receipt, Repeat, UserRound, Wallet } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
@@ -36,7 +39,7 @@ import { cn } from '@/lib/utils';
 
 import Button from '@/components/atoms/Button';
 import TextInput from '@/components/atoms/TextInput';
-import DateTimeField from '@/components/molecules/DateTimeField';
+import { withDatePart, withTimePart } from '@/components/molecules/DateTimeField';
 import SegmentedControl from '@/components/molecules/SegmentedControl';
 import RecurrenceFormDialog from '@/components/organisms/RecurrenceFormDialog';
 import {
@@ -50,10 +53,12 @@ import {
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { buttonVariants } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import Checkbox from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FIELD_METRICS } from '@/components/ui/field';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Input from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface IProps {
 	open: boolean;
@@ -63,6 +68,8 @@ interface IProps {
 	/* Origem pré-selecionada na criação (ex.: a origem que a lista está filtrando). */
 	defaultSourceType?: TTransactionSourceType;
 	defaultSourceId?: string;
+	/* Abre com "Repetir" já ligado (ex.: "Nova recorrência" na aba Recorrências). Só na criação. */
+	defaultRepeatMode?: TRepeatMode;
 }
 
 type TFormValues = {
@@ -124,18 +131,6 @@ const MAX_INSTALLMENTS = 48;
 const monthKey = (date: Date): string =>
 	`${ date.getFullYear() }-${ String(date.getMonth() + 1).padStart(2, '0') }`;
 
-/*
- * Anos do seletor de fatura: dois pra trás, o atual e dois pra frente. O ano do valor atual entra mesmo
- * fora dessa janela, pra uma transação numa fatura antiga não abrir com o select vazio.
- */
-const buildInvoiceYearOptions = (current: string): string[] => {
-	const this_year = new Date().getFullYear();
-	const window_years = Array.from({ length: 5 }, (_unused, index) => String(this_year - 2 + index));
-	const [ year_part ] = current.split('-');
-	const current_year = /^\d{4}$/.test(year_part) ? year_part : '';
-	return Array.from(new Set(current_year ? [ current_year, ...window_years ] : window_years)).sort();
-};
-
 const DEFAULT_KIND_OPTIONS = [
 	{ value: 'withdraw', label: 'Saída' },
 	{ value: 'deposit', label: 'Entrada' },
@@ -147,12 +142,22 @@ const KIND_ORDER: string[] = [ 'withdraw', 'deposit', 'transfer' ];
 
 const KIND_TITLE: Record<TTransactionKind, string> = { deposit: 'entrada', withdraw: 'saída', transfer: 'transferência' };
 
+/* Rótulos das abas de tipo (os do enum da API são "Saque"/"Depósito"; o redesign usa Saída/Entrada). */
+/*
+ * Atalho de salvar mostrado no botão: "⌘ Enter" no Mac, "Ctrl Enter" no resto. Por extenso — o símbolo ↵
+ * renderiza mal na Geist e ninguém reconhece "⌘" no Windows.
+ */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const SUBMIT_SHORTCUT = IS_MAC ? '⌘ Enter' : 'Ctrl Enter';
+
+const KIND_TAB_LABEL: Record<string, string> = { withdraw: 'Saída', deposit: 'Entrada', transfer: 'Transferência' };
+
 const parseOrigin = (origin: string): { source_type: TTransactionSourceType | ''; source_id: string } => {
 	const [ source_type, source_id ] = origin.split(':');
 	return { source_type: (source_type as TTransactionSourceType) || '', source_id: source_id || '' };
 };
 
-const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId }: IProps) => {
+const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate, defaultSourceType, defaultSourceId, defaultRepeatMode = 'none' }: IProps) => {
 	const navigate = useNavigate();
 	const { user_wallet } = useWallet();
 	const { current_user } = useCurrentUserContext();
@@ -227,7 +232,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		? [ ...kind_options ].sort((a, b) => KIND_ORDER.indexOf(a.value) - KIND_ORDER.indexOf(b.value))
 		: DEFAULT_KIND_OPTIONS;
 
-	/* Transferência só sai de conta — em crédito o `kind` é sempre saída (ver `effective_kind`). */
+	/* Transferência só sai de conta: escolher cartão como origem nunca deixa o tipo em transferência. */
 	const is_transfer = !is_credit && values.kind === 'transfer';
 	/*
 	 * Transferência é escolhida na etapa 1 (botão próprio) e NÃO é editável (a lista não oferece "Editar"
@@ -235,7 +240,6 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	 * transferência — e numa transferência ele some.
 	 */
 	const kind_options_for_form = kinds.filter((option) => option.value !== 'transfer');
-	const show_kind_select = !is_credit && !is_transfer;
 
 	/*
 	 * Origem que pode não estar entre as contas ativas desta carteira (conta excluída — as transações dela
@@ -275,9 +279,9 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 			});
 		} else {
 			setOriginType(defaultSourceType ?? null);
-			setValues(buildDefaultValues(suggestedDate, default_origin, current_user_id));
+			setValues({ ...buildDefaultValues(suggestedDate, default_origin, current_user_id), repeat_mode: defaultRepeatMode });
 		}
-	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id ]);
+	}, [ open, transaction, suggestedDate, default_origin, defaultSourceType, current_user_id, defaultRepeatMode ]);
 
 	/*
 	 * O autor precisa ser participante da carteira (o backend valida). Se a carteira mudou (troca de origem)
@@ -310,7 +314,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const [ is_rule_dialog_open, setIsRuleDialogOpen ] = useState(false);
 
 	/* Parcelado só existe em cartão: se a origem deixou de ser cartão, volta pra "Não repete". */
-	const repeat_mode: TRepeatMode = linked_recurrence_id || (!is_credit && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
+	const repeat_mode: TRepeatMode = linked_recurrence_id || ((!is_credit || values.kind !== 'withdraw') && values.repeat_mode === 'installment') ? 'none' : values.repeat_mode;
 	const is_repeating = repeat_mode !== 'none';
 	/* Na criação a repetição substitui o lançamento avulso (some "Pago em"/fatura manual); na edição a transação continua existindo. */
 	const hides_single_fields = is_repeating && !is_editing;
@@ -332,27 +336,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		|| (is_transfer && !values.destination_account_id)
 		|| is_repeat_invalid;
 
+	/* "Não repete" não entra: quem liga/desliga é o chip "Repetir" — o painel só escolhe o modo. */
 	const repeat_segments = [
-		{ value: 'none', label: 'Não repete' },
 		{ value: 'recurring', label: 'Recorrente' },
-		...(is_credit ? [ { value: 'installment', label: 'Parcelado' } ] : []),
+		...(is_credit && values.kind === 'withdraw' ? [ { value: 'installment', label: 'Parcelado' } ] : []),
 	];
-
-	/*
-	 * Etapa 1 → 2: escolhe o tipo e, se só houver uma origem daquele tipo, já a pré-seleciona. Transferência
-	 * é uma conta com `kind: 'transfer'`; escolher Conta volta o kind pra saída (caso tenha passado por ela).
-	 */
-	const chooseOriginType = (type: TTransactionSourceType, kind: TTransactionKind = 'withdraw') => {
-		const list = type === 'Account' ? accounts : credit_balances;
-		setOriginType(type);
-		setValues((prev) => ({
-			...prev,
-			origin: list.length === 1 ? `${ type }:${ list[0].id }` : '',
-			credit_card_id: '',
-			destination_account_id: '',
-			kind,
-		}));
-	};
 
 	/* Transferência na criação precisa de duas contas nesta carteira (origem ≠ destino). */
 	const can_transfer = accounts.length >= 2;
@@ -417,12 +405,6 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		if (credit_card_id) setValues((prev) => ({ ...prev, credit_card_id }));
 	};
 
-	/* Volta pra etapa 1 (só na criação), limpando a origem escolhida. */
-	const backToTypeStep = () => {
-		setOriginType(null);
-		setValues((prev) => ({ ...prev, origin: '', credit_card_id: '' }));
-	};
-
 	const finalize = (message: string) => {
 		toast.success(message);
 		onOpenChange(false);
@@ -432,7 +414,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		e.preventDefault();
 
 		const value = Number(MoneyUtils.unformatMoney(values.value));
-		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
+		/*
+		 * Cartão: na CRIAÇÃO só existe saída (compra). Na EDIÇÃO vale o tipo original — um estorno ou o pagamento da
+		 * fatura que aparece no cartão é `deposit`, e forçar `withdraw` virava compra ao salvar (inverte a fatura).
+		 */
+		const effective_kind: TTransactionKind = values.kind;
 		const transaction_date = values.transaction_date.toISOString();
 		/*
 		 * "Pago em" só é controlável em conta, onde `null` = pendente. Em crédito não existe pendente (o gasto
@@ -601,92 +587,430 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		else updateThisAndFollowing(body);
 	};
 
-	const origin_label = (() => {
-		if (is_credit) return 'Crédito';
-		return is_transfer ? 'Da conta' : 'Conta';
+	/*
+	 * ----- Tipo (Saída / Entrada / Transferência) -----
+	 * Na criação o tipo vem primeiro (como no mockup) e define as origens possíveis: saída e entrada de conta OU
+	 * cartão (entrada no cartão = estorno/crédito, desconta da fatura); transferência, só de conta. Trocar pra um tipo que a origem escolhida não aceita
+	 * limpa a origem. Na edição: transferência não é editável e compra de cartão é sempre saída, então as
+	 * abas só aparecem (Saída/Entrada) em transação de conta.
+	 */
+	const setKind = (kind: TTransactionKind) => {
+		const clears_origin = kind === 'transfer' && is_credit;
+		if (clears_origin) setOriginType(null);
+		setValues((prev) => ({
+			...prev,
+			kind,
+			...(clears_origin ? { origin: '', credit_card_id: '' } : {}),
+			destination_account_id: kind === 'transfer' ? prev.destination_account_id : '',
+		}));
+	};
+
+	const kind_tabs = (() => {
+		if (!is_editing) return kinds;
+		return is_credit || is_transfer ? [] : kind_options_for_form;
 	})();
 
-	/*
-	 * Valor ao lado do nome nas opções: saldo da conta, ou o total da fatura atual do crédito — ajuda a
-	 * escolher de onde sai o dinheiro. Origem/destino de outra carteira não está nas listas: fica sem valor.
-	 */
+	/* Contas listadas como origem (inclui a conta excluída de uma transação em edição) e se cartão vale aqui. */
+	const origin_accounts = [ ...accounts, ...(foreign_source ? [ foreign_source ] : []) ];
+	const allows_credit_origin = is_editing ? !is_transfer : values.kind !== 'transfer';
+
+	/* Na criação, se só existe UMA origem possível pro tipo, ela já vem escolhida. */
+	useEffect(() => {
+		if (!open || is_editing || values.origin) return;
+		const candidates = [
+			...accounts.map((item) => `Account:${ item.id }`),
+			...(allows_credit_origin ? credit_balances.map((item) => `CreditBalance:${ item.id }`) : []),
+		];
+		if (candidates.length === 1) setOrigin(candidates[0]);
+	}, [ open, is_editing, values.origin, values.kind, accounts.length, credit_balances.length ]);
+
+	/* Qual chip está com o popover aberto (um por vez; escolher uma opção fecha). */
+	const [ open_chip, setOpenChip ] = useState<string | null>(null);
+	const chipOpenProps = (id: string) => ({
+		open: open_chip === id,
+		onOpenChange: (next: boolean) => setOpenChip(next ? id : null),
+	});
+
+	/* Valor ao lado do nome nas listas: saldo da conta ou o que falta pagar da fatura atual do crédito. */
 	const renderAmountHint = (type: TTransactionSourceType, id: string) => {
 		if (type === 'CreditBalance') {
 			const credit_balance = credit_balances.find((item) => item.id === id);
 			if (!credit_balance) return null;
-			return <span className='text-xs text-muted-foreground'>fatura {MoneyUtils.formatMoney(credit_balance.current_invoice.remaining)}</span>;
+			return <span className='shrink-0 text-xs text-muted-foreground'>fatura {MoneyUtils.formatMoney(credit_balance.current_invoice.remaining)}</span>;
 		}
 
 		const account = accounts.find((item) => item.id === id);
 		if (!account) return null;
 		return (
-			<span className={cn('text-xs', account.balance < 0 ? 'text-destructive' : 'text-muted-foreground')}>
+			<span className={cn('shrink-0 text-xs', account.balance < 0 ? 'text-destructive' : 'text-muted-foreground')}>
 				{MoneyUtils.formatSignedMoney(account.balance)}
 			</span>
 		);
 	};
 
-	const renderOriginItem = (type: TTransactionSourceType, origin_item: { id: string; name: string }) => (
-		<SelectItem key={origin_item.id} value={`${ type }:${ origin_item.id }`}>
-			<span className='flex items-center gap-2'>
-				{type === 'CreditBalance' ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
-				{origin_item.name}
-				{renderAmountHint(type, origin_item.id)}
+	const LIST_ITEM = 'pressable flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-accent active:bg-accent';
+	const LIST_LABEL = 'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground';
+
+	const renderListItem = (key: string, selected: boolean, onPick: ()=> void, content: React.ReactNode, hint?: React.ReactNode) => (
+		<button key={key} type='button' className={cn(LIST_ITEM, selected && 'bg-accent')} onClick={() => { onPick(); setOpenChip(null); }}>
+			<span className='flex min-w-0 items-center gap-2'>{content}</span>
+			<span className='flex shrink-0 items-center gap-2'>
+				{hint}
+				{selected && <Check className='h-4 w-4 text-brand' />}
 			</span>
-		</SelectItem>
+		</button>
 	);
 
 	/*
-	 * "Repetir" (criação, ou edição de transação avulsa — ela vira a 1ª ocorrência). Recorrente: frequência, término e "valor varia"; parcelado (só cartão):
-	 * número de parcelas — o valor digitado passa a ser o da parcela. Com repetição o lançamento vira uma
-	 * recorrência: as ocorrências futuras entram como PREVISTAS e somem "Pago em", rascunho e fatura manual.
+	 * Chips de campo (Origem, Quando, Fatura, Responsável…): pílula no celular, cartão com rótulo em cima no
+	 * tablet/desktop (grade 2×2 do mockup). `empty` = campo obrigatório ainda sem escolha.
 	 */
-	const renderLinkedRecurrence = () => {
-		const is_installment = transaction?.recurrence_type === 'installment';
-		const title = is_installment
-			? `Parcela ${ transaction?.installment_number ?? transaction?.recurrence_index ?? '?' }/${ transaction?.installment_total ?? linked_recurrence?.occurrences_total ?? '?' }`
-			: 'Recorrente';
-		const rule = linked_recurrence && !is_installment ? RecurrenceUtils.ruleLabel(linked_recurrence) : null;
+	const FIELD_CHIP = (empty = false) => cn(
+		'pressable inline-flex h-[34px] max-w-full items-center gap-1.5 rounded-full border border-border bg-white px-3 text-[13px] font-semibold hover:bg-accent dark:bg-[rgba(199,195,191,0.05)] data-[state=open]:border-primary/50 data-[state=open]:bg-accent',
+		'xl:h-auto xl:w-full xl:flex-col xl:items-start xl:gap-0.5 xl:rounded-2xl xl:px-4 xl:py-2.5 xl:text-sm',
+		'disabled:cursor-not-allowed disabled:opacity-60',
+		empty && 'text-warning',
+	);
+	/* Chips de alternância (Repetir, Rascunho): tracejados quando desligados, como no mockup. */
+	const TOGGLE_CHIP = (active: boolean) => cn(
+		'pressable inline-flex h-[34px] items-center gap-1.5 rounded-full border px-3 text-[13px]',
+		active
+			? 'border-primary/40 bg-primary/15 font-semibold text-brand'
+			: 'border-dashed border-muted-foreground/40 font-medium text-muted-foreground hover:text-foreground',
+	);
 
-		return (
-			<div className='flex items-start gap-2 rounded-md border px-3 py-2 text-sm'>
-				<Repeat className='mt-0.5 h-3.5 w-3.5 shrink-0' />
-				<div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-					<span className='font-medium'>{rule ? `${ title } · ${ rule }` : title}</span>
-					<span className='text-xs text-muted-foreground'>
-						{is_installment
-							? 'Mudanças aqui valem só para esta parcela.'
-							: 'Mudar descrição ou valor pergunta se vale só para esta ou para as próximas.'}
-					</span>
-				</div>
-				{linked_recurrence && (
-					<button
-						type='button'
-						className='shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline'
-						onClick={() => setIsRuleDialogOpen(true)}
-					>
-						Editar regra
-					</button>
-				)}
-			</div>
-		);
+	/* `extra`: informação ao lado do valor escolhido (saldo da conta, fatura do cartão). */
+	const renderChipBody = (label: string, value: string, icon?: React.ReactNode, extra?: React.ReactNode) => (
+		<>
+			<span className='hidden text-[11px] font-medium text-muted-foreground xl:block'>{label}</span>
+			<span className='flex min-w-0 max-w-full items-center gap-1.5'>
+				{/* Ícone só na pílula do celular; no cartão com rótulo (tablet/desktop) o rótulo já diz o que é. */}
+				{icon && <span className='flex shrink-0 xl:hidden'>{icon}</span>}
+				<span className='truncate'>{value}</span>
+				{extra && <span className='flex shrink-0 items-center gap-1.5 font-medium'><span className='text-muted-foreground'>·</span>{extra}</span>}
+			</span>
+		</>
+	);
+
+	/* "Hoje, 17:42" / "21 nov · 17:42" */
+	const whenLabel = (date: Date) => {
+		const time = format(date, 'HH:mm');
+		if (isToday(date)) return `Hoje, ${ time }`;
+		return `${ format(date, 'd MMM', { locale: ptBR }).replace('.', '') } · ${ time }`;
 	};
 
-	const renderRepeat = () => (
+	/* Calendário + horário dentro do popover de um chip de data. */
+	const renderDateTimePicker = (value: Date, onChange: (next: Date)=> void) => (
 		<div className='flex flex-col gap-2'>
-			<label className='flex items-center gap-1.5 text-sm font-medium'>
-				<Repeat className='h-3.5 w-3.5' />
-				Repetir
-			</label>
-			<SegmentedControl
-				segments={repeat_segments}
-				value={repeat_mode}
-				onChange={(next) => setValues((prev) => ({ ...prev, repeat_mode: next as TRepeatMode }))}
-			/>
+			<Calendar mode='single' selected={value} onSelect={(picked) => picked && onChange(withDatePart(value, picked))} />
+			<div className='flex items-center gap-2 px-3 pb-3'>
+				<span className='text-sm text-muted-foreground'>Horário</span>
+				<Input
+					type='time'
+					value={format(value, 'HH:mm')}
+					onChange={(e) => onChange(withTimePart(value, e.target.value))}
+					className='h-9 flex-1 justify-end text-right [&::-webkit-datetime-edit]:ml-auto [&::-webkit-datetime-edit-fields-wrapper]:justify-end'
+				/>
+			</div>
+		</div>
+	);
+
+	const origin_dot = <span className={cn('h-2 w-2 shrink-0 rounded-full', is_credit ? 'bg-info' : 'bg-primary')} />;
+	const origin_value = (() => {
+		if (!source_id) return is_transfer ? 'De qual conta?' : 'Escolher origem';
+		const name = is_credit
+			? credit_balances.find((item) => item.id === source_id)?.name
+			: origin_accounts.find((item) => item.id === source_id)?.name;
+		return name || 'Origem';
+	})();
+
+	const renderOriginChip = () => (
+		<Popover {...chipOpenProps('origin')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_origin_locked || is_pending} className={FIELD_CHIP(!source_id)}>
+					{renderChipBody(
+						is_transfer ? 'De' : 'Origem',
+						origin_value,
+						source_id ? origin_dot : null,
+						/* Continua mostrando o saldo da conta (ou a fatura do cartão) depois de escolher, não só na lista. */
+						source_id ? renderAmountHint(is_credit ? 'CreditBalance' : 'Account', source_id) : null,
+					)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='max-h-80 w-72 overflow-y-auto p-1.5'>
+				{origin_accounts.length > 0 && <p className={LIST_LABEL}>Contas</p>}
+				{origin_accounts.map((item) => renderListItem(
+					item.id,
+					values.origin === `Account:${ item.id }`,
+					() => setOrigin(`Account:${ item.id }`),
+					<><Wallet className='h-3.5 w-3.5 shrink-0 text-brand' /><span className='truncate'>{item.name}</span></>,
+					renderAmountHint('Account', item.id),
+				))}
+				{allows_credit_origin && credit_balances.length > 0 && <p className={LIST_LABEL}>Cartões</p>}
+				{allows_credit_origin && credit_balances.map((item) => renderListItem(
+					item.id,
+					values.origin === `CreditBalance:${ item.id }`,
+					() => setOrigin(`CreditBalance:${ item.id }`),
+					<><CreditCard className='h-3.5 w-3.5 shrink-0 text-info' /><span className='truncate'>{item.name}</span></>,
+					renderAmountHint('CreditBalance', item.id),
+				))}
+			</PopoverContent>
+		</Popover>
+	);
+
+	const renderDestinationChip = () => (
+		<Popover {...chipOpenProps('destination')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP(!values.destination_account_id)}>
+					{renderChipBody(
+						'Para',
+						destination_name || 'Para qual conta?',
+						values.destination_account_id ? <ArrowRight className='h-3.5 w-3.5 shrink-0' /> : null,
+						values.destination_account_id ? renderAmountHint('Account', values.destination_account_id) : null,
+					)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='max-h-80 w-72 overflow-y-auto p-1.5'>
+				{destination_options.length === 0 && <p className='px-3 py-2 text-sm text-muted-foreground'>Nenhuma outra conta</p>}
+				{destination_options.map((account) => renderListItem(
+					account.id,
+					values.destination_account_id === account.id,
+					() => setDestination(account.id),
+					<><Wallet className='h-3.5 w-3.5 shrink-0 text-brand' /><span className='truncate'>{account.name}</span></>,
+					renderAmountHint('Account', account.id),
+				))}
+			</PopoverContent>
+		</Popover>
+	);
+
+	/* Cartão (plástico) do crédito: só pede escolha quando há mais de um — com um só ele já vem escolhido. */
+	const selected_card = credit_cards.find((card) => card.id === values.credit_card_id);
+	const cardLabel = (card: { name: string; last_digits?: string | null }) => `${ card.name }${ card.last_digits ? ` ·· ${ card.last_digits }` : '' }`;
+	const renderCardChip = () => (
+		<Popover {...chipOpenProps('card')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP(!values.credit_card_id)}>
+					{renderChipBody('Cartão', selected_card ? cardLabel(selected_card) : 'Qual cartão?', <CreditCard className='h-3.5 w-3.5 shrink-0' />)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='w-64 p-1.5'>
+				{credit_cards.map((card) => renderListItem(card.id, values.credit_card_id === card.id, () => setCreditCard(card.id), <span className='truncate'>{cardLabel(card)}</span>))}
+			</PopoverContent>
+		</Popover>
+	);
+
+	const renderWhenChip = () => (
+		<Popover {...chipOpenProps('when')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+					{renderChipBody('Quando', whenLabel(values.transaction_date), <CalendarIcon className='h-3.5 w-3.5 shrink-0' />)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='w-auto p-0'>
+				{renderDateTimePicker(values.transaction_date, (next) => setValues((prev) => ({ ...prev, transaction_date: next })))}
+			</PopoverContent>
+		</Popover>
+	);
+
+	/* "Pago em" (só conta): pendente até marcar; marcar já vem com a data/hora da transação. */
+	const renderPaymentChip = () => (
+		<Popover {...chipOpenProps('payment')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+					{renderChipBody(
+						'Pagamento',
+						values.settled_date ? `Pago · ${ whenLabel(values.settled_date) }` : 'Pendente',
+						values.settled_date
+							? <CheckCircle2 className='h-3.5 w-3.5 shrink-0 text-success' />
+							: <span className='h-2 w-2 shrink-0 rounded-full bg-warning-dot' />,
+					)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='w-auto p-0'>
+				{values.settled_date ? (
+					<>
+						{/* Desfazer em cima, à vista: no rodapé, abaixo do calendário, ninguém achava. */}
+						<div className='flex items-center justify-between gap-3 border-b border-border px-3 py-2'>
+							<span className='text-xs font-semibold text-muted-foreground'>Pago em</span>
+							<Button
+								type='button'
+								variant='outline'
+								size='sm'
+								onClick={() => { setValues((prev) => ({ ...prev, settled_date: null })); setOpenChip(null); }}
+							>
+								<CircleDashed className='h-3.5 w-3.5' />
+								Desfazer pagamento
+							</Button>
+						</div>
+						{renderDateTimePicker(values.settled_date, (next) => setValues((prev) => ({ ...prev, settled_date: next })))}
+					</>
+				) : (
+					<div className='flex w-64 flex-col gap-2 p-3'>
+						<p className='text-sm text-muted-foreground'>Ainda não foi pago — entra no previsto, não no saldo.</p>
+						<Button
+							type='button'
+							variant='secondary'
+							onClick={() => setValues((prev) => ({ ...prev, settled_date: new Date(prev.transaction_date) }))}
+						>
+							<CheckCircle2 className='h-4 w-4' />
+							Marcar como pago
+						</Button>
+					</div>
+				)}
+			</PopoverContent>
+		</Popover>
+	);
+
+	/*
+	 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data. Automática =
+	 * o backend calcula pelo ciclo do cartão. O "automática" só existe na criação (e na edição que trocou de
+	 * origem); na edição a fatura gravada vem direto pra escolha. Mês/ano em botões (Select do Radix dentro
+	 * de popover fecharia o popover ao escolher, porque a lista dele abre fora).
+	 */
+	const can_auto_invoice = !is_editing || origin_changed;
+	/*
+	 * Fatura em que a compra cai pelo ciclo (o que o "automática" vai gravar): parte da fatura atual do crédito
+	 * (`current_invoice`, que traz o ciclo de hoje) e anda um ciclo por mês até a data da compra caber nele.
+	 * É só pra mostrar no chip — quem grava de verdade é o backend.
+	 */
+	const selected_credit = is_credit ? credit_balances.find((item) => item.id === source_id) : undefined;
+	const auto_invoice_month = (() => {
+		const current = selected_credit?.current_invoice;
+		if (!current?.invoice_month || !current.cycle_start || !current.cycle_end) return null;
+		const date = values.transaction_date;
+		let start = new Date(current.cycle_start);
+		let end = new Date(current.cycle_end);
+		let offset = 0;
+		for (let guard = 0; guard < 240 && date > end; guard += 1) {
+			offset += 1;
+			start = addMonths(start, 1);
+			end = addMonths(end, 1);
+		}
+		for (let guard = 0; guard < 240 && date < start; guard += 1) {
+			offset -= 1;
+			start = addMonths(start, -1);
+			end = addMonths(end, -1);
+		}
+		return InvoiceUtils.shiftMonth(current.invoice_month, offset);
+	})();
+	const invoice_value = (() => {
+		if (!is_invoice_auto) return `${ MONTH_NAMES_PT[Number(invoice_month_part) - 1] ?? '' } ${ invoice_year }`.trim();
+		return auto_invoice_month ? `${ InvoiceUtils.monthLabel(auto_invoice_month) } · automática` : 'Automática';
+	})();
+	const shiftInvoiceYear = (delta: number) => setValues((prev) => {
+		const [ year, month ] = prev.invoice_month.split('-');
+		return { ...prev, invoice_month: `${ Number(year) + delta }-${ month }` };
+	});
+	const renderInvoiceChip = () => (
+		<Popover {...chipOpenProps('invoice')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+					{renderChipBody('Fatura', invoice_value, <Receipt className='h-3.5 w-3.5 shrink-0' />)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='w-72 p-3'>
+				<div className='flex flex-col gap-3'>
+					{can_auto_invoice && (
+						<label className='flex items-center gap-2 text-sm'>
+							<Checkbox
+								checked={is_invoice_auto}
+								onCheckedChange={(checked) => setValues((prev) => ({
+									...prev,
+									invoice_month: checked === true ? AUTO_INVOICE_MONTH : monthKey(prev.transaction_date),
+								}))}
+							/>
+							<span>Automática <span className='text-muted-foreground'>— pelo ciclo do cartão</span></span>
+						</label>
+					)}
+					{is_invoice_auto && auto_invoice_month && (
+						<p className='text-sm'>Cai na fatura de <span className='font-semibold'>{InvoiceUtils.monthLabel(auto_invoice_month)}</span>.</p>
+					)}
+					{selected_credit && (
+						<p className='text-xs text-muted-foreground'>
+							Fatura atual ({InvoiceUtils.label(selected_credit.current_invoice)}): {MoneyUtils.formatMoney(selected_credit.current_invoice.remaining)} em aberto
+						</p>
+					)}
+					{!is_invoice_auto && (
+						<>
+							<div className='flex items-center justify-between'>
+								<Button type='button' variant='ghost' size='icon' className='h-8 w-8' onClick={() => shiftInvoiceYear(-1)} aria-label='Ano anterior'>
+									<ChevronLeft className='h-4 w-4' />
+								</Button>
+								<span className='text-sm font-semibold'>{invoice_year}</span>
+								<Button type='button' variant='ghost' size='icon' className='h-8 w-8' onClick={() => shiftInvoiceYear(1)} aria-label='Próximo ano'>
+									<ChevronRight className='h-4 w-4' />
+								</Button>
+							</div>
+							<div className='grid grid-cols-3 gap-1'>
+								{MONTH_NAMES_PT.map((name, index) => {
+									const month = String(index + 1).padStart(2, '0');
+									return (
+										<button
+											key={name}
+											type='button'
+											onClick={() => setInvoicePart('month', month)}
+											className={cn(
+												'pressable rounded-xl px-2 py-2 text-xs font-medium',
+												month === invoice_month_part ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+											)}
+										>
+											{name.slice(0, 3)}
+										</button>
+									);
+								})}
+							</div>
+						</>
+					)}
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+
+	const author = members.find((member) => member.id === values.user_id);
+	const renderAuthorChip = () => (
+		<Popover {...chipOpenProps('author')}>
+			<PopoverTrigger asChild>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+					{renderChipBody(
+						'Responsável',
+						author ? `${ author.name }${ author.id === current_user_id ? ' · você' : '' }` : 'Responsável',
+						<UserRound className='h-3.5 w-3.5 shrink-0' />,
+					)}
+				</button>
+			</PopoverTrigger>
+			<PopoverContent align='start' className='w-64 p-1.5'>
+				{members.map((member) => renderListItem(
+					member.id,
+					values.user_id === member.id,
+					() => setAuthor(member.id),
+					<><UserRound className='h-3.5 w-3.5 shrink-0' /><span className='truncate'>{member.name}</span></>,
+					member.id === current_user_id ? <span className='text-xs text-muted-foreground'>você</span> : null,
+				))}
+			</PopoverContent>
+		</Popover>
+	);
+
+	/* Resumo do "Repetir" no chip: "Mensal", "Mensal · 12x", "10x". */
+	const repeat_summary = (() => {
+		if (repeat_mode === 'installment') return `${ values.installments }x`;
+		const frequency = RECURRENCE_FREQUENCY_OPTIONS.find((option) => option.value === values.frequency)?.label ?? '';
+		return values.repeat_ends === 'count' ? `${ frequency } · ${ values.repeat_count }x` : frequency;
+	})();
+
+	/* "Repetir" (criação, ou edição de transação avulsa — ela vira a 1ª ocorrência): o painel abre inline. */
+	const renderRepeat = () => (
+		<div className='flex flex-col gap-3 rounded-2xl border border-border p-4'>
+			{repeat_segments.length > 1 && (
+				<SegmentedControl
+					segments={repeat_segments}
+					value={repeat_mode}
+					onChange={(next) => setValues((prev) => ({ ...prev, repeat_mode: next as TRepeatMode }))}
+				/>
+			)}
 
 			{repeat_mode === 'recurring' && (
 				<div className='flex flex-col gap-3'>
-					<div className='flex gap-4'>
+					<div className='flex gap-3'>
 						<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
 							<label className='text-sm font-medium'>Frequência</label>
 							<Select value={values.frequency} disabled={is_pending} onValueChange={(next) => next && setValues((prev) => ({ ...prev, frequency: next as TRecurrenceFrequency }))}>
@@ -756,29 +1080,100 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					<span className='text-xs text-muted-foreground'>
 						{installment_split
 							? `${ installments }x de ${ MoneyUtils.formatMoney(installment_split.installment) }${ installment_split.first !== installment_split.installment ? ` (1ª de ${ MoneyUtils.formatMoney(installment_split.first) })` : '' }, uma por fatura.`
-							: 'Gera todas as parcelas, uma por fatura.'}
+							: 'O valor digitado é o total da compra; gera todas as parcelas, uma por fatura.'}
 					</span>
 				</div>
 			)}
 		</div>
 	);
 
+	/* Ocorrência de recorrência/parcela: mostra a regra (e "Editar regra") no lugar do "Repetir". */
+	const renderLinkedRecurrence = () => {
+		const is_installment = transaction?.recurrence_type === 'installment';
+		const title = is_installment
+			? `Parcela ${ transaction?.installment_number ?? transaction?.recurrence_index ?? '?' }/${ transaction?.installment_total ?? linked_recurrence?.occurrences_total ?? '?' }`
+			: 'Recorrente';
+		const rule = linked_recurrence && !is_installment ? RecurrenceUtils.ruleLabel(linked_recurrence) : null;
+
+		return (
+			<div className='flex items-start gap-2 rounded-2xl border border-border px-4 py-3 text-sm'>
+				<Repeat className='mt-0.5 h-3.5 w-3.5 shrink-0' />
+				<div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+					<span className='font-medium'>{rule ? `${ title } · ${ rule }` : title}</span>
+					<span className='text-xs text-muted-foreground'>
+						{is_installment
+							? 'Mudanças aqui valem só para esta parcela.'
+							: 'Mudar descrição ou valor pergunta se vale só para esta ou para as próximas.'}
+					</span>
+				</div>
+				{linked_recurrence && (
+					<button
+						type='button'
+						className='shrink-0 text-xs font-medium text-brand underline-offset-2 hover:underline'
+						onClick={() => setIsRuleDialogOpen(true)}
+					>
+						Editar regra
+					</button>
+				)}
+			</div>
+		);
+	};
+
+	/*
+	 * ----- Valor -----
+	 * Celular: teclado numérico próprio (como no mockup), sem abrir o teclado do sistema. A vírgula é
+	 * automática, igual à máscara do campo: os dígitos entram pelos centavos ("1" → 0,01; "1","1" → 0,11).
+	 * Os dígitos (centavos) vêm do próprio `value`. A tecla "00" acelera valores redondos. Tablet/desktop:
+	 * campo normal com a mesma máscara.
+	 */
+	/*
+	 * Os dígitos do teclado saem do próprio `value` (não de uma cópia): assim o celular e o campo do
+	 * desktop sempre mostram o mesmo número — já houve uma cópia separada que ficava em 0,00 depois de
+	 * digitar pelo outro campo.
+	 */
+	const keypad_digits = MoneyUtils.unformatMoney(values.value).replace(/^0+/, '');
+
+	const pressKey = (key: string) => {
+		/* Vibração curtinha no Android (o iOS ignora) — o toque do teclado parece de app nativo. */
+		try {
+			navigator.vibrate?.(8);
+		} catch {
+			/* sem suporte: segue sem vibrar */
+		}
+		const next = (key === 'back' ? keypad_digits.slice(0, -1) : `${ keypad_digits }${ key }`).replace(/^0+/, '');
+		if (next.length > 11) return;
+		setValues((prev) => ({ ...prev, value: next ? MoneyUtils.formatMoney(next) : '' }));
+	};
+
+	const keypad_display = MoneyUtils.formatMoney(keypad_digits || '0').replace(/^R\$\s?/, '');
+
+	const plain_value = values.value.replace(/^R\$\s?/, '');
+	const effective_kind_title = KIND_TITLE[values.kind];
+	const submit_label = is_editing ? 'Salvar alterações' : `Salvar ${ effective_kind_title }`;
 	const dialog_title = transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova transação';
+
+	/* ⌘/Ctrl + Enter salva de qualquer campo (o atalho mostrado no botão no desktop). */
+	const handleFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
+		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !is_submit_disabled) handleSubmit(e);
+	};
+
+	const KEYPAD_KEYS = [ '1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'back' ];
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			{/*
-			 * Altura limitada à tela com scroll interno: com todos os campos (ex.: transferência, ou
-			 * cartão com fatura manual), o formulário passava da altura do celular e o topo/rodapé
-			 * ficavam inalcançáveis — o Dialog é `fixed` e centralizado, não rola junto com a página.
-			 */}
-			<DialogContent className='max-h-safe-screen overflow-y-auto'>
-				<DialogHeader>
-					<DialogTitle>{dialog_title}</DialogTitle>
+			{/* Celular: tela cheia (como no mockup); tablet/desktop: diálogo. */}
+			<DialogContent
+				className='max-md:pb-safe max-md:pt-safe max-md:inset-0 max-md:flex max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:flex-col max-md:gap-0 max-md:overflow-x-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-0 md:max-w-[520px] md:p-6 lg:max-w-[880px] xl:max-w-2xl xl:p-8'
+				closeClassName='max-md:left-5 max-md:right-auto max-md:top-[calc(1.25rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.05)]'
+			>
+				{/* Celular: brilho oliva atrás do valor, como no mockup */}
+				<div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-5 h-80 bg-[radial-gradient(60%_50%_at_50%_50%,rgba(137,161,96,0.22)_0%,rgba(137,161,96,0)_100%)] md:hidden' />
+				<DialogHeader className='max-md:px-5 max-md:pt-6'>
+					<DialogTitle className='max-md:sr-only'>{dialog_title}</DialogTitle>
 				</DialogHeader>
 
 				{!is_editing && !has_origins && (
-					<div className='flex flex-col items-center gap-4 py-6 text-center'>
+					<div className='flex flex-col items-center gap-4 px-5 py-6 text-center'>
 						<div className='flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-secondary-foreground'>
 							<Landmark className='h-6 w-6' />
 						</div>
@@ -800,344 +1195,177 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					</div>
 				)}
 
-				{/* Etapa 1 (só criação): escolher o tipo de origem antes de ver as opções */}
-				{!is_editing && has_origins && origin_type === null && (
-					<div className='flex flex-col gap-3 py-2'>
-						<span className='text-sm text-muted-foreground'>Que tipo de transação?</span>
-						<div className='grid grid-cols-3 gap-2 sm:gap-3'>
-							<button
-								type='button'
-								disabled={!accounts.length}
-								onClick={() => chooseOriginType('Account')}
-								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
-							>
-								<Wallet className='h-6 w-6 text-brand-secondary' />
-								Conta
-								{!accounts.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhuma conta</span>}
-							</button>
-							<button
-								type='button'
-								disabled={!credit_balances.length}
-								onClick={() => chooseOriginType('CreditBalance')}
-								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
-							>
-								<CreditCard className='h-6 w-6 text-feedback-info-default' />
-								Cartão
-								{!credit_balances.length && <span className='text-[11px] font-normal text-muted-foreground'>nenhum cartão</span>}
-							</button>
-							<button
-								type='button'
-								disabled={!can_transfer}
-								onClick={() => chooseOriginType('Account', 'transfer')}
-								className='flex flex-col items-center gap-2 rounded-lg border border-input px-2 py-5 text-center text-sm font-medium transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50'
-							>
-								<ArrowLeftRight className='h-6 w-6 text-feedback-info-default' />
-								Transferência
-								{!can_transfer && <span className='text-[11px] font-normal text-muted-foreground'>precisa de 2 contas</span>}
-							</button>
-						</div>
-					</div>
-				)}
+				{(is_editing || has_origins) && (
+					<form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className='relative flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:gap-0 lg:max-xl:grid lg:max-xl:grid-cols-2 lg:max-xl:gap-x-6 lg:max-xl:gap-y-5'>
+						{/* Tipo: Saída / Entrada / Transferência — o mesmo SegmentedControl das outras abas do app */}
+						{kind_tabs.length > 0 && (
+							<div className='flex max-md:pl-[72px] max-md:pr-5 lg:max-xl:col-start-1'>
+								<SegmentedControl
+									className='w-full'
+									value={values.kind}
+									onChange={(next) => setKind(next as TTransactionKind)}
+									segments={kind_tabs.map((option) => {
+										const disabled = option.value === 'transfer' && !can_transfer;
+										return {
+											value: option.value,
+											label: KIND_TAB_LABEL[option.value] ?? option.label,
+											disabled: disabled || is_pending,
+											title: disabled ? 'Precisa de duas contas nesta carteira' : undefined,
+										};
+									})}
+								/>
+							</div>
+						)}
 
-				{/* Etapa 2: o formulário (na edição entra direto aqui) */}
-				{(is_editing || origin_type !== null) && (
-					<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-						{/*
-						 * Em conta, origem e tipo dividem a linha (dois campos curtos, sem precisar de linha própria);
-						 * em cartão a origem ocupa a linha toda, porque logo abaixo vem o campo "Cartão".
-						 */}
-						<div className='flex gap-4'>
-							<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-								<label className='text-sm font-medium'>{is_editing ? 'Origem' : origin_label}</label>
-								<Select value={values.origin} disabled={is_origin_locked} onValueChange={setOrigin}>
-									<SelectTrigger>
-										<SelectValue placeholder={is_credit ? 'Escolha o crédito' : 'Escolha a conta'} />
-									</SelectTrigger>
-									<SelectContent>
-										{/* Na criação o tipo já foi escolhido na etapa 1; na edição dá pra trocar de tipo aqui. */}
-										{is_editing ? (
-											<>
-												{accounts.length > 0 && (
-													<SelectGroup>
-														<SelectLabel>Contas</SelectLabel>
-														{accounts.map((origin_item) => renderOriginItem('Account', origin_item))}
-														{foreign_source && renderOriginItem('Account', foreign_source)}
-													</SelectGroup>
-												)}
-												{credit_balances.length > 0 && (
-													<SelectGroup>
-														<SelectLabel>Créditos</SelectLabel>
-														{credit_balances.map((origin_item) => renderOriginItem('CreditBalance', origin_item))}
-													</SelectGroup>
-												)}
-											</>
-										) : (
-											(is_credit ? credit_balances : accounts).map((origin_item) => (
-												renderOriginItem(is_credit ? 'CreditBalance' : 'Account', origin_item)
-											))
-										)}
-									</SelectContent>
-								</Select>
-								{is_origin_locked && <span className='text-xs text-muted-foreground'>Pagamento de fatura não pode trocar de origem.</span>}
+						<div className='no-scrollbar flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:overflow-y-auto max-md:px-5 max-md:pb-3 lg:max-xl:col-start-1'>
+							{/* Celular e tablets (toque): valor grande preenchido pelo teclado + descrição em pílula */}
+							<div className='flex flex-col items-center gap-3.5 pt-8 md:pt-2 xl:hidden'>
+								<span className='flex items-baseline gap-1.5'>
+									<span className='text-[26px] font-medium text-muted-foreground'>R$</span>
+									<span className={cn('text-[64px] font-semibold leading-none tracking-[-0.05em]', !keypad_digits && 'text-muted-foreground/60')}>{keypad_display}</span>
+									<span aria-hidden='true' className='h-11 w-[3px] animate-pulse self-center rounded-full bg-primary' />
+								</span>
+								{repeat_mode === 'installment' && <span className='text-xs text-muted-foreground'>valor total da compra</span>}
+								<label htmlFor='transaction-description-mobile' className='sr-only'>Descrição</label>
+								<input
+									id='transaction-description-mobile'
+									value={values.description}
+									placeholder={is_transfer ? default_transfer_description || 'Descrição (opcional)' : 'Descrição'}
+									onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
+									disabled={is_pending}
+									className='relative h-[38px] w-[220px] max-w-full rounded-full md:h-10 md:w-[260px] lg:h-[42px] lg:w-[280px] border border-border bg-white px-4 text-center text-[15px] font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary dark:bg-[rgba(199,195,191,0.05)]'
+								/>
 							</div>
 
-							{show_kind_select && (
-								<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-									<label className='text-sm font-medium'>Tipo</label>
-									<Select value={values.kind} onValueChange={(value) => value && setValues((prev) => ({ ...prev, kind: value as TTransactionKind }))}>
-										<SelectTrigger>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{kind_options_for_form.map((option) => (
-												<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+							{/* Desktop: valor e descrição lado a lado, digitados */}
+							{/* Mesma grade de 2 colunas dos chips abaixo, pra as bordas baterem */}
+							<div className='hidden gap-2 xl:grid xl:grid-cols-2'>
+								<label className='flex flex-col gap-1.5 text-sm font-medium text-muted-foreground'>
+									{repeat_mode === 'installment' ? 'Valor total da compra' : 'Valor'}
+									<span className='flex h-14 items-center gap-2 rounded-2xl border border-input bg-secondary px-4 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15'>
+										<span className='text-lg font-medium text-muted-foreground'>R$</span>
+										<input
+											inputMode='decimal'
+											value={plain_value}
+											placeholder='0,00'
+											onChange={(e) => setValues((prev) => ({ ...prev, value: MoneyUtils.formatMoney(e.target.value) }))}
+											disabled={is_pending}
+											className='min-w-0 flex-1 bg-transparent text-[28px] text-foreground font-semibold tracking-[-0.03em] outline-none placeholder:text-muted-foreground/50'
+										/>
+									</span>
+								</label>
+								<label className='flex flex-col gap-1.5 text-sm font-medium text-muted-foreground'>
+									{is_transfer ? 'Descrição (opcional)' : 'Descrição'}
+									<input
+										value={values.description}
+										placeholder={is_transfer ? default_transfer_description : 'Ex.: Mercado'}
+										onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
+										disabled={is_pending}
+										className='h-14 rounded-2xl border border-input bg-secondary px-4 text-base font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/15'
+									/>
+								</label>
+							</div>
+
+							{/* Campos em chips: pílulas no celular, grade 2×2 com rótulo no tablet/desktop */}
+							<div className='flex flex-wrap justify-center gap-2 xl:grid xl:grid-cols-2'>
+								{renderOriginChip()}
+								{is_transfer && renderDestinationChip()}
+								{is_credit && source_id && credit_cards.length > 1 && renderCardChip()}
+								{renderWhenChip()}
+								{!is_credit && !hides_single_fields && renderPaymentChip()}
+								{is_credit && !hides_single_fields && renderInvoiceChip()}
+								{members.length > 1 && renderAuthorChip()}
+							</div>
+
+							{is_credit && values.kind === 'deposit' && !is_editing && (
+								<span className='text-center text-xs text-muted-foreground xl:text-left'>Estorno ou crédito no cartão: desconta da fatura em que cair.</span>
+							)}
+
+							{is_origin_locked && <span className='text-center text-xs text-muted-foreground xl:text-left'>Pagamento de fatura não pode trocar de origem.</span>}
+
+							{is_credit && source_id && !is_cards_loading && !credit_cards.length && (
+								<div className='flex items-start gap-2 rounded-2xl bg-warning-soft px-4 py-3 text-xs text-warning'>
+									<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
+									<span className='flex-1'>
+										Este crédito não tem cartões. Cadastre um em{' '}
+										<button
+											type='button'
+											className='font-semibold underline'
+											onClick={() => { onOpenChange(false); navigate('/accounts'); }}
+										>
+											Contas &amp; Cartões
+										</button>{' '}
+										para lançar compras nele.
+									</span>
 								</div>
 							)}
-						</div>
 
-						{/* Só depois de escolher um crédito específico (source_id) — senão o aviso apareceria à toa */}
-						{/* Destino da transferência: contas da carteira (menos a origem) + o destino atual, se for de outra */}
-						{is_transfer && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>Para a conta</label>
-								<Select value={values.destination_account_id} disabled={is_pending} onValueChange={setDestination}>
-									<SelectTrigger>
-										<SelectValue placeholder={destination_options.length ? 'Escolha a conta de destino' : 'Nenhuma outra conta'} />
-									</SelectTrigger>
-									<SelectContent>
-										{destination_options.map((account) => (
-											<SelectItem key={account.id} value={account.id}>
-												<span className='flex items-center gap-2'>
-													<Wallet className='h-3.5 w-3.5' />
-													{account.name}
-													{renderAmountHint('Account', account.id)}
-												</span>
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-
-						{is_credit && source_id && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>Cartão</label>
-								<Select
-									value={values.credit_card_id}
-									disabled={!credit_cards.length}
-									onValueChange={setCreditCard}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder={credit_cards.length ? 'Escolha o cartão' : 'Nenhum cartão neste crédito'} />
-									</SelectTrigger>
-									<SelectContent>
-										{credit_cards.map((card) => (
-											<SelectItem key={card.id} value={card.id}>
-												{card.name}{card.last_digits ? ` ·· ${ card.last_digits }` : ''}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-
-								{!is_cards_loading && !credit_cards.length && (
-									<div className='flex items-start gap-2 rounded-md bg-feedback-warning-light px-3 py-2 text-xs text-feedback-warning-dark'>
-										<AlertTriangle className='mt-0.5 h-4 w-4 shrink-0' />
-										<span className='flex-1'>
-											Este crédito não tem cartões. Cadastre um em{' '}
-											<button
-												type='button'
-												className='font-semibold underline'
-												onClick={() => { onOpenChange(false); navigate('/accounts'); }}
-											>
-												Contas &amp; Cartões
-											</button>{' '}
-											para lançar compras nele.
-										</span>
-									</div>
-								)}
-							</div>
-						)}
-
-						<TextInput
-							type='text'
-							label={is_transfer ? 'Descrição (opcional)' : 'Descrição'}
-							name='description'
-							placeholder={is_transfer ? default_transfer_description : 'Digite a descrição'}
-							value={values.description}
-							onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
-							disabled={is_pending}
-						/>
-
-						<TextInput
-							type='text'
-							label={repeat_mode === 'installment' ? 'Valor total da compra' : 'Valor'}
-							name='value'
-							placeholder='R$ 0,00'
-							value={values.value}
-							onChange={(e) => setValues((prev) => ({ ...prev, value: MoneyUtils.formatMoney(e.target.value) }))}
-							disabled={is_pending}
-						/>
-
-						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>Data da transação</label>
-							<DateTimeField
-								value={values.transaction_date}
-								disabled={is_pending}
-								onChange={(next) => setValues((prev) => ({ ...prev, transaction_date: next }))}
-							/>
-						</div>
-
-						{/*
-						 * Fatura do gasto (`invoice_month`): é ELE que decide de qual fatura a compra é, não a data.
-						 * Marcado, o backend calcula pelo ciclo do cartão. Desmarcar serve pra jogar a compra pra
-						 * outra fatura (parcelamento, compra lançada fora do ciclo) sem mentir na data da transação.
-						 */}
-						{linked_recurrence_id ? renderLinkedRecurrence() : renderRepeat()}
-
-						{is_credit && !hides_single_fields && (
-							<div className='flex flex-col gap-2'>
-								{/* O checkbox só existe na criação (e na edição que trocou de origem), pra o usuário não precisar
-								    pensar na fatura. Na edição a transação já tem a fatura gravada, então os seletores aparecem
-								    direto com ela. */}
-								{(!is_editing || origin_changed) && (
-									<label className='flex items-center gap-2 text-sm'>
-										<Checkbox
-											checked={is_invoice_auto}
-											disabled={is_pending}
-											onCheckedChange={(checked) => setValues((prev) => ({
-												...prev,
-												invoice_month: checked === true ? AUTO_INVOICE_MONTH : monthKey(prev.transaction_date),
-											}))}
-										/>
-										<span>Fatura automática <span className='text-muted-foreground'>— pelo ciclo do cartão</span></span>
-									</label>
-								)}
-								{is_editing && !origin_changed && <span className='text-sm font-medium'>Fatura</span>}
-
-								{!is_invoice_auto && (
-									<div className='flex gap-4'>
-										<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-											<label className='text-sm font-medium'>Mês</label>
-											<Select value={invoice_month_part} disabled={is_pending} onValueChange={(month) => setInvoicePart('month', month)}>
-												<SelectTrigger>
-													<SelectValue />
-												</SelectTrigger>
-												<SelectContent>
-													{MONTH_NAMES_PT.map((name, index) => (
-														<SelectItem key={name} value={String(index + 1).padStart(2, '0')}>{name}</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-										<div className='flex min-w-0 flex-1 flex-col gap-1.5'>
-											<label className='text-sm font-medium'>Ano</label>
-											<Select value={invoice_year} disabled={is_pending} onValueChange={(year) => setInvoicePart('year', year)}>
-												<SelectTrigger>
-													<SelectValue />
-												</SelectTrigger>
-												<SelectContent>
-													{buildInvoiceYearOptions(values.invoice_month).map((year) => (
-														<SelectItem key={year} value={year}>{year}</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									</div>
-								)}
-							</div>
-						)}
-
-						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
-						{!is_credit && !hides_single_fields && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>
-									Pago em <span className='font-normal text-muted-foreground'>— vazio = pendente</span>
-								</label>
-								{values.settled_date ? (
-									<div className='flex items-center gap-2'>
-										<div className='flex-1'>
-											<DateTimeField
-												value={values.settled_date}
-												disabled={is_pending}
-												onChange={(next) => setValues((prev) => ({ ...prev, settled_date: next }))}
-											/>
-										</div>
-										<Button
+							{/* Alternâncias: Repetir e Rascunho (tracejadas quando desligadas) */}
+							{(!linked_recurrence_id || !is_repeating) && (
+								<div className='flex flex-wrap justify-center gap-2 xl:justify-start'>
+									{!linked_recurrence_id && (
+										<button
 											type='button'
-											variant='ghost'
-											size='icon'
 											disabled={is_pending}
-											aria-label='Marcar como pendente'
-											onClick={() => setValues((prev) => ({ ...prev, settled_date: null }))}
+											onClick={() => setValues((prev) => ({ ...prev, repeat_mode: is_repeating ? 'none' : 'recurring' }))}
+											className={TOGGLE_CHIP(is_repeating)}
 										>
-											<X className='h-4 w-4' />
-										</Button>
-									</div>
-								) : (
-									<Button
-										type='button'
-										variant='outline'
-										disabled={is_pending}
-										className={`${ FIELD_METRICS } justify-start gap-2 text-muted-foreground`}
-										onClick={() => setValues((prev) => ({ ...prev, settled_date: new Date(prev.transaction_date) }))}
-									>
-										<CalendarIcon className='h-4 w-4' />
-										Marcar como pago
-									</Button>
-								)}
-							</div>
-						)}
-
-						{/* Só aparece quando há mais de um participante — com um só não há o que escolher. */}
-						{members.length > 1 && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>Responsável</label>
-								<Select value={values.user_id} disabled={is_pending} onValueChange={setAuthor}>
-									<SelectTrigger>
-										<SelectValue placeholder='Escolha o responsável' />
-									</SelectTrigger>
-									<SelectContent>
-										{members.map((member) => (
-											<SelectItem key={member.id} value={member.id}>
-												<span className='flex items-center gap-2'>
-													<UserRound className='h-3.5 w-3.5' />
-													{member.name}
-													{member.id === current_user_id && <span className='text-xs text-muted-foreground'>você</span>}
-												</span>
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-
-						{!is_repeating && (
-							<div className='flex flex-col gap-2'>
-								<label className='flex items-center gap-2 text-sm'>
-									<Checkbox
-										checked={values.draft}
-										onCheckedChange={(checked) => setValues((prev) => ({ ...prev, draft: checked === true }))}
-									/>
-									<span>Rascunho <span className='text-muted-foreground'>— planejamento, fora dos totais</span></span>
-								</label>
-							</div>
-						)}
-
-						<DialogFooter>
-							{/* Ação secundária: fica à esquerda no desktop (`mr-auto`) e por último no mobile, onde o rodapé empilha. */}
-							{!is_editing && (
-								<Button type='button' variant='ghost' onClick={backToTypeStep} disabled={is_pending} className='sm:mr-auto'>
-									← Trocar tipo
-								</Button>
+											<Repeat className='h-3.5 w-3.5' />
+											{is_repeating ? `Repetir · ${ repeat_summary }` : '+ Repetir'}
+										</button>
+									)}
+									{!is_repeating && (
+										<button
+											type='button'
+											disabled={is_pending}
+											onClick={() => setValues((prev) => ({ ...prev, draft: !prev.draft }))}
+											className={TOGGLE_CHIP(values.draft)}
+											title='Planejamento: fica fora dos totais'
+										>
+											{values.draft ? <><Check className='h-3.5 w-3.5' /> Rascunho</> : '+ Rascunho'}
+										</button>
+									)}
+								</div>
 							)}
-							<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
+
+							{linked_recurrence_id ? renderLinkedRecurrence() : is_repeating && renderRepeat()}
+						</div>
+
+						{/* Celular e tablets: teclado numérico + botão grande de salvar (no tablet deitado, coluna da direita) */}
+						<div className='flex flex-col gap-3 px-5 pb-[calc(20px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] pt-2 md:px-0 md:pb-0 xl:hidden lg:max-xl:col-start-2 lg:max-xl:row-span-2 lg:max-xl:row-start-1 lg:max-xl:self-end'>
+							<div className='grid grid-cols-3 gap-1.5'>
+								{KEYPAD_KEYS.map((key) => (
+									<button
+										key={key}
+										type='button'
+										disabled={is_pending}
+										aria-label={key === 'back' ? 'Apagar' : undefined}
+										onClick={() => pressKey(key)}
+										className={cn(
+											'pressable flex h-[54px] items-center justify-center rounded-2xl text-2xl font-medium active:bg-accent md:h-[60px] md:rounded-[18px] md:text-[26px] lg:h-16',
+											key === 'back' || key === '00'
+												? 'text-muted-foreground hover:bg-accent'
+												: 'bg-white hover:bg-accent dark:bg-[rgba(199,195,191,0.06)]',
+										)}
+									>
+										{key === 'back' ? <Delete className='h-6 w-6' /> : key}
+									</button>
+								))}
+							</div>
+							<Button type='submit' size='lg' isLoading={is_pending} disabled={is_submit_disabled} className='h-14 w-full text-base font-bold'>
+								{submit_label}
+								<Check className='h-5 w-5' strokeWidth={2.6} />
+							</Button>
+						</div>
+
+						{/* Desktop: rodapé com Cancelar + Salvar (atalho Ctrl/⌘ Enter) */}
+						<DialogFooter className='hidden xl:flex'>
+							<Button type='button' variant='ghost' onClick={() => onOpenChange(false)} disabled={is_pending}>
 								Cancelar
 							</Button>
-							<Button type='submit' isLoading={is_pending} disabled={is_submit_disabled}>
-								Salvar
+							<Button type='submit' isLoading={is_pending} disabled={is_submit_disabled} className='gap-2'>
+								{submit_label}
+								<kbd className='rounded-md bg-navy/10 px-1.5 py-0.5 font-sans text-[11px] font-semibold'>{SUBMIT_SHORTCUT}</kbd>
 							</Button>
 						</DialogFooter>
 					</form>

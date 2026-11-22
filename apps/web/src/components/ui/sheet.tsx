@@ -17,7 +17,7 @@ const SheetOverlay = forwardRef<
 >(({ className, ...props }, ref) => (
 	<SheetPrimitive.Overlay
 		className={cn(
-			'fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+			'fixed inset-0 z-50 bg-navy/35 backdrop-blur-[3px] dark:bg-black/55 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
 			className,
 		)}
 		{...props}
@@ -27,7 +27,7 @@ const SheetOverlay = forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-	'fixed z-50 flex max-h-[100dvh] flex-col gap-4 overflow-y-auto overscroll-contain bg-background text-foreground p-6 shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
+	'fixed z-50 flex max-h-[100dvh] flex-col gap-4 overflow-y-auto overscroll-contain bg-card text-foreground p-6 shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
 	{
 		variants: {
 			side: {
@@ -57,7 +57,7 @@ const SheetContent = forwardRef<ElementRef<typeof SheetPrimitive.Content>, IShee
 		<SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
 			{children}
 			{!hideClose && (
-				<SheetPrimitive.Close className='absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none'>
+				<SheetPrimitive.Close className='absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus:outline-none focus-visible:ring-4 focus-visible:ring-ring/25 disabled:pointer-events-none'>
 					<X className='h-4 w-4' />
 					<span className='sr-only'>Fechar</span>
 				</SheetPrimitive.Close>
@@ -76,7 +76,7 @@ const SheetTitle = forwardRef<
 	ElementRef<typeof SheetPrimitive.Title>,
 	ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
 >(({ className, ...props }, ref) => (
-	<SheetPrimitive.Title ref={ref} className={cn('text-lg font-semibold text-foreground', className)} {...props} />
+	<SheetPrimitive.Title ref={ref} className={cn('text-xl font-bold tracking-tight text-foreground', className)} {...props} />
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 

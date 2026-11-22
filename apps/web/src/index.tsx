@@ -5,6 +5,7 @@ import { Native } from '@/services/native';
 
 import App from './App';
 
+import '@fontsource-variable/geist/wght.css';
 import './styles/index.css';
 
 Native.init();

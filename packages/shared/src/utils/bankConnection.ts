@@ -82,6 +82,26 @@ const toYmd = (date: Date) => DateUtils.formateTo(date, 'yyyy-MM-dd');
 
 const plural = (count: number, singular: string, plural_form: string) => `${ count } ${ count === 1 ? singular : plural_form }`;
 
+/* Status em palavras (redesign 2026-11): o que a pessoa precisa saber, não o código da Pluggy. */
+const STATUS_VIEW: Record<string, { label: string; tone: 'success' | 'warning' | 'error' | 'info' | 'neutral'; note?: string }> = {
+	UPDATED: { label: 'Em dia', tone: 'success' },
+	UPDATING: { label: 'Buscando no banco…', tone: 'info', note: 'Pode levar alguns minutos. Pode sair desta tela: o que chegar entra sozinho.' },
+	OUTDATED: { label: 'Desatualizada', tone: 'warning', note: 'O banco não respondeu na última tentativa. Tente atualizar ou reconectar.' },
+	WAITING_USER_INPUT: { label: 'Esperando você no banco', tone: 'warning', note: 'O banco pediu uma confirmação (código ou token). Reconecte para responder.' },
+	WAITING_USER_ACTION: { label: 'Esperando você no banco', tone: 'warning', note: 'O banco pediu uma confirmação. Reconecte para responder.' },
+	LOGIN_ERROR: { label: 'Precisa entrar de novo', tone: 'error', note: 'O banco encerrou o acesso (senha trocada ou acesso expirado). Nada é atualizado até você reconectar.' },
+};
+
+const SUBTYPE_LABELS: Record<string, string> = {
+	CHECKING_ACCOUNT: 'Conta corrente',
+	SAVINGS_ACCOUNT: 'Poupança',
+	CREDIT_CARD: 'Cartão de crédito',
+};
+
+const pad = (value: number) => String(value).padStart(2, '0');
+const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const shortMonth = (date: Date) => MONTH_NAMES_PT[date.getMonth()]?.slice(0, 3).toLowerCase() ?? '';
+
 export const BankConnectionUtils = {
 	/* Rótulo pt-BR e tom visual do status do item da Pluggy; status desconhecido cai no próprio valor, neutro. */
 	status: (status: TBankConnection['status']) => {
@@ -101,6 +121,67 @@ export const BankConnectionUtils = {
 		const color = connection.connector_primary_color;
 		if (!color) return null;
 		return color.startsWith('#') ? color : `#${ color }`;
+	},
+
+	/* Status em palavras + nota explicativa (quando há algo a fazer ou esperar). */
+	statusView: (status: TBankConnection['status']) =>
+		(status && STATUS_VIEW[status]) || { label: status ? BankConnectionUtils.status(status).label : 'Sem status', tone: 'neutral' as const },
+
+	/*
+	 * Quando a conexão trouxe algo pela última vez. O backend não preenche `last_synced_at` (a rotina não grava),
+	 * então vale o `last_imported_at` mais recente dos vínculos; `last_synced_at` só se um dia vier.
+	 */
+	lastUpdatedAt: (connection: Pick<TBankConnection, 'last_synced_at'>, links: Pick<TBankAccountLink, 'last_imported_at'>[] = []) => {
+		const dates = [ connection.last_synced_at, ...links.map((link) => link.last_imported_at) ].filter(Boolean) as string[];
+		if (!dates.length) return null;
+		return dates.reduce((latest, date) => (new Date(date) > new Date(latest) ? date : latest));
+	},
+
+	/* "há 5 min", "há 2 h", "ontem, 18:40", "há 9 dias", "em 02/11/2025". */
+	relativeTime: (iso: string, now: Date = new Date()) => {
+		const date = new Date(iso);
+		const minutes = Math.floor((now.getTime() - date.getTime()) / 60000);
+		if (minutes < 2) return 'agora há pouco';
+		if (minutes < 60) return `há ${ minutes } min`;
+		if (sameDay(date, now)) return `há ${ Math.floor(minutes / 60) } h`;
+		const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+		if (sameDay(date, yesterday)) return `ontem, ${ pad(date.getHours()) }:${ pad(date.getMinutes()) }`;
+		const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) / 86400000);
+		if (days < 30) return `há ${ days } dias`;
+		return `em ${ pad(date.getDate()) }/${ pad(date.getMonth() + 1) }/${ date.getFullYear() }`;
+	},
+
+	/* "Hoje, 06:00" / "Ontem, 18:40" / "20 nov, 06:00" / "02 nov 2025, 14:12". */
+	whenLabel: (iso: string, now: Date = new Date()) => {
+		const date = new Date(iso);
+		const time = `${ pad(date.getHours()) }:${ pad(date.getMinutes()) }`;
+		if (sameDay(date, now)) return `Hoje, ${ time }`;
+		if (sameDay(date, new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) return `Ontem, ${ time }`;
+		const year = date.getFullYear() === now.getFullYear() ? '' : ` ${ date.getFullYear() }`;
+		return `${ pad(date.getDate()) } ${ shortMonth(date) }${ year }, ${ time }`;
+	},
+
+	/* "8 novas, 3 conciliadas, 1 atualizada" — só o que não é zero; tudo zero = "nada novo". */
+	shortImportSummary: (bank_import: Pick<TBankImport, 'created_count' | 'updated_count' | 'discarded_count' | 'skipped_count'> & Partial<Pick<TBankImport, 'matched_count'>>) => {
+		const parts = [
+			[ bank_import.created_count, 'nova', 'novas' ],
+			[ bank_import.matched_count ?? 0, 'conciliada', 'conciliadas' ],
+			[ bank_import.updated_count, 'atualizada', 'atualizadas' ],
+			[ bank_import.discarded_count, 'removida', 'removidas' ],
+			[ bank_import.skipped_count, 'ignorada', 'ignoradas' ],
+		] as const;
+		const text = parts.filter(([ count ]) => count > 0).map(([ count, one, many ]) => plural(count, one, many)).join(', ');
+		return text || 'nada novo';
+	},
+
+	/* "Conta corrente", "Poupança", "Cartão de crédito" (cai no tipo genérico se a Pluggy não mandou o subtipo). */
+	subtypeLabel: (link: Pick<TBankAccountLink, 'external_type' | 'external_subtype'>) =>
+		(link.external_subtype && SUBTYPE_LABELS[link.external_subtype]) || BankConnectionUtils.linkTypeLabel(link),
+
+	/* "•••• 4821" a partir do número da conta/cartão; `null` sem número. */
+	maskedNumber: (number: string | null) => {
+		const digits = (number || '').replace(/\D/g, '');
+		return digits.length >= 4 ? `•••• ${ digits.slice(-4) }` : (number || null);
 	},
 
 	lastSyncLabel: (connection: Pick<TBankConnection, 'last_synced_at'>) =>

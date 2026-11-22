@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 
 import { DateUtils, getApiErrorMessage, MoneyUtils, TransactionUtils, type TTransaction } from '@myfinance/shared';
-import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight, CalendarIcon, CreditCard, Wallet, X } from 'lucide-react';
+import { ArrowDownRight, ArrowLeftRight, ArrowRight, ArrowUpRight, CalendarIcon, Copy, CreditCard, Lock, Wallet, X } from 'lucide-react';
 
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
 import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
@@ -9,11 +9,10 @@ import useToast from '@/hooks/useToast';
 
 import { cn } from '@/lib/utils';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
 import DateTimeField from '@/components/molecules/DateTimeField';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { FIELD_METRICS } from '@/components/ui/field';
+import { GLASS_TILE } from '@/components/molecules/NavKit';
+import { Field, FIELD_INPUT, FIELD_LABEL, SheetDialog, SheetDialogFooter, SummaryTile } from '@/components/molecules/SheetDialog';
+import Badge from '@/components/ui/badge';
 
 interface IProps {
 	open: boolean;
@@ -29,6 +28,7 @@ interface IProps {
  * deixando editável só a descrição e a data da transação — pensado pra cobranças recorrentes. Em conta, o
  * "Pago em" também é editável (opcional, mesma condicional do form normal) e começa vazio: a cópia nasce
  * pendente por padrão. Em crédito não há "Pago em" (o backend auto-efetiva).
+ * Visual: redesign 2026-11, mockup "DlgDuplicate" (resumo do que é copiado + campos; datas lado a lado do md pra cima).
  */
 const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceName }: IProps) => {
 	const { toast } = useToast();
@@ -47,9 +47,9 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		? TransactionUtils.transferDescription(transaction?.source_name || sourceName, transaction?.destination_account_name)
 		: '';
 	const kind_style = (() => {
-		if (is_transfer) return { badge: 'bg-feedback-info-light text-feedback-info-default', value: 'text-foreground', sign: '', Icon: ArrowLeftRight };
-		if (is_deposit) return { badge: 'bg-feedback-success-light text-feedback-success-dark', value: 'text-feedback-success-default', sign: '+', Icon: ArrowUpRight };
-		return { badge: 'bg-feedback-danger-light text-feedback-danger-dark', value: 'text-destructive', sign: '-', Icon: ArrowDownRight };
+		if (is_transfer) return { badge: 'bg-info-soft text-info', value: 'text-foreground', sign: '', label: 'Transferência', Icon: ArrowLeftRight };
+		if (is_deposit) return { badge: 'bg-success-soft text-success', value: 'text-success', sign: '+', label: 'Entrada', Icon: ArrowUpRight };
+		return { badge: 'bg-danger-soft text-danger', value: 'text-destructive', sign: '−', label: 'Saída', Icon: ArrowDownRight };
 	})();
 
 	useEffect(() => {
@@ -65,9 +65,11 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		setSettledDate(null); // cópia nasce pendente; o usuário marca como pago se quiser
 	}, [ open, transaction ]);
 
+	const is_submit_disabled = is_pending || is_members_loading || (!is_transfer && !description.trim());
+
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
-		if (!transaction) return;
+		if (!transaction || is_submit_disabled) return;
 
 		const account_settled_date = settled_date ? settled_date.toISOString() : undefined;
 
@@ -96,104 +98,131 @@ const TransactionDuplicateDialog = ({ open, onOpenChange, transaction, sourceNam
 		});
 	};
 
-	const is_submit_disabled = is_pending || is_members_loading || (!is_transfer && !description.trim());
+	/* Atalho do mockup: empurra a data da transação mais um mês (mantém o horário). */
+	const addOneMonth = () => setTransactionDate((current) => DateUtils.addMonths(current, 1) ?? current);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Duplicar transação</DialogTitle>
-				</DialogHeader>
-
-				{transaction && (
-					<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-						{/* Resumo do que é copiado da original (não editável) */}
-						<div className='flex items-center gap-3 rounded-lg border border-card bg-card px-4 py-3'>
-							<div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full', kind_style.badge)}>
-								<kind_style.Icon className='h-4 w-4' />
-							</div>
-							<div className='flex flex-1 flex-col overflow-hidden'>
-								<span className='inline-flex items-center gap-1.5 truncate text-xs text-muted-foreground'>
-									{is_credit ? <CreditCard className='h-3.5 w-3.5' /> : <Wallet className='h-3.5 w-3.5' />}
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title='Duplicar transação'
+			description='Cria uma nova com o mesmo valor, tipo e conta.'
+			wide
+			onSubmit={transaction ? handleSubmit : undefined}
+			footer={transaction && (
+				<SheetDialogFooter
+					submitLabel={(
+						<>
+							<Copy className='size-4' />
+							Duplicar
+						</>
+					)}
+					onCancel={() => onOpenChange(false)}
+					isLoading={is_pending}
+					disabled={is_submit_disabled}
+				/>
+			)}
+		>
+			{transaction && (
+				<>
+					{/* Resumo do que é copiado da original (não editável) */}
+					<SummaryTile className='flex-row items-center gap-3 px-3.5 py-3'>
+						<span className={cn('flex size-10 shrink-0 items-center justify-center rounded-full', kind_style.badge)}>
+							<kind_style.Icon className='size-[18px]' />
+						</span>
+						<span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+							<span className='flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground'>
+								{is_credit ? <CreditCard className='size-3.5 shrink-0' /> : <Wallet className='size-3.5 shrink-0' />}
+								<span className='truncate'>
 									{sourceName || (is_credit ? 'Crédito' : 'Conta')}
-									{is_transfer && (
-										<>
-											<ArrowRight className='h-3.5 w-3.5' />
-											{transaction.destination_account_name || 'Conta'}
-										</>
-									)}
-									{transaction.draft && <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase'>Rascunho</span>}
 								</span>
-								<span className={cn('text-base font-semibold', kind_style.value)}>
-									{kind_style.sign}{MoneyUtils.formatMoney(transaction.value)}
-								</span>
-							</div>
-						</div>
+								{is_transfer && (
+									<>
+										<ArrowRight className='size-3.5 shrink-0' />
+										<span className='truncate'>{transaction.destination_account_name || 'Conta'}</span>
+									</>
+								)}
+								<span className='shrink-0'>· {kind_style.label}</span>
+								{transaction.draft && <Badge className='shrink-0'>Rascunho</Badge>}
+							</span>
+							<span className={cn('text-lg font-semibold tracking-[-0.02em]', kind_style.value)}>
+								{kind_style.sign}{MoneyUtils.formatMoney(transaction.value)}
+							</span>
+						</span>
+						<span className='inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground'>
+							<Lock className='size-3' />
+							copiado
+						</span>
+					</SummaryTile>
 
-						<TextInput
-							type='text'
-							label={is_transfer ? 'Descrição (opcional)' : 'Descrição'}
+					<Field label={is_transfer ? 'Descrição (opcional)' : 'Descrição'} htmlFor='duplicate-description'>
+						<input
+							id='duplicate-description'
 							name='description'
+							className={FIELD_INPUT}
 							placeholder={is_transfer ? default_transfer_description : 'Digite a descrição'}
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							disabled={is_pending}
 						/>
+					</Field>
 
-						<div className='flex flex-col gap-1.5'>
-							<label className='text-sm font-medium'>Data da transação</label>
+					{/* Uma embaixo da outra: lado a lado a coluna ficava estreita e a hora caía pra baixo da data. */}
+					<div className='grid gap-4'>
+						<div className='flex min-w-0 flex-col gap-2'>
+							<div className='flex items-center justify-between gap-2'>
+								<span className={FIELD_LABEL}>Data da transação</span>
+								<button
+									type='button'
+									onClick={addOneMonth}
+									disabled={is_pending}
+									className={cn('pressable rounded-full px-2.5 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50', GLASS_TILE)}
+								>
+									+1 mês
+								</button>
+							</div>
 							<DateTimeField value={transaction_date} disabled={is_pending} onChange={setTransactionDate} />
 						</div>
 
 						{/* "Pago em" só aparece em conta — crédito é efetivado automaticamente pelo backend */}
 						{!is_credit && (
-							<div className='flex flex-col gap-1.5'>
-								<label className='text-sm font-medium'>
-									Pago em <span className='font-normal text-muted-foreground'>— vazio = pendente</span>
-								</label>
+							<div className='flex min-w-0 flex-col gap-2'>
+								<span className={FIELD_LABEL}>
+									Pago em <span className='opacity-75'>— vazio = pendente</span>
+								</span>
 								{settled_date ? (
-									<div className='flex items-center gap-2'>
-										<div className='flex-1'>
+									<div className='flex items-start gap-2'>
+										<div className='min-w-0 flex-1'>
 											<DateTimeField value={settled_date} disabled={is_pending} onChange={setSettledDate} />
 										</div>
-										<Button
+										<button
 											type='button'
-											variant='ghost'
-											size='icon'
 											disabled={is_pending}
 											aria-label='Marcar como pendente'
+											title='Marcar como pendente'
 											onClick={() => setSettledDate(null)}
+											className={cn('pressable flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground disabled:opacity-50', GLASS_TILE)}
 										>
-											<X className='h-4 w-4' />
-										</Button>
+											<X className='size-4' />
+										</button>
 									</div>
 								) : (
-									<Button
+									<button
 										type='button'
-										variant='outline'
 										disabled={is_pending}
-										className={`${ FIELD_METRICS } justify-start gap-2 text-muted-foreground`}
 										onClick={() => setSettledDate(new Date(transaction_date))}
+										className='pressable flex h-[52px] w-full items-center gap-2 rounded-2xl border border-dashed border-foreground/25 px-4 text-[15px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50'
 									>
-										<CalendarIcon className='h-4 w-4' />
+										<CalendarIcon className='size-4' />
 										Marcar como pago
-									</Button>
+									</button>
 								)}
 							</div>
 						)}
-
-						<DialogFooter>
-							<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
-								Cancelar
-							</Button>
-							<Button type='submit' isLoading={is_pending} disabled={is_submit_disabled}>
-								Duplicar
-							</Button>
-						</DialogFooter>
-					</form>
-				)}
-			</DialogContent>
-		</Dialog>
+					</div>
+				</>
+			)}
+		</SheetDialog>
 	);
 };
 

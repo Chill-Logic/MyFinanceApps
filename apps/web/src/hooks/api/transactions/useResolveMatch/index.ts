@@ -19,6 +19,7 @@ export const useResolveMatch = () => {
 				QUERY_KEYS.transaction.get_pending_matches,
 				QUERY_KEYS.transaction.get_all,
 				QUERY_KEYS.account.get_all,
+				QUERY_KEYS.account.get_projection,
 				QUERY_KEYS.credit_balance.get_all,
 				QUERY_KEYS.credit_balance.get_invoice,
 				QUERY_KEYS.credit_card.get_all,

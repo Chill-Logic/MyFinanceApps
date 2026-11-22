@@ -1,16 +1,18 @@
 import { FormEvent, useEffect, useState } from 'react';
 
 import { getApiErrorMessage, MoneyUtils, type TCreditBalance } from '@myfinance/shared';
+import { CreditCard, Info, Wallet } from 'lucide-react';
 
 import { useCreateCreditBalance } from '@/hooks/api/credit-balances/useCreateCreditBalance';
 import { useUpdateCreditBalance } from '@/hooks/api/credit-balances/useUpdateCreditBalance';
+import { useIndexCreditCards } from '@/hooks/api/credit-cards/useIndexCreditCards';
 import useToast from '@/hooks/useToast';
 
 import { useWallet } from '@/context/wallet';
+import { cn } from '@/lib/utils';
 
-import Button from '@/components/atoms/Button';
-import TextInput from '@/components/atoms/TextInput';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { GLASS_TILE } from '@/components/molecules/NavKit';
+import { AffixInput, Field, FIELD_INPUT, SheetDialog, SheetDialogFooter } from '@/components/molecules/SheetDialog';
 
 interface IProps {
 	open: boolean;
@@ -25,12 +27,25 @@ const clampDay = (value: string): string => {
 	return String(Math.min(31, Math.max(1, Number(digits))));
 };
 
+/* O ciclo vai do melhor dia de compra até a véspera dele no mês seguinte; dia 1 = mês-calendário. */
+const cycleLabel = (best_day: number): string => (best_day === 1
+	? 'dia 1 até o fim do mês'
+	: `dia ${ best_day } até dia ${ best_day - 1 } do mês seguinte`);
+
+/* Novo/editar crédito (redesign 2026-11, mockup "DlgCreditBalance"): nome, limite, dias e o ciclo resultante. */
 const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) => {
 	const { user_wallet } = useWallet();
 	const { toast } = useToast();
 
 	const { mutate: createMutation, isPending: is_create_pending } = useCreateCreditBalance();
 	const { mutate: updateMutation, isPending: is_update_pending } = useUpdateCreditBalance();
+
+	/* Só pra linha de contexto ("compartilhados por N cartões") — mesma query do detalhe do cartão, já em cache. */
+	const { data: cards_data } = useIndexCreditCards({
+		enabled: open && Boolean(creditBalance),
+		params: { credit_balance_id: creditBalance?.id || '' },
+	});
+	const cards_count = cards_data?.data?.length ?? 0;
 
 	const [ name, setName ] = useState('');
 	const [ credit_limit, setCreditLimit ] = useState('');
@@ -58,6 +73,7 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
+		if (is_disabled) return;
 
 		const body = {
 			name,
@@ -95,68 +111,95 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 		});
 	};
 
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>{creditBalance ? 'Editar crédito' : 'Novo crédito'}</DialogTitle>
-				</DialogHeader>
+	const is_shared = Boolean(creditBalance) && cards_count > 1;
+	const wallet_context = user_wallet.data ? `Na carteira ${ user_wallet.data.name }` : undefined;
 
-				<form onSubmit={handleSubmit} className='flex flex-col gap-4'>
-					<TextInput
-						type='text'
-						label='Nome'
-						name='name'
+	return (
+		<SheetDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={creditBalance ? 'Editar crédito' : 'Novo crédito'}
+			context={is_shared ? `Limite e fatura compartilhados por ${ cards_count } cartões` : wallet_context}
+			contextIcon={is_shared ? CreditCard : Wallet}
+			onSubmit={handleSubmit}
+			footer={(
+				<SheetDialogFooter
+					submitLabel={creditBalance ? 'Salvar' : 'Criar crédito'}
+					onCancel={() => onOpenChange(false)}
+					isLoading={is_pending}
+					disabled={is_disabled}
+				/>
+			)}
+		>
+			<div className='grid gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] md:gap-3'>
+				<Field label='Nome' htmlFor='credit-balance-name'>
+					<input
+						id='credit-balance-name'
+						className={FIELD_INPUT}
 						placeholder='Ex.: Nubank, Inter'
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						disabled={is_pending}
 					/>
-
-					<TextInput
-						type='text'
-						label='Limite'
-						name='credit_limit'
-						placeholder='R$ 0,00'
-						value={credit_limit}
+				</Field>
+				<Field label='Limite' htmlFor='credit-balance-limit' hint={creditBalance?.bank_linked ? 'Vem do banco: a próxima atualização troca pelo valor informado pelo banco.' : undefined}>
+					<AffixInput
+						id='credit-balance-limit'
+						prefix='R$'
+						inputMode='numeric'
+						placeholder='0,00'
+						value={credit_limit.replace(/^R\$\s?/, '')}
 						onChange={(e) => setCreditLimit(MoneyUtils.formatMoney(e.target.value))}
 						disabled={is_pending}
 					/>
+				</Field>
+			</div>
 
-					<div className='flex gap-4'>
-						<TextInput
-							type='text'
-							label='Melhor dia de compra'
-							name='best_purchase_day'
-							placeholder='1 a 31'
-							value={best_purchase_day}
-							onChange={(e) => setBestPurchaseDay(clampDay(e.target.value))}
-							disabled={is_pending}
-							className='flex-1'
-						/>
-						<TextInput
-							type='text'
-							label='Dia de vencimento'
-							name='due_day'
-							placeholder='1 a 31'
-							value={due_day}
-							onChange={(e) => setDueDay(clampDay(e.target.value))}
-							disabled={is_pending}
-							className='flex-1'
-						/>
-					</div>
+			<div className='grid grid-cols-2 gap-2.5 md:gap-3'>
+				<Field label='Melhor dia de compra' htmlFor='credit-balance-best-day'>
+					<AffixInput
+						id='credit-balance-best-day'
+						prefix='dia'
+						inputMode='numeric'
+						placeholder='1 a 31'
+						value={best_purchase_day}
+						onChange={(e) => setBestPurchaseDay(clampDay(e.target.value))}
+						disabled={is_pending}
+					/>
+				</Field>
+				<Field label='Dia de vencimento' htmlFor='credit-balance-due-day'>
+					<AffixInput
+						id='credit-balance-due-day'
+						prefix='dia'
+						inputMode='numeric'
+						placeholder='1 a 31'
+						value={due_day}
+						onChange={(e) => setDueDay(clampDay(e.target.value))}
+						disabled={is_pending}
+					/>
+				</Field>
+			</div>
 
-					<DialogFooter>
-						<Button type='button' variant='outline' onClick={() => onOpenChange(false)} disabled={is_pending}>
-							Cancelar
-						</Button>
-						<Button type='submit' isLoading={is_pending} disabled={is_disabled}>
-							Salvar
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+			{best_purchase_day && due_day && (
+				<div className={cn('flex items-center justify-between gap-2.5 rounded-[20px] px-4 py-3', GLASS_TILE)}>
+					<span className='flex min-w-0 flex-col gap-0.5'>
+						<span className='text-xs text-muted-foreground'>Ciclo da fatura</span>
+						<span className='text-[15px] font-semibold'>{cycleLabel(Number(best_purchase_day))}</span>
+					</span>
+					<span className='flex shrink-0 flex-col items-end gap-0.5'>
+						<span className='text-xs text-muted-foreground'>Vence</span>
+						<span className='text-[15px] font-semibold'>dia {due_day}</span>
+					</span>
+				</div>
+			)}
+
+			{creditBalance && (
+				<p className='flex items-start gap-2 px-1 text-[13px] leading-[1.45] text-muted-foreground'>
+					<Info className='mt-0.5 size-3.5 shrink-0' />
+					<span>Mudar os dias vale para as próximas compras; as já lançadas ficam na fatura em que estão.</span>
+				</p>
+			)}
+		</SheetDialog>
 	);
 };
 
