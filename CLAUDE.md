@@ -999,6 +999,12 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
+  - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
+    tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
+    aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
+    agora" e "Definir como principal". "Como funcionam os convites" ao lado (desktop) ou embaixo (tablet); no celular,
+    só a nota do e-mail. O "+" da barra é "Convidar": convite pra carteira em foco se você administra; senão, Carteiras.
+    Convites enviados não existem na API.
   - **Carteiras (redesign 2026-11, `WalletList`)**: a carteira em foco (a do contexto, `useWallet()`) num cartão
     marinho com selos Principal/Compartilhada, saldo efetivado, membros (`GET /wallets/:id/members`, por `useQueries`
     com a chave `wallet.get_members`) e as ações de quem administra; as outras em lista (celular, tablet deitado) ou
