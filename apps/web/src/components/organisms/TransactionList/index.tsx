@@ -951,7 +951,11 @@ const TransactionList = () => {
 				}
 			}}
 			className={cn(
-				'-mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors duration-150 [-webkit-tap-highlight-color:transparent] hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none active:bg-accent/70',
+				/*
+				 * Hover vale só com mouse (`future.hoverOnlyWhenSupported` no tailwind.config). No toque, só o afundar rápido
+				 * do `:active`, voltando com mola.
+				 */
+				'-mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 [-webkit-tap-highlight-color:transparent] [transition:background-color_150ms,transform_320ms_cubic-bezier(0.34,1.45,0.64,1)] focus-visible:bg-accent/40 focus-visible:outline-none active:scale-[0.985] active:bg-accent/25 active:[transition-duration:80ms] hover:bg-accent/40',
 				transaction_item.draft && 'opacity-60',
 			)}
 		>

@@ -9,6 +9,11 @@ import { Config } from 'tailwindcss/types/config';
 
 const tailwindConfig: Config = {
 	darkMode: 'class',
+	/*
+	 * `hover:` só onde há mouse (`@media (hover: hover)`). No celular/Capacitor o navegador deixa o último elemento
+	 * tocado "em hover" e o fundo ficava grudado (ex.: linha de transação). O toque usa `active:`/`.pressable`.
+	 */
+	future: { hoverOnlyWhenSupported: true },
 	content: [
 		'./index.html',
 		'./src/**/*.{js,ts,jsx,tsx}',

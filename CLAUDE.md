@@ -1185,6 +1185,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     círculo; `SegmentedControl` em pílula com o item ativo oliva (`bg-primary`) e texto marinho, como no mockup; `ui/badge` (`Badge`, variantes
     `neutral`/`outline`/`brand`/`success`/`warning`/`info`/`danger`, prop `dot`) para selos como
     "pendente"/"prevista"/"2 para conferir" — use-o em vez de `span` com classes de cor à mão.
+  - **`hover:` só com mouse** (`future.hoverOnlyWhenSupported` no tailwind.config, 2026-11-22): no celular/Capacitor o
+    último elemento tocado ficava "em hover" e o fundo grudava (linhas da lista). Feedback de toque é `active:`/`pressable`.
   - **Toque "nativo" = classe `pressable`** (`index.css`): afunda pra 0,96 ao pressionar e volta com mola,
     sem o flash cinza de toque e sem atraso de duplo toque. Já vem na base do `ui/button`; em botão feito à
     mão (chips, teclado, abas, itens de lista) aplique `pressable` em vez de só `transition-colors` — o dono
