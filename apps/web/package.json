@@ -13,9 +13,17 @@
     "test:debug": "jest --inspect-brk --runInBand --no-cache",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "cap:sync": "npm run build && cap sync android",
+    "cap:open": "cap open android",
+    "android": "npm run cap:sync && cap open android",
+    "android:bundle": "npm run cap:sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capawesome/capacitor-app-update": "^8.1.1",
     "@casl/ability": "^6.7.1",
     "@casl/react": "^4.0.0",
     "@myfinance/shared": "*",
@@ -93,6 +101,7 @@
     ]
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@chromatic-com/storybook": "^1.7.0",
     "@faker-js/faker": "^8.4.1",
     "@storybook/addon-essentials": "^8.2.9",

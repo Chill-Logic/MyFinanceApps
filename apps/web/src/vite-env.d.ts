@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
 	readonly VITE_API_URL: string;
 	readonly VITE_API_KEY: string;
+	/* URL pública do web (Vercel). O app nativo lê ${VITE_WEB_URL}/app-version.json pra saber a versão mínima. */
+	readonly VITE_WEB_URL?: string;
 }
 
 interface ImportMeta {

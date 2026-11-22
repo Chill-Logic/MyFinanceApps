@@ -46,7 +46,7 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 		 * visível, só aparecendo depois de rolar a página inteira até o fim. `dvh` (dynamic
 		 * viewport height) acompanha o tamanho real e visível do viewport.
 		 */
-		<div className='flex h-dvh bg-background-light dark:bg-background-default transition-all duration-300'>
+		<div className='flex h-dvh pt-safe bg-background-light dark:bg-background-default transition-all duration-300'>
 			{is_desktop && <Sidebar />}
 
 			<div className='flex flex-1 flex-col overflow-hidden'>
