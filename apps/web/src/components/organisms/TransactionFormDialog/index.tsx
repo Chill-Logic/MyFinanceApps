@@ -414,7 +414,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		e.preventDefault();
 
 		const value = Number(MoneyUtils.unformatMoney(values.value));
-		const effective_kind: TTransactionKind = is_credit ? 'withdraw' : values.kind;
+		/*
+		 * Cartão: na CRIAÇÃO só existe saída (compra). Na EDIÇÃO vale o tipo original — um estorno ou o pagamento da
+		 * fatura que aparece no cartão é `deposit`, e forçar `withdraw` virava compra ao salvar (inverte a fatura).
+		 */
+		const effective_kind: TTransactionKind = is_credit && !is_editing ? 'withdraw' : values.kind;
 		const transaction_date = values.transaction_date.toISOString();
 		/*
 		 * "Pago em" só é controlável em conta, onde `null` = pendente. Em crédito não existe pendente (o gasto
@@ -1136,7 +1140,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const keypad_display = MoneyUtils.formatMoney(keypad_digits || '0').replace(/^R\$\s?/, '');
 
 	const plain_value = values.value.replace(/^R\$\s?/, '');
-	const effective_kind_title = KIND_TITLE[is_credit ? 'withdraw' : values.kind];
+	const effective_kind_title = KIND_TITLE[is_credit && !is_editing ? 'withdraw' : values.kind];
 	const submit_label = is_editing ? 'Salvar alterações' : `Salvar ${ effective_kind_title }`;
 	const dialog_title = transaction ? `Editar ${ KIND_TITLE[transaction.kind] }` : 'Nova transação';
 
