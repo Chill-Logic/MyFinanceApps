@@ -953,9 +953,10 @@ const TransactionList = () => {
 			className={cn(
 				/*
 				 * Hover vale só com mouse (`future.hoverOnlyWhenSupported` no tailwind.config). No toque, só o afundar rápido
-				 * do `:active`, voltando com mola.
+				 * do `:active`, voltando com mola. Cor: um véu do texto sobre o cartão (`foreground/4%`), não `accent` — no
+				 * escuro o accent é mais escuro que o cartão e a linha parecia um buraco recortado.
 				 */
-				'-mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 [-webkit-tap-highlight-color:transparent] [transition:background-color_150ms,transform_320ms_cubic-bezier(0.34,1.45,0.64,1)] focus-visible:bg-accent/40 focus-visible:outline-none active:scale-[0.985] active:bg-accent/25 active:[transition-duration:80ms] hover:bg-accent/40',
+				'-mx-2 flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 [-webkit-tap-highlight-color:transparent] [transition:background-color_150ms,transform_320ms_cubic-bezier(0.34,1.45,0.64,1)] focus-visible:bg-foreground/[0.05] focus-visible:outline-none active:scale-[0.985] active:bg-foreground/[0.06] active:[transition-duration:80ms] hover:bg-foreground/[0.04]',
 				transaction_item.draft && 'opacity-60',
 			)}
 		>
