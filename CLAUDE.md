@@ -878,6 +878,12 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     fora); do tablet em diante diálogo de vidro de 560px (`wide` = 600) com "Cancelar" + principal à direita e ação
     extra à esquerda. Peças: `Field`, `FIELD_INPUT`, `AffixInput` (prefixo/sufixo — o `prefix` nativo do input sai do
     tipo), `RadioCard` (opção única; `warning` = opção perigosa), `Notice`, `SummaryTile`. Use-as em toda janela nova.
+    **Edição aproveita o que o backend aceita (2026-11-22)**, não só o que o app antigo fazia: recorrência edita data da
+    próxima (`start_date` + `effective_from` = próxima original), cartão, responsável e, na parcelada, total e nº de
+    parcelas; pagar fatura tem descrição opcional e avisa quando passa do restante; importação já vem com o
+    `adjust_balance` salvo no vínculo; saldo inicial da conta pode ser negativo ("Está negativo?"); limite de crédito
+    ligado ao banco avisa que a próxima atualização o troca; dígitos do cartão explicam o casamento das compras do banco.
+    Fora de propósito: editar transferência e "Fatura automática" na edição (decisões do dono, ver abaixo).
     Botão principal diz o que faz ("Criar conta", "Pagar R$ X"). Na conferência o tipo é Saída/Entrada (não o
     `translated_kind` da API). Textos sobre regra de backend só se confirmados (ex.: "ajustar o saldo" não diz COMO).
   - **Menu redesenhado (2026-11-22, mockup v3 "Menu")**: peças em `molecules/NavKit` — `GLASS_PANEL`/`GLASS_TILE`

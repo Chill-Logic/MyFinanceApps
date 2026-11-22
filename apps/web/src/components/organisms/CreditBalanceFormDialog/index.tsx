@@ -142,7 +142,7 @@ const CreditBalanceFormDialog = ({ open, onOpenChange, creditBalance }: IProps) 
 						disabled={is_pending}
 					/>
 				</Field>
-				<Field label='Limite' htmlFor='credit-balance-limit'>
+				<Field label='Limite' htmlFor='credit-balance-limit' hint={creditBalance?.bank_linked ? 'Vem do banco: a próxima atualização troca pelo valor informado pelo banco.' : undefined}>
 					<AffixInput
 						id='credit-balance-limit'
 						prefix='R$'

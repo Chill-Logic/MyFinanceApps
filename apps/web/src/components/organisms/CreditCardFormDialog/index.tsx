@@ -127,7 +127,11 @@ const CreditCardFormDialog = ({ open, onOpenChange, creditBalanceId, card }: IPr
 							disabled={is_pending}
 						/>
 					</Field>
-					<Field label='Últimos dígitos (opcional)' htmlFor='credit-card-digits'>
+					<Field
+						label='Últimos dígitos (opcional)'
+						htmlFor='credit-card-digits'
+						hint={credit_balance?.bank_linked ? 'As compras que vêm do banco caem no cartão com estes dígitos.' : undefined}
+					>
 						<AffixInput
 							id='credit-card-digits'
 							prefix='••••'

@@ -8,6 +8,7 @@ import { useUpdateAccount } from '@/hooks/api/accounts/useUpdateAccount';
 import useToast from '@/hooks/useToast';
 
 import { useWallet } from '@/context/wallet';
+import { cn } from '@/lib/utils';
 
 import SegmentedControl from '@/components/molecules/SegmentedControl';
 import { AffixInput, Field, FIELD_INPUT, SheetDialog, SheetDialogFooter } from '@/components/molecules/SheetDialog';
@@ -35,6 +36,8 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 	const [ name, setName ] = useState('');
 	const [ kind, setKind ] = useState<TAccountKind>('checking');
 	const [ initial_balance, setInitialBalance ] = useState('');
+	/* Saldo inicial pode ser negativo (conta já no cheque especial): o backend vira uma saída "Saldo inicial". */
+	const [ is_negative, setIsNegative ] = useState(false);
 
 	useEffect(() => {
 		if (!open) return;
@@ -46,6 +49,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 			setName('');
 			setKind('checking');
 			setInitialBalance('');
+			setIsNegative(false);
 		}
 	}, [ open, account ]);
 
@@ -76,7 +80,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 
 		createAccountMutation({
 			wallet_id: user_wallet.data.id,
-			body: { name, kind, initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)) },
+			body: { name, kind, initial_balance: Number(MoneyUtils.unformatMoney(initial_balance)) * (is_negative ? -1 : 1) },
 			onSuccess: () => {
 				toast.success('Conta criada!');
 				onOpenChange(false);
@@ -123,13 +127,23 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 					<Field label='Saldo inicial' htmlFor='account-balance'>
 						<AffixInput
 							id='account-balance'
-							prefix='R$'
+							prefix={is_negative ? '−R$' : 'R$'}
+							className={cn(is_negative && 'pl-14 text-destructive')}
 							inputMode='numeric'
 							placeholder='0,00'
 							value={initial_balance.replace(/^R\$\s?/, '')}
 							onChange={(e) => setInitialBalance(MoneyUtils.formatMoney(e.target.value))}
 							disabled={is_pending}
 						/>
+						<button
+							type='button'
+							onClick={() => setIsNegative((value) => !value)}
+							disabled={is_pending}
+							aria-pressed={is_negative}
+							className={cn('pressable -mt-0.5 self-start px-1 text-xs font-semibold', is_negative ? 'text-destructive' : 'text-brand')}
+						>
+							{is_negative ? 'Saldo negativo · tornar positivo' : 'Está negativo?'}
+						</button>
 					</Field>
 				)}
 			</div>
@@ -137,7 +151,7 @@ const AccountFormDialog = ({ open, onOpenChange, account }: IProps) => {
 			<p className='px-1 text-xs text-muted-foreground'>
 				{account
 					? 'O saldo muda pelas transações. O saldo inicial vira um lançamento “Saldo inicial” no começo da conta.'
-					: 'O saldo inicial entra como um lançamento “Saldo inicial” já efetivado. Pode deixar zero.'}
+					: 'O saldo inicial entra como um lançamento “Saldo inicial” já efetivado. Pode deixar zero ou negativo.'}
 			</p>
 		</SheetDialog>
 	);
