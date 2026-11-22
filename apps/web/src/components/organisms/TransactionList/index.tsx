@@ -57,7 +57,6 @@ import SegmentedControl from '@/components/molecules/SegmentedControl';
 import InvoiceReviewDialog from '@/components/organisms/InvoiceReviewDialog';
 import MatchReviewDialog, { type TMatchReviewSource } from '@/components/organisms/MatchReviewDialog';
 import TransactionDetailSheet from '@/components/organisms/TransactionDetailSheet';
-import TransactionDuplicateDialog from '@/components/organisms/TransactionDuplicateDialog';
 import TransactionFormDialog from '@/components/organisms/TransactionFormDialog';
 import {
 	AlertDialog,
@@ -1289,11 +1288,11 @@ const TransactionList = () => {
 				suggestedDate={new Date(month_year.year, month_year.month, new Date().getDate())}
 			/>
 
-			<TransactionDuplicateDialog
+			{/* Duplicar = o mesmo formulário da nova transação, já preenchido com a original (tudo editável). */}
+			<TransactionFormDialog
 				open={Boolean(duplicating_transaction)}
 				onOpenChange={(open) => !open && setDuplicatingTransaction(null)}
-				transaction={duplicating_transaction}
-				sourceName={duplicating_transaction ? (duplicating_transaction.source_name || source_names.get(duplicating_transaction.source_id)) : undefined}
+				duplicateFrom={duplicating_transaction}
 			/>
 
 			<AlertDialog open={Boolean(deleting_transaction)} onOpenChange={(open) => !open && setDeletingTransaction(null)}>
