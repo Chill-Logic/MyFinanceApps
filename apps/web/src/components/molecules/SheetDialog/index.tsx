@@ -35,10 +35,12 @@ interface ISheetDialogProps {
 	className?: string;
 	/* Pra filhos que mandam foco no primeiro campo de texto. */
 	autoFocus?: boolean;
+	/* `false` = sem ×, sem fechar por fora nem pelo Escape/voltar (aviso obrigatório). */
+	dismissible?: boolean;
 }
 
 export const SheetDialog = ({
-	open, onOpenChange, title, context, contextIcon: ContextIcon, description, wide = false, onSubmit, footer, children, className, autoFocus = false,
+	open, onOpenChange, title, context, contextIcon: ContextIcon, description, wide = false, onSubmit, footer, children, className, autoFocus = false, dismissible = true,
 }: ISheetDialogProps) => {
 	const Body = onSubmit ? 'form' : 'div';
 
@@ -48,6 +50,8 @@ export const SheetDialog = ({
 				<DialogPrimitive.Overlay className='fixed inset-0 z-50 bg-navy/35 backdrop-blur-[6px] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 dark:bg-black/55' />
 				<DialogPrimitive.Content
 					aria-describedby={undefined}
+					onInteractOutside={dismissible ? undefined : (event) => event.preventDefault()}
+					onEscapeKeyDown={dismissible ? undefined : (event) => event.preventDefault()}
 					onOpenAutoFocus={autoFocus ? undefined : (event) => event.preventDefault()}
 					className={cn(
 						GLASS_PANEL,
@@ -73,9 +77,11 @@ export const SheetDialog = ({
 							)}
 							{description && <p className='pt-1 text-sm text-muted-foreground'>{description}</p>}
 						</div>
-						<DialogPrimitive.Close aria-label='Fechar' className={cn('pressable flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground', GLASS_TILE)}>
-							<X className='size-4' />
-						</DialogPrimitive.Close>
+						{dismissible && (
+							<DialogPrimitive.Close aria-label='Fechar' className={cn('pressable flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground', GLASS_TILE)}>
+								<X className='size-4' />
+							</DialogPrimitive.Close>
+						)}
 					</div>
 					<Body
 						onSubmit={onSubmit}

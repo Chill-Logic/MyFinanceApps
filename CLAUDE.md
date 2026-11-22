@@ -1413,5 +1413,9 @@ Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então
   imediata da Play (tela da loja por cima do app) e cai pra página da loja. Checa ao abrir e ao voltar pro app
   (no máximo a cada 30 min). Só funciona com o app instalado PELA PLAY — num APK via `adb` a Play responde
   "sem atualização".
+  Visual (2026-11-22, mockup v3 "DlgUpdate"/"DlgUpdateRequired"): casco `SheetDialog` — folha de vidro no celular,
+  diálogo do tablet em diante — com a versão atual, o app e o selo Nova/Obrigatória. A obrigatória usa
+  `dismissible={false}` (sem ×, não fecha por fora, pelo Escape nem pelo voltar do Android). Para ver no navegador
+  (só em dev): `?preview-update=available` ou `?preview-update=required`.
 - O CORS do backend aceita qualquer origem — a origem do app (`https://localhost`) funciona sem mudança. API em
   `http://` não funciona (mixed content).
