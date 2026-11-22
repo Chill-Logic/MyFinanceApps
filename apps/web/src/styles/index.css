@@ -207,6 +207,20 @@
         100% { transform: scale(1, 1); }
     }
 
+    /* Mesma gota, movendo na vertical (trilho e barra lateral): estica na altura. */
+    @keyframes nav-blob-v-a {
+        0% { transform: scale(1, 1); }
+        30% { transform: scale(0.94, 1.3); }
+        62% { transform: scale(1.03, 0.95); }
+        100% { transform: scale(1, 1); }
+    }
+    @keyframes nav-blob-v-b {
+        0% { transform: scale(1, 1); }
+        30% { transform: scale(0.94, 1.3); }
+        62% { transform: scale(1.03, 0.95); }
+        100% { transform: scale(1, 1); }
+    }
+
     .pressable {
         -webkit-tap-highlight-color: transparent;
         touch-action: manipulation;

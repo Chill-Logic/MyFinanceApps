@@ -873,6 +873,24 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Celular (<768px)**: `BottomNav` **flutuante** (pílula de vidro `fixed`, só ícones com
     `aria-label`): Início, Contas, "+" central (só na Início), Carteiras e Menu (bottom sheet com o
     `NavMenu`). Pontos de troca: 768/1280 — mudou um, mude o outro (`DefaultTemplate`).
+  - **Menu redesenhado (2026-11-22, mockup v3 "Menu")**: peças em `molecules/NavKit` — `GLASS_PANEL`/`GLASS_TILE`
+    (vidro), `useLiquidBlob` + `LiquidBlob` (a "gota" que mede o alvo e escorre até ele; estica na direção do
+    movimento — keyframes `nav-blob-*` na horizontal e `nav-blob-v-*` na vertical), `WalletPanel` (troca de carteira),
+    `ThemeSwitch` (Sistema/Claro/Escuro) e `useRefreshAll`. Celular: a folha do ☰ (`NavMenu`) FLUTUA logo acima da
+    barra com a altura do conteúdo (antes era 70% fixo e sobrava metade vazia em aparelho alto), carteiras em cartões
+    lado a lado (a em foco vem primeiro — ordem congelada ao abrir; setas ‹ › de vidro nas pontas, só do lado em que ainda há cartão — tem
+    gente que não percebe que dá pra deslizar), destinos em grade 2×2, rodapé Configurações/tema/Sair; com ela aberta a
+    gota da barra vai pro ☰, que vira ×. A barra fica fora da folha (modal): tocar nela conta como "fora" e fecha a
+    folha — não navega. Tablets e desktop: `Sidebar` virou painel de vidro flutuante (trilho 76px / barra 260px) com a
+    gota no item ativo, carteira em foco no topo (avatar no trilho, cartão com saldo na barra) abrindo o `WalletPanel`,
+    e o perfil no rodapé abrindo Configurações/Atualizar dados/Tema/Sair. O antigo `WalletSwitcher` foi apagado.
+    O brilho oliva do topo mora na RAIZ do `DefaultTemplate` (atrás do menu também): dentro do `<main>` ele começava
+    na borda do trilho e desenhava uma linha vertical no fundo. Recuo dos ícones do trilho = 16px (15px no "+", que tem
+    borda) — centro exato em 38 de 76; o botão de recolher fica na altura do logo (aberta, `top: 44`) e centrado na
+    linha divisória no trilho (`top: 63`), deslizando entre as duas posições junto com a largura.
+    A gota NÃO anima na primeira medida (`animated` no `useLiquidBlob`): ao abrir um painel ela nascia com largura 0
+    e crescia com o quique, passando da largura e criando rolagem horizontal. Os painéis também cortam o excesso
+    horizontal (`overflow-x-hidden`).
   - **O "+" do meio da barra flutuante é a AÇÃO PRINCIPAL DA TELA (regra do dono, 2026-11-22)**: cada tela — e
     cada aba, quando a tela é a mesma — registra a sua com `usePrimaryAction({ label, onClick })`
     (`context/primaryAction.tsx`): Carteiras = nova carteira; Contas & Cartões = nova conta / novo cartão / nova

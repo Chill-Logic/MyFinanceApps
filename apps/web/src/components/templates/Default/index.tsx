@@ -89,7 +89,16 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 		 * visível, só aparecendo depois de rolar a página inteira até o fim. `dvh` (dynamic
 		 * viewport height) acompanha o tamanho real e visível do viewport.
 		 */
-		<div className='flex h-dvh bg-background pt-safe'>
+		<div className='relative flex h-dvh bg-background pt-safe'>
+			{/*
+				 * Brilho oliva no topo (como no mockup): radial suave atrás do cabeçalho. Fica na RAIZ, atrás do menu também —
+				 * dentro do <main> ele começava na borda do trilho e marcava uma linha vertical no fundo. Fica numa
+				 * caixa com overflow escondido pra o brilho, que é mais largo que a tela, não criar rolagem lateral.
+				 */}
+			<div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-0 z-0 h-[300px] overflow-hidden'>
+				<div className='absolute -left-20 -right-20 -top-36 h-[420px] bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.24)_0%,rgba(137,161,96,0)_100%)] dark:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.20)_0%,rgba(137,161,96,0)_100%)] md:left-0 md:right-auto md:-top-48 md:h-[480px] md:w-[700px] md:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.18)_0%,rgba(137,161,96,0)_100%)] md:dark:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.14)_0%,rgba(137,161,96,0)_100%)]' />
+			</div>
+
 			{is_tablet_up && (
 				<Sidebar
 					variant={is_sidebar_collapsed ? 'rail' : 'full'}
@@ -97,16 +106,8 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 				/>
 			)}
 
-			<div className='flex flex-1 flex-col overflow-hidden'>
+			<div className='relative z-10 flex flex-1 flex-col overflow-hidden'>
 				<main className='no-scrollbar relative flex-1 overflow-auto'>
-					{/*
-					 * Brilho oliva no topo da página (como no mockup): radial suave atrás do cabeçalho. Fica numa
-					 * caixa com overflow escondido pra o brilho, que é mais largo que a tela, não criar rolagem lateral.
-					 */}
-					<div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-0 h-[300px] overflow-hidden'>
-						<div className='absolute -left-20 -right-20 -top-36 h-[420px] bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.24)_0%,rgba(137,161,96,0)_100%)] dark:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.20)_0%,rgba(137,161,96,0)_100%)] md:-left-24 md:right-auto md:-top-48 md:h-[480px] md:w-[700px] md:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.18)_0%,rgba(137,161,96,0)_100%)] md:dark:bg-[radial-gradient(50%_50%_at_50%_50%,rgba(137,161,96,0.14)_0%,rgba(137,161,96,0)_100%)]' />
-					</div>
-
 					{/*
 					 * No celular, o padding-bottom reserva o espaço da barra flutuante (`--bottom-nav-space`,
 					 * ver BottomNav): página que rola inteira deixa o último item visível acima da barra. Lista

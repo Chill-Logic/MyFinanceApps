@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 import useNavItems, { type TNavAction } from '@/hooks/useNavItems';
 
 import { cn } from '@/lib/utils';
 
+import { GLASS_PANEL } from '@/components/molecules/NavKit';
 import NavMenu from '@/components/organisms/NavMenu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -51,7 +52,9 @@ const BottomNav = () => {
 	 */
 	const item_refs = useRef<(HTMLAnchorElement | null)[]>([]);
 	const nav_ref = useRef<HTMLElement>(null);
-	const active_index = [ home_item, finances_item, wallets_item ].findIndex((item) => item.path === pathname);
+	/* Com o menu aberto a gota vai pro ☰ (índice 3), que vira ×: a folha "sai" da gota. */
+	const route_index = [ home_item, finances_item, wallets_item ].findIndex((item) => item.path === pathname);
+	const active_index = open ? 3 : route_index;
 	const [ blob, setBlob ] = useState<{ left: number; width: number } | null>(null);
 	const [ wobble, setWobble ] = useState(0);
 	const previous_index = useRef(active_index);
@@ -93,7 +96,7 @@ const BottomNav = () => {
 			 * Vidro: desfoque MODERADO e fundo bem translúcido, pra o que passa atrás aparecer (borrado). Com desfoque
 			 * de 40px e fundo a 42% a barra virava uma mancha sólida sobre conteúdo simples — perdia o efeito.
 			 */
-			className='fixed bottom-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] left-1/2 z-40 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]'
+			className={cn(open ? 'z-[60]' : 'z-40', 'fixed bottom-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] left-1/2 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]')}
 		>
 			<span
 				aria-hidden='true'
@@ -150,12 +153,33 @@ const BottomNav = () => {
 			 */}
 			<Sheet open={open} onOpenChange={setOpen}>
 				<SheetTrigger asChild>
-					<button type='button' aria-label='Menu' className='flex h-12 w-12 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground'>
-						<Menu className='h-5 w-5' />
+					<button
+						ref={(element) => { item_refs.current[3] = element as unknown as HTMLAnchorElement; }}
+						type='button'
+						aria-label={open ? 'Fechar menu' : 'Menu'}
+						className={cn('pressable relative z-10 flex h-12 w-12 items-center justify-center rounded-full transition-colors', open ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+					>
+						<Menu className={cn('absolute h-5 w-5 transition-all duration-300', open ? 'rotate-90 scale-50 opacity-0' : 'rotate-0 scale-100 opacity-100')} />
+						<X className={cn('absolute h-5 w-5 transition-all duration-300', open ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-50 opacity-0')} />
 					</button>
 				</SheetTrigger>
-				<SheetContent side='bottom' hideClose aria-describedby={undefined} className='h-[70dvh] gap-0 rounded-t-3xl p-0 pb-safe'>
-					<div className='mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-border' />
+				{/*
+				 * Folha de vidro FLUTUANTE logo acima da barra, com a altura do conteúdo (antes era 70% fixo e sobrava
+				 * metade vazia em aparelho alto). A barra fica por cima do fundo escurecido, com o ☰ virado ×.
+				 */}
+				<SheetContent
+					side='bottom'
+					hideClose
+					aria-describedby={undefined}
+					/* Sem foco automático no primeiro botão (o anel aparecia no "Atualizar dados" ao abrir). */
+					onOpenAutoFocus={(event) => event.preventDefault()}
+					className={cn(
+						GLASS_PANEL,
+						'inset-x-3 bottom-[calc(16px+62px+12px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] max-h-[min(80dvh,640px)] gap-0 rounded-[32px] p-0 pt-2.5',
+						'data-[state=open]:duration-[420ms] data-[state=open]:ease-[cubic-bezier(0.22,1.2,0.36,1)] data-[state=closed]:duration-200'
+					)}
+				>
+					<div className='mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-foreground/20' />
 					<NavMenu onClose={() => setOpen(false)} />
 				</SheetContent>
 			</Sheet>
