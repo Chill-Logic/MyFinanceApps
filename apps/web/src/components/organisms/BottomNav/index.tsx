@@ -109,7 +109,7 @@ const BottomNav = () => {
 			 * Vidro: desfoque MODERADO e fundo bem translúcido, pra o que passa atrás aparecer (borrado). Com desfoque
 			 * de 40px e fundo a 42% a barra virava uma mancha sólida sobre conteúdo simples — perdia o efeito.
 			 */
-			className={cn(elevated ? 'z-[60]' : 'z-40', 'fixed bottom-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] left-1/2 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]')}
+			className={cn(elevated ? 'pointer-events-auto z-[60]' : 'z-40', 'fixed bottom-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] left-1/2 flex h-[62px] -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/60 bg-white/30 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.75),inset_0_-1px_0_rgba(255,255,255,0.25),0_10px_30px_rgba(8,36,53,0.16)] backdrop-blur-md backdrop-saturate-[1.8] dark:border-white/[0.14] dark:bg-[rgba(11,34,48,0.26)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.12),inset_0_-1px_0_rgba(255,255,255,0.04),0_10px_40px_rgba(0,0,0,0.5)]')}
 		>
 			<span
 				aria-hidden='true'
@@ -186,9 +186,18 @@ const BottomNav = () => {
 					aria-describedby={undefined}
 					/* Sem foco automático no primeiro botão (o anel aparecia no "Atualizar dados" ao abrir). */
 					onOpenAutoFocus={(event) => event.preventDefault()}
+					/*
+					 * O modal desliga os cliques no resto da página (`pointer-events: none` no body); a barra volta a
+					 * receber (`pointer-events-auto` acima), então tocar nela fecha a folha E faz a ação do botão — o "+"
+					 * da tela, ou ir pro destino. Só o ☰/× é exceção: ele já fecha sozinho (é o gatilho), e se o toque
+					 * também contasse como "fora" a folha fecharia e o gatilho a reabriria.
+					 */
+					onInteractOutside={(event) => {
+						if (item_refs.current[3]?.contains(event.target as Node)) event.preventDefault();
+					}}
 					className={cn(
 						GLASS_PANEL,
-						'inset-x-3 bottom-[calc(16px+62px+12px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] max-h-[min(80dvh,640px)] gap-0 rounded-[32px] p-0 pt-2.5',
+						'inset-x-3 bottom-[calc(16px+62px+12px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] max-h-[min(80dvh,640px,calc(100dvh-16px-62px-12px-12px-var(--safe-area-inset-top,env(safe-area-inset-top,0px))-var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px))))] gap-0 rounded-[32px] p-0 pt-2.5',
 						'data-[state=open]:duration-[420ms] data-[state=open]:ease-[cubic-bezier(0.22,1.2,0.36,1)] data-[state=closed]:duration-200'
 					)}
 				>

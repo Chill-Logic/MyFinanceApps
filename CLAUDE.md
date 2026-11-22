@@ -894,8 +894,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     barra com a altura do conteúdo (antes era 70% fixo e sobrava metade vazia em aparelho alto), carteiras em cartões
     lado a lado (a em foco vem primeiro — ordem congelada ao abrir; setas ‹ › de vidro nas pontas, só do lado em que ainda há cartão — tem
     gente que não percebe que dá pra deslizar), destinos em grade 2×2, rodapé Configurações/tema/Sair; com ela aberta a
-    gota da barra vai pro ☰, que vira ×. A barra fica fora da folha (modal): tocar nela conta como "fora" e fecha a
-    folha — não navega. Tablets e desktop: `Sidebar` virou painel de vidro flutuante (trilho 76px / barra 260px) com a
+    gota da barra vai pro ☰, que vira ×. A barra fica fora da folha (modal), mas recebe toque mesmo com ela aberta
+    (`pointer-events-auto` — o modal do Radix desliga o resto da página): tocar num botão fecha a folha E faz a
+    ação dele (o "+" da tela, ou navegar). Só o ☰/× é ignorado no `onInteractOutside`, senão fecha e reabre.
+    Tela cheia ou janela fora do template precisa descontar a status bar por conta própria (`--safe-area-inset-top`)
+    — o `pt-safe` do template não alcança o portal. Tablets e desktop: `Sidebar` virou painel de vidro flutuante (trilho 76px / barra 260px) com a
     gota no item ativo, carteira em foco no topo (avatar no trilho, cartão com saldo na barra) abrindo o `WalletPanel`,
     e o perfil no rodapé abrindo Configurações/Atualizar dados/Tema/Sair. O antigo `WalletSwitcher` foi apagado.
     O brilho oliva do topo mora na RAIZ do `DefaultTemplate` (atrás do menu também): dentro do `<main>` ele começava
