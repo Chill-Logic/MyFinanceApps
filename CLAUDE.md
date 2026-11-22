@@ -1172,8 +1172,25 @@ Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então
   com `icon-only.png` gera os PNGs mas deixa o foreground padrão do Capacitor no adaptativo (ícone genérico). O
   foreground foi gerado à mão (ícone em 72% da camada, fundo `#C5C4BF` = cinza do próprio ícone). Fonte:
   `apps/web/assets/icon-only.png` (192px, herdado do RN — pedir um de 1024px). Splash = fundo liso na cor do app.
-- **Perde-se o EAS (Build/Submit/Update/OTA)**. Upload pra Play pode ser feito pela Android Publisher API com a
-  mesma service account do EAS Submit (permissão só de faixas de teste). Pendente: CD no GitHub Actions
-  substituindo o `mobile-cd.yml`, e decidir OTA (release nativa a cada merge na faixa interna vs. Capgo).
+- **Perde-se o EAS (Build/Submit/Update/OTA)** — sem OTA: cada merge vira um binário novo na faixa interna.
+- **CD: `.github/workflows/android-cd.yml`** — PR mesclado na `main` que mexe em `apps/web/**`,
+  `packages/shared/**` ou nas dependências (ou disparo manual) → build web → `cap sync` → `bundleRelease`
+  assinado → faixa **interna** da Play. O `versionCode` é o maior já enviado à Play + 1 (consultado na hora pela
+  API) e o `versionName` é `0.3.<versionCode>` (prefixo em `VERSION_NAME_PREFIX` no workflow). A publicação é
+  feita por `.github/scripts/play-publish.mjs` (Android Publisher API, só módulos do Node; roda local também,
+  com `PLAY_SERVICE_ACCOUNT_FILE`). Secrets: `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `VITE_API_URL`, `VITE_API_KEY`;
+  variável `VITE_WEB_URL`. O `build.gradle` lê `ANDROID_VERSION_CODE`/`ANDROID_VERSION_NAME` (local: 100/0.3.0).
+  **O `mobile-cd.yml` ficou só manual**: rodando sozinho, ele publicaria um build RN na mesma faixa interna e
+  substituiria a versão Capacitor — é o caminho de rollback (antes, `eas build:version:set` acima do último código).
+- **Aviso de atualização** (`organisms/AppUpdatePrompt` + `services/app-update`, só no nativo): a Play
+  (plugin `@capawesome/capacitor-app-update`, In-App Updates API) diz se há versão nova → aviso dispensável, uma
+  vez por versão ("Depois" grava a versão em `localStorage`); o `apps/web/public/app-version.json`
+  (`android.min_version_code`, servido pela Vercel em `${VITE_WEB_URL}/app-version.json`) diz o mínimo aceito →
+  abaixo dele, aviso que não fecha. **Suba o `min_version_code` quando uma mudança no backend quebrar versões
+  antigas.** Falha aberta: sem `VITE_WEB_URL` ou sem rede, ninguém é bloqueado. "Atualizar" tenta a atualização
+  imediata da Play (tela da loja por cima do app) e cai pra página da loja. Checa ao abrir e ao voltar pro app
+  (no máximo a cada 30 min). Só funciona com o app instalado PELA PLAY — num APK via `adb` a Play responde
+  "sem atualização".
 - O CORS do backend aceita qualquer origem — a origem do app (`https://localhost`) funciona sem mudança. API em
   `http://` não funciona (mixed content).

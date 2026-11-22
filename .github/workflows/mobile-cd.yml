@@ -1,15 +1,12 @@
 name: Mobile CD (EAS)
 
-# Dispara automaticamente só quando um PR que mexeu em apps/mobile é MESCLADO na main (nunca em
-# push solto, porque o evento é pull_request, não push). Também aceita disparo manual
-# (workflow_dispatch) pra testar o pipeline sem precisar de um PR real tocando em apps/mobile/**
-# (o filtro de path abaixo só se aplica ao evento pull_request).
+# DESATIVADO no automático (2026-11-21): o app da loja passou a ser o apps/web no Capacitor, publicado
+# pelo android-cd.yml. Este workflow publicaria um build RN na MESMA faixa interna, substituindo a
+# versão Capacitor. Ficou só o disparo manual, como caminho de ROLLBACK pro app em RN — antes de rodar,
+# suba o versionCode do EAS acima do último publicado pelo Capacitor:
+#   npx eas-cli build:version:set -p android
+# (O gatilho antigo era pull_request fechado na main com paths apps/mobile/**.)
 on:
-  pull_request:
-    types: [closed]
-    branches: [main]
-    paths:
-      - "apps/mobile/**"
   workflow_dispatch:
     inputs:
       force_native_build:

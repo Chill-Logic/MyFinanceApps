@@ -34,10 +34,12 @@ android {
         applicationId "com.chilllogic.myfinance.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // O app em RN (EAS) parou no versionCode 19. Pulamos pra 100 pra deixar folga: um rollback
-        // pro RN exige antes `npx eas-cli build:version:set -p android` acima do valor daqui.
-        versionCode 100
-        versionName "0.3.0"
+        // O app em RN (EAS) parou no versionCode 19; o Capacitor começou em 100. Um rollback pro RN
+        // exige antes `npx eas-cli build:version:set -p android` acima do último versionCode publicado.
+        // No CD (android-cd.yml) os dois vêm de ANDROID_VERSION_CODE/ANDROID_VERSION_NAME — o código é
+        // o maior já enviado à Play + 1. Os valores fixos abaixo valem só pra build local.
+        versionCode Integer.parseInt(System.getenv('ANDROID_VERSION_CODE') ?: '100')
+        versionName System.getenv('ANDROID_VERSION_NAME') ?: '0.3.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

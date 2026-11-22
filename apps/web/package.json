@@ -23,6 +23,7 @@
     "@capacitor/android": "^8.6.2",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.2",
+    "@capawesome/capacitor-app-update": "^8.1.1",
     "@casl/ability": "^6.7.1",
     "@casl/react": "^4.0.0",
     "@myfinance/shared": "*",
