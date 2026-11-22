@@ -40,6 +40,8 @@ const Toaster = (props: ToasterProps) => {
 			richColors
 			closeButton
 			style={toastStyle}
+			/* No celular o toast fica embaixo: no app nativo (edge-to-edge) precisa desviar da barra de gestos. */
+			mobileOffset={{ bottom: 'calc(16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))' }}
 			icons={{
 				success: <CircleCheck className='h-4 w-4' />,
 				error: <CircleX className='h-4 w-4' />,
