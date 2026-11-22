@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent, useEffect, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -19,7 +19,7 @@ import {
 } from '@myfinance/shared';
 import { addMonths, format, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, ArrowRight, CalendarIcon, Check, CheckCircle2, ChevronLeft, CircleDashed, ChevronRight, CreditCard, Delete, Landmark, Receipt, Repeat, UserRound, Wallet } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronLeft, CircleDashed, ChevronRight, CreditCard, Landmark, Repeat, UserRound, Wallet } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
 import { useEnumOptions } from '@/hooks/api/core/useEnumOptions';
@@ -662,12 +662,15 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	);
 
 	/*
-	 * Chips de campo (Origem, Quando, Fatura, Responsável…): pílula no celular, cartão com rótulo em cima no
-	 * tablet/desktop (grade 2×2 do mockup). `empty` = campo obrigatório ainda sem escolha.
+	 * Chips de campo (Origem, Quando, Fatura, Responsável…): cartão com rótulo em cima, em grade de 2 colunas, em
+	 * todos os tamanhos. No celular já foram pílulas centralizadas — cabiam no pouco espaço que o teclado numérico
+	 * próprio deixava; com o teclado do sistema (que só abre com o valor em foco) sobra tela pra grade do desktop.
+	 * `empty` = campo obrigatório ainda sem escolha. `wide` = ocupa a linha inteira no celular (valor longo, ex.:
+	 * "Itaú · R$ 1.234,00" ou "Pago · 17 nov · 14:26", que em meia linha virava reticências).
 	 */
-	const FIELD_CHIP = (empty = false) => cn(
-		'pressable inline-flex h-[34px] max-w-full items-center gap-1.5 rounded-full border border-border bg-white px-3 text-[13px] font-semibold hover:bg-accent dark:bg-[rgba(199,195,191,0.05)] data-[state=open]:border-primary/50 data-[state=open]:bg-accent',
-		'xl:h-auto xl:w-full xl:flex-col xl:items-start xl:gap-0.5 xl:rounded-2xl xl:px-4 xl:py-2.5 xl:text-sm',
+	const FIELD_CHIP = (empty = false, wide = false) => cn(
+		wide && 'max-md:col-span-2',
+		'pressable flex w-full min-w-0 flex-col items-start gap-0.5 rounded-2xl border border-border bg-white px-4 py-2.5 text-left text-sm font-semibold hover:bg-accent dark:bg-[rgba(199,195,191,0.05)] data-[state=open]:border-primary/50 data-[state=open]:bg-accent',
 		'disabled:cursor-not-allowed disabled:opacity-60',
 		empty && 'text-warning',
 	);
@@ -682,10 +685,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	/* `extra`: informação ao lado do valor escolhido (saldo da conta, fatura do cartão). */
 	const renderChipBody = (label: string, value: string, icon?: React.ReactNode, extra?: React.ReactNode) => (
 		<>
-			<span className='hidden text-[11px] font-medium text-muted-foreground xl:block'>{label}</span>
+			<span className='text-[11px] font-medium text-muted-foreground'>{label}</span>
 			<span className='flex min-w-0 max-w-full items-center gap-1.5'>
-				{/* Ícone só na pílula do celular; no cartão com rótulo (tablet/desktop) o rótulo já diz o que é. */}
-				{icon && <span className='flex shrink-0 xl:hidden'>{icon}</span>}
+				{/* `icon` só pra marcador que informa algo (bolinha conta/cartão, pendente/pago) — o rótulo já diz o campo. */}
+				{icon && <span className='flex shrink-0'>{icon}</span>}
 				<span className='truncate'>{value}</span>
 				{extra && <span className='flex shrink-0 items-center gap-1.5 font-medium'><span className='text-muted-foreground'>·</span>{extra}</span>}
 			</span>
@@ -727,7 +730,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const renderOriginChip = () => (
 		<Popover {...chipOpenProps('origin')}>
 			<PopoverTrigger asChild>
-				<button type='button' disabled={is_origin_locked || is_pending} className={FIELD_CHIP(!source_id)}>
+				<button type='button' disabled={is_origin_locked || is_pending} className={FIELD_CHIP(!source_id, true)}>
 					{renderChipBody(
 						is_transfer ? 'De' : 'Origem',
 						origin_value,
@@ -761,11 +764,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const renderDestinationChip = () => (
 		<Popover {...chipOpenProps('destination')}>
 			<PopoverTrigger asChild>
-				<button type='button' disabled={is_pending} className={FIELD_CHIP(!values.destination_account_id)}>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP(!values.destination_account_id, true)}>
 					{renderChipBody(
 						'Para',
 						destination_name || 'Para qual conta?',
-						values.destination_account_id ? <ArrowRight className='h-3.5 w-3.5 shrink-0' /> : null,
+						null,
 						values.destination_account_id ? renderAmountHint('Account', values.destination_account_id) : null,
 					)}
 				</button>
@@ -790,7 +793,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		<Popover {...chipOpenProps('card')}>
 			<PopoverTrigger asChild>
 				<button type='button' disabled={is_pending} className={FIELD_CHIP(!values.credit_card_id)}>
-					{renderChipBody('Cartão', selected_card ? cardLabel(selected_card) : 'Qual cartão?', <CreditCard className='h-3.5 w-3.5 shrink-0' />)}
+					{renderChipBody('Cartão', selected_card ? cardLabel(selected_card) : 'Qual cartão?')}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align='start' className='w-64 p-1.5'>
@@ -803,7 +806,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		<Popover {...chipOpenProps('when')}>
 			<PopoverTrigger asChild>
 				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
-					{renderChipBody('Quando', whenLabel(values.transaction_date), <CalendarIcon className='h-3.5 w-3.5 shrink-0' />)}
+					{renderChipBody('Quando', whenLabel(values.transaction_date))}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align='start' className='w-auto p-0'>
@@ -816,7 +819,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 	const renderPaymentChip = () => (
 		<Popover {...chipOpenProps('payment')}>
 			<PopoverTrigger asChild>
-				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
+				<button type='button' disabled={is_pending} className={FIELD_CHIP(false, Boolean(values.settled_date))}>
 					{renderChipBody(
 						'Pagamento',
 						values.settled_date ? `Pago · ${ whenLabel(values.settled_date) }` : 'Pendente',
@@ -905,7 +908,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		<Popover {...chipOpenProps('invoice')}>
 			<PopoverTrigger asChild>
 				<button type='button' disabled={is_pending} className={FIELD_CHIP()}>
-					{renderChipBody('Fatura', invoice_value, <Receipt className='h-3.5 w-3.5 shrink-0' />)}
+					{renderChipBody('Fatura', invoice_value)}
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align='start' className='w-72 p-3'>
@@ -974,7 +977,6 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 					{renderChipBody(
 						'Responsável',
 						author ? `${ author.name }${ author.id === current_user_id ? ' · você' : '' }` : 'Responsável',
-						<UserRound className='h-3.5 w-3.5 shrink-0' />,
 					)}
 				</button>
 			</PopoverTrigger>
@@ -1121,31 +1123,30 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 
 	/*
 	 * ----- Valor -----
-	 * Celular: teclado numérico próprio (como no mockup), sem abrir o teclado do sistema. A vírgula é
-	 * automática, igual à máscara do campo: os dígitos entram pelos centavos ("1" → 0,01; "1","1" → 0,11).
-	 * Os dígitos (centavos) vêm do próprio `value`. A tecla "00" acelera valores redondos. Tablet/desktop:
-	 * campo normal com a mesma máscara.
+	 * Celular e tablets: o valor grande é um campo de verdade com `inputMode='numeric'` (teclado numérico do sistema,
+	 * que só abre com ele em foco e vibra do jeito que o aparelho estiver configurado). A vírgula é automática, igual
+	 * ao campo do desktop: os dígitos entram pelos centavos ("1" → 0,01; "1","1" → 0,11).
+	 * Histórico: já houve um teclado numérico próprio fixo na metade de baixo da tela (como no mockup); o dono pediu o
+	 * do sistema — o próprio ocupava a tela o tempo todo e não vibrava (o Android exige a permissão VIBRATE pro
+	 * `navigator.vibrate`, que o app não declara).
 	 */
-	/*
-	 * Os dígitos do teclado saem do próprio `value` (não de uma cópia): assim o celular e o campo do
-	 * desktop sempre mostram o mesmo número — já houve uma cópia separada que ficava em 0,00 depois de
-	 * digitar pelo outro campo.
-	 */
-	const keypad_digits = MoneyUtils.unformatMoney(values.value).replace(/^0+/, '');
+	const value_input_ref = useRef<HTMLInputElement>(null);
+	const desktop_value_ref = useRef<HTMLInputElement>(null);
+	const MAX_VALUE_DIGITS = 11;
 
-	const pressKey = (key: string) => {
-		/* Vibração curtinha no Android (o iOS ignora) — o toque do teclado parece de app nativo. */
-		try {
-			navigator.vibrate?.(8);
-		} catch {
-			/* sem suporte: segue sem vibrar */
-		}
-		const next = (key === 'back' ? keypad_digits.slice(0, -1) : `${ keypad_digits }${ key }`).replace(/^0+/, '');
-		if (next.length > 11) return;
-		setValues((prev) => ({ ...prev, value: next ? MoneyUtils.formatMoney(next) : '' }));
+	const changeValue = (raw: string) => {
+		const digits = raw.replace(/\D/g, '').replace(/^0+/, '');
+		if (digits.length > MAX_VALUE_DIGITS) return;
+		setValues((prev) => ({ ...prev, value: digits ? MoneyUtils.formatMoney(digits) : '' }));
 	};
 
-	const keypad_display = MoneyUtils.formatMoney(keypad_digits || '0').replace(/^R\$\s?/, '');
+	/* Nova transação já abre com o valor em foco (teclado aberto); na edição nada ganha foco, pra o teclado não subir. */
+	const focusValueOnOpen = (event: Event) => {
+		event.preventDefault();
+		if (is_editing) return;
+		const is_desktop = window.matchMedia('(min-width: 1280px)').matches;
+		(is_desktop ? desktop_value_ref : value_input_ref).current?.focus();
+	};
 
 	const plain_value = values.value.replace(/^R\$\s?/, '');
 	const effective_kind_title = KIND_TITLE[values.kind];
@@ -1157,13 +1158,12 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !is_submit_disabled) handleSubmit(e);
 	};
 
-	const KEYPAD_KEYS = [ '1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'back' ];
-
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			{/* Celular: tela cheia (como no mockup); tablet/desktop: diálogo. */}
 			<DialogContent
-				className='max-md:pb-safe max-md:pt-safe max-md:inset-0 max-md:flex max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:flex-col max-md:gap-0 max-md:overflow-x-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-0 md:max-w-[520px] md:p-6 lg:max-w-[880px] xl:max-w-2xl xl:p-8'
+				className='max-md:pb-safe max-md:pt-safe max-md:inset-0 max-md:flex max-md:h-dvh max-md:max-h-dvh max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:flex-col max-md:gap-0 max-md:overflow-x-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:p-0 md:max-w-[560px] md:p-6 xl:max-w-2xl xl:p-8'
+				onOpenAutoFocus={focusValueOnOpen}
 				closeClassName='max-md:left-5 max-md:right-auto max-md:top-[calc(1.25rem+var(--safe-area-inset-top,env(safe-area-inset-top,0px)))] max-md:h-10 max-md:w-10 max-md:bg-white max-md:dark:bg-[rgba(199,195,191,0.05)]'
 			>
 				{/* Celular: brilho oliva atrás do valor, como no mockup */}
@@ -1196,10 +1196,10 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 				)}
 
 				{(is_editing || has_origins) && (
-					<form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className='relative flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:gap-0 lg:max-xl:grid lg:max-xl:grid-cols-2 lg:max-xl:gap-x-6 lg:max-xl:gap-y-5'>
+					<form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className='relative flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:gap-0'>
 						{/* Tipo: Saída / Entrada / Transferência — o mesmo SegmentedControl das outras abas do app */}
 						{kind_tabs.length > 0 && (
-							<div className='flex max-md:pl-[72px] max-md:pr-5 lg:max-xl:col-start-1'>
+							<div className='flex max-md:pl-[72px] max-md:pr-5'>
 								<SegmentedControl
 									className='w-full'
 									value={values.kind}
@@ -1217,23 +1217,44 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							</div>
 						)}
 
-						<div className='no-scrollbar flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:overflow-y-auto max-md:px-5 max-md:pb-3 lg:max-xl:col-start-1'>
-							{/* Celular e tablets (toque): valor grande preenchido pelo teclado + descrição em pílula */}
-							<div className='flex flex-col items-center gap-3.5 pt-8 md:pt-2 xl:hidden'>
-								<span className='flex items-baseline gap-1.5'>
+						<div className='no-scrollbar flex min-h-0 flex-col gap-5 max-md:flex-1 max-md:overflow-y-auto max-md:px-5 max-md:pb-3'>
+							{/* Celular e tablets (toque): valor grande digitado (teclado numérico do sistema) + descrição */}
+							<div className='flex flex-col items-center gap-4 pt-8 md:pt-2 xl:hidden'>
+								<label className='flex items-baseline justify-center gap-1.5'>
 									<span className='text-[26px] font-medium text-muted-foreground'>R$</span>
-									<span className={cn('text-[64px] font-semibold leading-none tracking-[-0.05em]', !keypad_digits && 'text-muted-foreground/60')}>{keypad_display}</span>
-									<span aria-hidden='true' className='h-11 w-[3px] animate-pulse self-center rounded-full bg-primary' />
-								</span>
-								{repeat_mode === 'installment' && <span className='text-xs text-muted-foreground'>valor total da compra</span>}
+									<input
+										ref={value_input_ref}
+										inputMode='numeric'
+										enterKeyHint='next'
+										aria-label={repeat_mode === 'installment' ? 'Valor total da compra' : 'Valor'}
+										value={plain_value}
+										placeholder='0,00'
+										onChange={(e) => changeValue(e.target.value)}
+										onKeyDown={(e) => {
+											/* "Próximo" do teclado leva pra descrição. */
+											if (e.key !== 'Enter') return;
+											e.preventDefault();
+											document.getElementById('transaction-description-mobile')?.focus();
+										}}
+										disabled={is_pending}
+										/*
+										 * `field-sizing: content`: o campo tem a largura do texto (ou do "0,00" vazio), então o "R$" e o cursor
+										 * ficam colados no número. Alinhado à direita pra o cursor do campo vazio ficar no fim do "0,00", onde
+										 * os dígitos entram (pelos centavos).
+										 */
+										className='w-auto min-w-[1ch] max-w-[75vw] bg-transparent p-0 text-right text-[64px] font-semibold leading-none tracking-[-0.05em] caret-primary outline-none [field-sizing:content] placeholder:text-muted-foreground/60'
+									/>
+								</label>
+								{repeat_mode === 'installment' && <span className='-mt-2 text-xs text-muted-foreground'>valor total da compra</span>}
 								<label htmlFor='transaction-description-mobile' className='sr-only'>Descrição</label>
 								<input
 									id='transaction-description-mobile'
 									value={values.description}
+									enterKeyHint='done'
 									placeholder={is_transfer ? default_transfer_description || 'Descrição (opcional)' : 'Descrição'}
 									onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
 									disabled={is_pending}
-									className='relative h-[38px] w-[220px] max-w-full rounded-full md:h-10 md:w-[260px] lg:h-[42px] lg:w-[280px] border border-border bg-white px-4 text-center text-[15px] font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary dark:bg-[rgba(199,195,191,0.05)]'
+									className='h-12 w-full rounded-2xl border border-border bg-white px-4 text-center text-base font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/15 dark:bg-[rgba(199,195,191,0.05)]'
 								/>
 							</div>
 
@@ -1245,10 +1266,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 									<span className='flex h-14 items-center gap-2 rounded-2xl border border-input bg-secondary px-4 focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15'>
 										<span className='text-lg font-medium text-muted-foreground'>R$</span>
 										<input
-											inputMode='decimal'
+											ref={desktop_value_ref}
+											inputMode='numeric'
 											value={plain_value}
 											placeholder='0,00'
-											onChange={(e) => setValues((prev) => ({ ...prev, value: MoneyUtils.formatMoney(e.target.value) }))}
+											onChange={(e) => changeValue(e.target.value)}
 											disabled={is_pending}
 											className='min-w-0 flex-1 bg-transparent text-[28px] text-foreground font-semibold tracking-[-0.03em] outline-none placeholder:text-muted-foreground/50'
 										/>
@@ -1266,8 +1288,8 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 								</label>
 							</div>
 
-							{/* Campos em chips: pílulas no celular, grade 2×2 com rótulo no tablet/desktop */}
-							<div className='flex flex-wrap justify-center gap-2 xl:grid xl:grid-cols-2'>
+							{/* Campos em cartões com rótulo, grade de 2 colunas em todos os tamanhos */}
+							<div className='grid grid-flow-row-dense grid-cols-2 gap-2'>
 								{renderOriginChip()}
 								{is_transfer && renderDestinationChip()}
 								{is_credit && source_id && credit_cards.length > 1 && renderCardChip()}
@@ -1331,27 +1353,11 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, suggestedDate,
 							{linked_recurrence_id ? renderLinkedRecurrence() : is_repeating && renderRepeat()}
 						</div>
 
-						{/* Celular e tablets: teclado numérico + botão grande de salvar (no tablet deitado, coluna da direita) */}
-						<div className='flex flex-col gap-3 px-5 pb-[calc(20px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] pt-2 md:px-0 md:pb-0 xl:hidden lg:max-xl:col-start-2 lg:max-xl:row-span-2 lg:max-xl:row-start-1 lg:max-xl:self-end'>
-							<div className='grid grid-cols-3 gap-1.5'>
-								{KEYPAD_KEYS.map((key) => (
-									<button
-										key={key}
-										type='button'
-										disabled={is_pending}
-										aria-label={key === 'back' ? 'Apagar' : undefined}
-										onClick={() => pressKey(key)}
-										className={cn(
-											'pressable flex h-[54px] items-center justify-center rounded-2xl text-2xl font-medium active:bg-accent md:h-[60px] md:rounded-[18px] md:text-[26px] lg:h-16',
-											key === 'back' || key === '00'
-												? 'text-muted-foreground hover:bg-accent'
-												: 'bg-white hover:bg-accent dark:bg-[rgba(199,195,191,0.06)]',
-										)}
-									>
-										{key === 'back' ? <Delete className='h-6 w-6' /> : key}
-									</button>
-								))}
-							</div>
+						{/*
+						 * Celular e tablets: botão grande de salvar preso embaixo. Com o teclado do sistema aberto, o Capacitor
+						 * (SystemBars) encolhe a WebView pela altura dele, então o botão sobe junto e fica visível.
+						 */}
+						<div className='flex flex-col px-5 pb-[calc(16px+var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))] pt-2 md:px-0 md:pb-0 xl:hidden'>
 							<Button type='submit' size='lg' isLoading={is_pending} disabled={is_submit_disabled} className='h-14 w-full text-base font-bold'>
 								{submit_label}
 								<Check className='h-5 w-5' strokeWidth={2.6} />

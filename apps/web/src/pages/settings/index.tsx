@@ -1,5 +1,5 @@
 import { type ReactNode, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { getApiErrorMessage, MONTH_NAMES_PT, QUERY_KEYS } from '@myfinance/shared';
 import { Bot, ChevronLeft, ChevronRight, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, User, type LucideIcon } from 'lucide-react';
@@ -38,6 +38,8 @@ const THEME_SEGMENTS: TSegment[] = [
 
 /* Seções do menu (desktop/tablet deitado) e das telas de detalhe (celular/tablet em pé). */
 type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'main_wallet' | 'claude' | 'bank' | 'about';
+const SECTIONS: TSection[] = [ 'account', 'account_info', 'password', 'appearance', 'main_wallet', 'claude', 'bank', 'about' ];
+const isSection = (value: string | null): value is TSection => SECTIONS.includes(value as TSection);
 
 /*
  * Transições (tailwindcss-animate). Celular/tablet em pé: a tela da seção entra pela direita e, ao voltar, a lista
@@ -71,15 +73,43 @@ const SettingsContent = () => {
 	const { data: claude_data } = useIndexClaudeSessions();
 	const versions = useShortVersions();
 
-	const [ section, setSectionState ] = useState<TSection | null>(null);
+	/*
+	 * A seção aberta mora na URL (`/settings?section=password`), não num state: no celular/tablet em pé, abrir uma
+	 * seção EMPILHA uma entrada no histórico, então o gesto/botão voltar (navegador ou Android) fecha a seção e volta
+	 * pra lista — antes ele pulava direto pra tela de antes das Configurações. No desktop/tablet deitado, trocar de
+	 * seção no menu SUBSTITUI a entrada (é troca de aba, não navegação; senão o voltar desfaria clique por clique).
+	 */
+	const [ search_params, setSearchParams ] = useSearchParams();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const section_param = search_params.get('section');
+	const section: TSection | null = isSection(section_param) ? section_param : null;
+
 	/* Pra onde a última troca foi: decide de que lado a tela entra (nada na primeira renderização). */
+	const [ previous_section, setPreviousSection ] = useState(section);
 	const [ direction, setDirection ] = useState<'forward' | 'back' | null>(null);
+	if (previous_section !== section) {
+		/* Estado derivado da URL, ajustado no próprio render — vale também pro voltar do navegador. */
+		setPreviousSection(section);
+		setDirection(section ? 'forward' : 'back');
+	}
+
 	const setSection = (next: TSection | null) => {
 		if (next === section) return;
-		setDirection(next ? 'forward' : 'back');
-		setSectionState(next);
+		if (is_wide) {
+			setSearchParams(next ? { section: next } : {}, { replace: true });
+			return;
+		}
+		if (next) {
+			setSearchParams({ section: next }, { state: { settings_section: true } });
+			return;
+		}
+		/* Botão "Voltar" da tela: desempilha a entrada que a seção criou; aberta por link direto, só limpa a URL. */
+		if ((location.state as { settings_section?: boolean } | null)?.settings_section) navigate(-1);
+		else setSearchParams({}, { replace: true });
 	};
-	const active: TSection = section ?? 'account';
+	/* No menu do desktop "Informações pessoais" e "Senha" (telas do celular) ficam dentro de "Conta". */
+	const active: TSection = section === 'account_info' || section === 'password' ? 'account' : section ?? 'account';
 
 	/* Desktop/tablet deitado: gota de vidro que escorre até o item ativo do menu (mesma peça da barra lateral). */
 	const menu_ref = useRef<HTMLElement>(null);

@@ -1046,6 +1046,9 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     Transições: no celular/tablet em pé a tela da seção entra pela direita e a lista volta pela esquerda; no desktop a
     gota (`useLiquidBlob`) escorre no menu e o conteúdo entra com fade. A página fica num `overflow-x-clip` (com
     `overflow-clip-margin` de 1rem, pras sombras) — sem isso o deslize dava rolagem horizontal ao `<main>`.
+    A seção aberta mora na URL (`?section=password`), não num state: no celular/tablet em pé abrir uma seção empilha
+    uma entrada no histórico, então o voltar (gesto, navegador ou Android) fecha a seção — com state ele pulava pra
+    tela de antes das Configurações. No desktop a troca no menu usa `replace` (é aba, não navegação).
     "Sobre": no app, a versão da loja (`App.getInfo()` do `@capacitor/app`: 0.3.105, build 105); no navegador,
     `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `apps/web/package.json` —
     fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API segue com branch · commit (não tem versão).
@@ -1117,18 +1120,25 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     origens possíveis (saída e entrada: contas e cartões — entrada no cartão é estorno/crédito, desconta da fatura,
     sem "Parcelado"; transferência: só contas — trocar o tipo limpa uma origem que não vale mais). Os campos viraram **chips** com popover (Origem/De, Para, Cartão quando o
     crédito tem mais de um, Quando, Pagamento só em conta, Fatura só em cartão, Responsável quando a
-    carteira tem mais de um membro) — pílulas no celular e nos tablets, grade 2×2 com rótulo só no desktop; Repetir e
+    carteira tem mais de um membro) — cartões com rótulo em grade de 2 colunas em todos os tamanhos (no celular,
+    Origem/Para e o Pagamento já pago ocupam a linha inteira, com `grid-flow-row-dense`); o ícone só aparece quando
+    informa algo (bolinha conta/cartão, pendente/pago); Repetir e
     Rascunho são chips tracejados de liga/desliga, e o painel do Repetir abre inline. Dentro de popover
     **não use o `Select` do Radix**: a lista dele abre num portal fora do popover e o clique fecha o
     popover — por isso fatura (mês em grade + ano com setas) e as listas de origem/cartão/responsável são
-    botões. **Celular: tela cheia com teclado numérico próprio** (pedido do dono, como no mockup) — a
-    vírgula é AUTOMÁTICA, igual à máscara do campo (os dígitos entram pelos centavos; o teclado guarda
-    só dígitos, lidos do próprio `value` — já houve uma cópia separada que dessincronizava); no lugar da vírgula fica a tecla "00". Já existiu vírgula manual e o dono pediu a máscara
-    de volta. **Quatro layouts, como no mockup:** celular = tela cheia; tablet em pé (768–1023) = o mesmo
-    formulário de toque (valor grande, pílulas, teclado) num diálogo de 520px; tablet deitado (1024–1279)
-    = diálogo de 880px em duas colunas, formulário à esquerda e teclado + Salvar à direita; desktop (≥1280)
-    = campos digitados (Valor/Descrição) e chips em grade, com Cancelar/Salvar no rodapé. Já fiz o tablet
-    com o layout do desktop e estava errado. O chip Repetir é quem liga/desliga; o painel não tem
+    botões. **Valor = teclado numérico do SISTEMA** (`inputMode='numeric'`, 2026-11-22): o valor grande é um
+    `<input>` de verdade (largura do texto via `field-sizing: content`, alinhado à direita pro cursor do campo
+    vazio ficar onde os dígitos entram). A vírgula é AUTOMÁTICA (`changeValue`: só dígitos, entram pelos centavos,
+    máx. 11) — já existiu vírgula manual e o dono pediu a máscara. Nova transação abre com o valor em foco
+    (`onOpenAutoFocus`); na edição nada ganha foco, pra o teclado não subir. "Próximo" do teclado leva pra
+    descrição. **Já existiu um teclado numérico próprio** fixo na metade de baixo (como no mockup antigo): o dono
+    pediu o do sistema — ocupava a tela o tempo todo e não vibrava (`navigator.vibrate` exige a permissão
+    `VIBRATE`, que o app não declara). Não reintroduza. O Salvar fica preso embaixo; com o teclado aberto o
+    `SystemBars` do Capacitor 8 encolhe a WebView pela altura dele, então o botão sobe junto.
+    **Layouts:** celular = tela cheia; tablets = o mesmo formulário de toque (valor grande, descrição, cartões,
+    Salvar) num diálogo de 560px — o tablet deitado tinha duas colunas por causa do teclado e virou igual ao em
+    pé; desktop (≥1280) = campos digitados (Valor/Descrição) e cartões em grade, com Cancelar/Salvar no rodapé.
+    O chip Repetir é quem liga/desliga; o painel não tem
     "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
   - **`asChild` do Radix precisa de `forwardRef` na cadeia inteira até o `<button>` real** — o átomo
     `Button` (`atoms/Button`) envolve o `ui/button` só repassando `isLoading`, mas sem `forwardRef`;
