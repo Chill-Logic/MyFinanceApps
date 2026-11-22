@@ -192,6 +192,21 @@
      * com uma mola suave ao soltar, sem o flash cinza de toque do navegador no celular e sem o atraso de
      * duplo toque (`touch-action: manipulation`). Usado pela base do `Button` e pelos chips/teclado/abas.
      */
+    /* "Gota" do item ativo da barra flutuante: estica no caminho e volta ao formato (BottomNav). Dois nomes
+       iguais alternados = a animação reinicia a cada troca sem remontar o elemento. */
+    @keyframes nav-blob-a {
+        0% { transform: scale(1, 1); }
+        30% { transform: scale(1.32, 0.84); }
+        62% { transform: scale(0.94, 1.06); }
+        100% { transform: scale(1, 1); }
+    }
+    @keyframes nav-blob-b {
+        0% { transform: scale(1, 1); }
+        30% { transform: scale(1.32, 0.84); }
+        62% { transform: scale(0.94, 1.06); }
+        100% { transform: scale(1, 1); }
+    }
+
     .pressable {
         -webkit-tap-highlight-color: transparent;
         touch-action: manipulation;

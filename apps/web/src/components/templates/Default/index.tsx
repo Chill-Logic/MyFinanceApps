@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Loader2 } from 'lucide-react';
 
@@ -6,6 +7,7 @@ import useMediaQuery from '@/hooks/useMediaQuery';
 
 import { useCurrentUserContext } from '@/context/current_user';
 import { useNewWalletDialog } from '@/context/newWalletDialog';
+import { cn } from '@/lib/utils';
 
 import { ITemplateProps } from '@/types';
 
@@ -31,6 +33,13 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	const is_tablet_up = useMediaQuery('(min-width: 768px)');
 	const is_desktop = useMediaQuery('(min-width: 1280px)');
 	const { is_loading: is_current_user_loading } = useCurrentUserContext();
+	/*
+	 * Só a Início tem altura FIXA (a lista de transações rola por dentro dela). As outras telas crescem com o
+	 * conteúdo (`min-h-full`): com `h-full`, o conteúdo maior que a tela vazava da caixa e o padding de baixo —
+	 * o espaço da barra flutuante — ficava no meio, então o último item terminava ESCONDIDO atrás da barra.
+	 */
+	const { pathname } = useLocation();
+	const fixed_height = pathname === '/';
 
 	/*
 	 * Barra lateral recolhida ou expandida: escolha do usuário, lembrada neste navegador. Sem escolha
@@ -104,11 +113,11 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 					 * com rolagem própria (Home) desfaz esse padding na própria altura para passar por trás do vidro.
 					 */}
 					<div
-						className={
-							is_tablet_up
-								? 'container relative mx-auto h-full px-6 pb-6 pt-6 xl:px-9 xl:pt-7'
-								: 'container relative mx-auto h-full px-4 pt-5 pb-[var(--bottom-nav-space)]'
-						}
+						className={cn(
+							'container relative mx-auto',
+							fixed_height ? 'h-full' : 'min-h-full',
+							is_tablet_up ? 'px-6 pb-6 pt-6 xl:px-9 xl:pt-7' : 'px-4 pb-[var(--bottom-nav-space)] pt-5'
+						)}
 					>
 						{children}
 					</div>

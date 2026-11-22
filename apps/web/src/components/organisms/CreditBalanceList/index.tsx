@@ -507,7 +507,7 @@ const useFirstLastDigits = (credit_balance_id?: string) => {
  * em lista compacta; ao lado (desktop/tablet deitado) ou embaixo, o detalhe da fatura dele. No celular os
  * cartões viram um carrossel com pontinhos.
  */
-const CreditBalanceList = () => {
+const CreditBalanceList = ({ createRequest = 0 }: { createRequest?: number }) => {
 	const { user_wallet, is_loading: is_wallet_loading } = useWallet();
 
 	const wallet_id = user_wallet.data?.id;
@@ -517,6 +517,13 @@ const CreditBalanceList = () => {
 	});
 
 	const [ is_create_open, setIsCreateOpen ] = useState(false);
+	/* "+" da barra flutuante (FinancesPage): cada incremento abre o formulário de criação. */
+	const last_create_request = useRef(createRequest);
+	useEffect(() => {
+		if (createRequest === last_create_request.current) return;
+		last_create_request.current = createRequest;
+		setIsCreateOpen(true);
+	}, [ createRequest ]);
 	const [ selected_id, setSelectedId ] = useState<string | null>(null);
 	const carousel_ref = useRef<HTMLDivElement>(null);
 
@@ -581,7 +588,7 @@ const CreditBalanceList = () => {
 			type='button'
 			onClick={() => setIsCreateOpen(true)}
 			disabled={!wallet_id}
-			className='pressable flex h-12 w-full items-center justify-center gap-2 rounded-[20px] border border-dashed border-muted-foreground/40 text-sm font-medium text-muted-foreground hover:text-foreground'
+			className='pressable flex h-12 w-full items-center justify-center gap-2 rounded-[20px] border border-dashed border-muted-foreground/40 text-sm font-medium text-muted-foreground hover:text-foreground max-md:hidden'
 		>
 			<Plus className='h-4 w-4' />
 			Adicionar cartão

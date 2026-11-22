@@ -6,6 +6,7 @@ import CurrentUserProvider from '@/context/current_user';
 import MonthSelectionProvider from '@/context/monthSelection';
 import NewTransactionDialogProvider from '@/context/newTransactionDialog';
 import NewWalletDialogProvider from '@/context/newWalletDialog';
+import PrimaryActionProvider from '@/context/primaryAction';
 import ThemeProvider from '@/context/theme';
 import WalletUserProvider from '@/context/wallet';
 import { queryClient } from '@/services/query-client';
@@ -21,8 +22,10 @@ function App() {
 						<NewTransactionDialogProvider>
 							<NewWalletDialogProvider>
 								<MonthSelectionProvider>
-									<Router/>
-									<Toaster />
+									<PrimaryActionProvider>
+										<Router/>
+										<Toaster />
+									</PrimaryActionProvider>
 								</MonthSelectionProvider>
 							</NewWalletDialogProvider>
 						</NewTransactionDialogProvider>

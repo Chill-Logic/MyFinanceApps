@@ -377,7 +377,7 @@ const BankConnectionList = ({ connectRequest = 0 }: IProps) => {
 							type='button'
 							onClick={() => widget.open()}
 							disabled={widget.is_opening}
-							className='pressable flex h-16 items-center justify-center gap-2 rounded-3xl border border-dashed border-border text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground'
+							className='pressable flex h-16 items-center justify-center gap-2 rounded-3xl border border-dashed border-border text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground max-md:hidden'
 						>
 							{widget.is_opening ? <RefreshCw className='size-4 animate-spin' /> : <Plus className='size-4' />}
 							Conectar outro banco

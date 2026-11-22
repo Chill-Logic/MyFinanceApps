@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { getApiErrorMessage, MONTH_NAMES_PT, MoneyUtils, type TAccount } from '@myfinance/shared';
 import { AlertTriangle, Banknote, Landmark, Link2, MoreVertical, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react';
@@ -66,7 +66,7 @@ const dayName = (date: string) => {
  * fim do mês. Criar/editar/excluir e "para conferir" continuam iguais. A projeção vem de `useCashProjection`,
  * já no contrato do endpoint que o backend ainda vai expor.
  */
-const AccountList = () => {
+const AccountList = ({ createRequest = 0 }: { createRequest?: number }) => {
 	const { user_wallet, is_loading: is_wallet_loading } = useWallet();
 	const { toast } = useToast();
 
@@ -78,6 +78,13 @@ const AccountList = () => {
 	const { mutate: deleteAccountMutation, isPending: is_delete_pending } = useDeleteAccount();
 
 	const [ is_create_open, setIsCreateOpen ] = useState(false);
+	/* "+" da barra flutuante (FinancesPage): cada incremento abre o formulário de criação. */
+	const last_create_request = useRef(createRequest);
+	useEffect(() => {
+		if (createRequest === last_create_request.current) return;
+		last_create_request.current = createRequest;
+		setIsCreateOpen(true);
+	}, [ createRequest ]);
 	const [ editing_account, setEditingAccount ] = useState<TAccount | null>(null);
 	const [ deleting_account, setDeletingAccount ] = useState<TAccount | null>(null);
 	const [ reviewing_source, setReviewingSource ] = useState<TMatchReviewSource | null>(null);
@@ -316,7 +323,7 @@ const AccountList = () => {
 						type='button'
 						onClick={() => setIsCreateOpen(true)}
 						disabled={!wallet_id}
-						className='pressable flex h-12 w-full items-center justify-center gap-2 rounded-[20px] border border-dashed border-muted-foreground/40 text-sm font-medium text-muted-foreground hover:text-foreground'
+						className='pressable flex h-12 w-full items-center justify-center gap-2 rounded-[20px] border border-dashed border-muted-foreground/40 text-sm font-medium text-muted-foreground hover:text-foreground max-md:hidden'
 					>
 						<Plus className='h-4 w-4' />
 						Nova conta

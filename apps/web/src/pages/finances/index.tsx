@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { CreditCard, Link2, Plus, Repeat, Wallet } from 'lucide-react';
 
 import { useCurrentUserContext } from '@/context/current_user';
+import { usePrimaryAction } from '@/context/primaryAction';
 
 import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
@@ -37,10 +38,21 @@ const FinancesPage = () => {
 	const [ creating_recurrence, setCreatingRecurrence ] = useState(false);
 	/* "Conectar banco" (aba Bancos): cada incremento abre o widget da Pluggy dentro da aba. */
 	const [ connect_request, setConnectRequest ] = useState(0);
+	/* "Nova conta" / "Novo cartão" (o "+" da barra no celular): cada incremento abre o formulário da aba. */
+	const [ create_request, setCreateRequest ] = useState(0);
 
 	const pluggy_enabled = Boolean(current_user.data?.pluggy_enabled);
 	const tabs = pluggy_enabled ? [ ...TABS, CONNECTIONS_TAB ] : TABS;
 	const active_tab = tab === 'connections' && !pluggy_enabled ? 'accounts' : tab;
+
+	/* A ação principal muda com a aba: é o "+" da barra flutuante no celular. */
+	const PRIMARY_LABEL: Record<TTab, string> = { accounts: 'Nova conta', cards: 'Novo cartão', recurrences: 'Nova recorrência', connections: 'Conectar banco' };
+	const runPrimary = () => {
+		if (active_tab === 'recurrences') setCreatingRecurrence(true);
+		else if (active_tab === 'connections') setConnectRequest((count) => count + 1);
+		else setCreateRequest((count) => count + 1);
+	};
+	usePrimaryAction({ label: PRIMARY_LABEL[active_tab], onClick: runPrimary });
 
 	return (
 		<div className='flex flex-col gap-5'>
@@ -49,23 +61,23 @@ const FinancesPage = () => {
 					Contas &amp; Cartões
 				</Typography>
 				{active_tab === 'connections' && (
-					<Button type='button' onClick={() => setConnectRequest((count) => count + 1)} aria-label='Conectar banco' className='font-bold max-md:size-11 max-md:p-0'>
+					<Button type='button' onClick={() => setConnectRequest((count) => count + 1)} className='font-bold max-md:hidden'>
 						<Plus className='size-4' />
-						<span className='max-md:hidden'>Conectar banco</span>
+						Conectar banco
 					</Button>
 				)}
 				{active_tab === 'recurrences' && (
-					<Button type='button' variant='outline' onClick={() => setCreatingRecurrence(true)} aria-label='Nova recorrência' className='max-md:size-11 max-md:p-0'>
+					<Button type='button' variant='outline' onClick={() => setCreatingRecurrence(true)} className='max-md:hidden'>
 						<Plus className='size-4' />
-						<span className='max-md:hidden'>Nova recorrência</span>
+						Nova recorrência
 					</Button>
 				)}
 			</div>
 
 			<SegmentedControl segments={tabs} value={active_tab} onChange={(next) => setTab(next as TTab)} />
 
-			{active_tab === 'accounts' && <AccountList />}
-			{active_tab === 'cards' && <CreditBalanceList />}
+			{active_tab === 'accounts' && <AccountList createRequest={create_request} />}
+			{active_tab === 'cards' && <CreditBalanceList createRequest={create_request} />}
 			{active_tab === 'recurrences' && <RecurrenceList creating={creating_recurrence} onCreatingChange={setCreatingRecurrence} />}
 			{active_tab === 'connections' && <BankConnectionList connectRequest={connect_request} />}
 		</div>

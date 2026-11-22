@@ -873,6 +873,23 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   - **Celular (<768px)**: `BottomNav` **flutuante** (pílula de vidro `fixed`, só ícones com
     `aria-label`): Início, Contas, "+" central (só na Início), Carteiras e Menu (bottom sheet com o
     `NavMenu`). Pontos de troca: 768/1280 — mudou um, mude o outro (`DefaultTemplate`).
+  - **O "+" do meio da barra flutuante é a AÇÃO PRINCIPAL DA TELA (regra do dono, 2026-11-22)**: cada tela — e
+    cada aba, quando a tela é a mesma — registra a sua com `usePrimaryAction({ label, onClick })`
+    (`context/primaryAction.tsx`): Carteiras = nova carteira; Contas & Cartões = nova conta / novo cartão / nova
+    recorrência / conectar banco, conforme a aba; Convites = convidar. Sem registro, a Início cai na nova transação e
+    as outras telas ficam sem "+". No celular, o botão equivalente some (`max-md:hidden`) — o do cabeçalho E o tracejado
+    no fim da lista ("Nova conta", "Adicionar cartão", "Conectar outro banco"). Não duplique. Fica só o botão do estado
+    vazio, que explica o que fazer.
+    Formulários que moram dentro de uma aba abrem por um contador (`createRequest`/`connectRequest`) passado pela página.
+  - **Conteúdo atrás da barra**: só a Início tem altura fixa no template (`h-full`, a lista rola por dentro); as outras
+    telas usam `min-h-full`. Com `h-full`, conteúdo maior que a tela vazava da caixa e o padding de baixo
+    (`--bottom-nav-space`) ficava no meio — o último item terminava escondido atrás da barra.
+  - **"Gota" do item ativo da barra**: pílula de vidro atrás dos ícones que escorre até o destino ao navegar (desliza
+    com quique por `cubic-bezier(0.34,1.45,0.64,1)` e estica/achata pelos keyframes `nav-blob-a`/`-b` do index.css,
+    alternados pra reiniciar sem remontar). A transição fica em `style` inline: em classe, a duração perdia pra a
+    padrão de 150ms do utilitário de transição e a gota "teleportava". Respeita "reduzir movimento".
+  - **Vidro da barra**: desfoque moderado (`backdrop-blur-md`) e fundo bem translúcido. Com desfoque forte e fundo mais
+    opaco ela virava uma mancha sólida sobre conteúdo simples e perdia o efeito de vidro.
   - **Histórico da barra flutuante**: já existiu uma versão flutuante que foi revertida pra docked
     porque tampava a última transação — dependia de um `padding-bottom` exato no conteúdo, que
     ficava errado quando a barra mudava de altura com o FAB condicional. Ela voltou (pedido do dono)
@@ -982,6 +999,14 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     `md:hidden` e reaparece ao mudar o tamanho da tela) leva o carrossel até o selecionado quando ele muda por
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
+  - **Carteiras (redesign 2026-11, `WalletList`)**: a carteira em foco (a do contexto, `useWallet()`) num cartão
+    marinho com selos Principal/Compartilhada, saldo efetivado, membros (`GET /wallets/:id/members`, por `useQueries`
+    com a chave `wallet.get_members`) e as ações de quem administra; as outras em lista (celular, tablet deitado) ou
+    cartões (tablet em pé, desktop) com "Visualizar" (só troca o contexto, não salva nada). Convites recebidos viram
+    faixa (celular/tablet em pé) ou botão no cabeçalho. Excluir mostra tudo o que vai junto (contas, cartões, conexões e
+    quem perde acesso). Textos sem gênero: "você administra", "de Jéssica", selo "Admin" — não "dono/dona" (não
+    sabemos o gênero de ninguém). `TWallet.total` pode ser negativo e o `MoneyUtils.formatMoney` TIRA o sinal: use o
+    `signedMoney` local. A API não tem remover membro, sair da carteira nem transferir — não desenhe.
   - **Bancos (redesign 2026-11, `BankConnectionList` + página `bank-connection`)**: cartão por conexão com status em
     palavras (`BankConnectionUtils.statusView`: "Em dia", "Precisa entrar de novo"...) e "atualizado há X" pelo
     `last_imported_at` mais recente dos vínculos (`lastUpdatedAt`) — o backend NÃO grava `last_synced_at`, por isso

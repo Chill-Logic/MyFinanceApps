@@ -5,6 +5,7 @@ import { CreditCard, Mail, Plus, Wallet as WalletIcon, Home, type LucideIcon } f
 
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
 import { useNewWalletDialog } from '@/context/newWalletDialog';
+import { usePrimaryActionState } from '@/context/primaryAction';
 
 export type TNavItem = {
 	id: string;
@@ -46,6 +47,7 @@ export const useNavItems = () => {
 	const { pathname } = useLocation();
 	const { setIsOpen: setIsNewTransactionOpen } = useNewTransactionDialog();
 	const { setIsOpen: setIsNewWalletOpen } = useNewWalletDialog();
+	const { action: page_action } = usePrimaryActionState();
 
 	/**
 	 * "Nova Carteira" não é sensível a rota — sempre acessível (menu + dentro da própria
@@ -65,22 +67,18 @@ export const useNavItems = () => {
 	}), [ setIsNewWalletOpen ]);
 
 	/**
-	 * Ação central da bottom nav (só mobile — no desktop o Sidebar não usa isso, é lista
-	 * simples). Só existe na Início, que é sempre a visão da carteira selecionada no
-	 * contexto (`useWallet()`, ainda não implementado no web) — em qualquer outra tela não
-	 * faz sentido um "+" em destaque, então o valor é `null` e quem renderiza decide não
-	 * mostrar nada no lugar.
+	 * Ação central da bottom nav (só celular): o "+" com a ação principal da tela. Cada tela/aba registra a
+	 * sua com `usePrimaryAction` (context/primaryAction); sem registro, a Início cai na nova transação e as
+	 * outras ficam `null` (a barra encolhe o slot do "+").
 	 */
-	const centerAction = useMemo<TNavAction | null>(() => (
-		pathname === '/'
-			? {
-				id: 'new_transaction',
-				label: 'Nova Transação',
-				icon: Plus,
-				onClick: () => setIsNewTransactionOpen(true),
-			}
-			: null
-	), [ pathname, setIsNewTransactionOpen ]);
+	const centerAction = useMemo<TNavAction | null>(() => {
+		/* A tela registrou a sua ação principal (context/primaryAction): ela vale. */
+		if (page_action) return { id: `page:${ page_action.label }`, label: page_action.label, icon: Plus, onClick: page_action.onClick };
+		if (pathname === '/') {
+			return { id: 'new_transaction', label: 'Nova Transação', icon: Plus, onClick: () => setIsNewTransactionOpen(true) };
+		}
+		return null;
+	}, [ pathname, setIsNewTransactionOpen, page_action ]);
 
 	const bottomNavItems = NAV_ITEMS.filter((item) => BOTTOM_NAV_IDS.includes(item.id));
 
