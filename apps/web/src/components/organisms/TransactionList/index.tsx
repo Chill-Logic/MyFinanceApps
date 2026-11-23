@@ -275,10 +275,10 @@ const TransactionList = () => {
 
 	/* Cartões abertos na aba Cartões (fora do Set = fechado, que é o padrão). */
 	const [ expanded, setExpanded ] = useState<Set<string>>(new Set());
-	/* Dias recolhidos na lista (chave `escopo:dia`); fora do Set = aberto, que é o padrão. */
-	const [ collapsed_days, setCollapsedDays ] = useState<Set<string>>(new Set());
+	/* Dias abertos na lista (chave `escopo:dia`); fora do Set = recolhido, que é o padrão (pedido do Gabriel). */
+	const [ open_days, setOpenDays ] = useState<Set<string>>(new Set());
 	const toggleDay = (key: string) => {
-		setCollapsedDays((current) => {
+		setOpenDays((current) => {
 			const next = new Set(current);
 			if (next.has(key)) next.delete(key);
 			else next.add(key);
@@ -994,45 +994,31 @@ const TransactionList = () => {
 		}, 0);
 
 	/*
-	 * Dias com mais de uma transação podem ser recolhidos tocando no cabeçalho (o total do dia continua
-	 * visível). `scope` separa a lista de contas da seção de cada cartão, que têm dias iguais.
+	 * Todo dia começa recolhido — inclusive os de uma transação só — e abre tocando no cabeçalho (o total e a
+	 * contagem do dia ficam sempre visíveis). `scope` separa a lista de contas da seção de cada cartão, que têm
+	 * dias iguais.
 	 */
 	const renderDayGroups = (items: TTransaction[], scope: string, hide_source = false) =>
 		groupTransactionsByDay(items).map((group) => {
 			const net = dayNet(group.items);
 			const key = `${ scope }:${ group.label }`;
-			const can_collapse = group.items.length > 1;
-			const is_collapsed = can_collapse && collapsed_days.has(key);
-
-			const header_content = (
-				<>
-					<span className='flex items-center gap-1.5'>
-						{group.label}
-						{can_collapse && (
-							<>
-								<span className='font-medium opacity-70'>· {group.items.length}</span>
-								<ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', is_collapsed && '-rotate-90')} />
-							</>
-						)}
-					</span>
-					{net !== 0 && <span>{signedMoney(net)}</span>}
-				</>
-			);
+			const is_collapsed = !open_days.has(key);
 
 			return (
 				<section key={group.label} aria-label={group.label}>
-					{can_collapse ? (
-						<button
-							type='button'
-							onClick={() => toggleDay(key)}
-							aria-expanded={!is_collapsed}
-							className='flex w-full items-baseline justify-between pb-1.5 pt-4 text-left text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground'
-						>
-							{header_content}
-						</button>
-					) : (
-						<div className='flex items-baseline justify-between pb-1.5 pt-4 text-xs font-semibold text-muted-foreground'>{header_content}</div>
-					)}
+					<button
+						type='button'
+						onClick={() => toggleDay(key)}
+						aria-expanded={!is_collapsed}
+						className='flex w-full items-baseline justify-between pb-1.5 pt-4 text-left text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground'
+					>
+						<span className='flex items-center gap-1.5'>
+							{group.label}
+							<span className='font-medium opacity-70'>· {group.items.length}</span>
+							<ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', is_collapsed && '-rotate-90')} />
+						</span>
+						{net !== 0 && <span>{signedMoney(net)}</span>}
+					</button>
 
 					{/* Altura animada via grid-rows (0fr↔1fr), sem JS */}
 					<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
