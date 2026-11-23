@@ -768,7 +768,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align='start' className='max-h-80 w-72 overflow-y-auto p-1.5'>
+			<PopoverContent align='start' className='scroll-hint max-h-80 w-72 overscroll-contain p-1.5'>
 				{origin_accounts.length > 0 && <p className={LIST_LABEL}>Contas</p>}
 				{origin_accounts.map((item) => renderListItem(
 					item.id,
@@ -801,7 +801,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 					)}
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align='start' className='max-h-80 w-72 overflow-y-auto p-1.5'>
+			<PopoverContent align='start' className='scroll-hint max-h-80 w-72 overscroll-contain p-1.5'>
 				{destination_options.length === 0 && <p className='px-3 py-2 text-sm text-muted-foreground'>Nenhuma outra conta</p>}
 				{destination_options.map((account) => renderListItem(
 					account.id,
