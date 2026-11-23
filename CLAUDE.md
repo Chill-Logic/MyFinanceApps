@@ -916,6 +916,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     no fim da lista ("Nova conta", "Adicionar cartão", "Conectar outro banco"). Não duplique. Fica só o botão do estado
     vazio, que explica o que fazer.
     Formulários que moram dentro de uma aba abrem por um contador (`createRequest`/`connectRequest`) passado pela página.
+  - **Puxar pra atualizar (`organisms/PullToRefresh`, 2026-11-23)**: montado no `DefaultTemplate` (vale em toda tela
+    logada, inclusive a lista da Início, que rola por dentro), só toque, recarrega o mesmo que "Atualizar dados"
+    (`useRefreshAll`). Visual aprovado numa demo à parte: gota de vidro que se forma pendurada no topo, cai, achata e
+    boia com o ícone girando; ✓ e some. O dono REPROVOU: esfera com anel em volta ("portal"), poça parada no topo depois
+    que a gota solta, ondas tipo sonar e respingos — não reintroduza. Desenho imperativo por rAF (sem state por quadro).
   - **Conteúdo atrás da barra**: só a Início tem altura fixa no template (`h-full`, a lista rola por dentro); as outras
     telas usam `min-h-full`. Com `h-full`, conteúdo maior que a tela vazava da caixa e o padding de baixo
     (`--bottom-nav-space`) ficava no meio — o último item terminava escondido atrás da barra.

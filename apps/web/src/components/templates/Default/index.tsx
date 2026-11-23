@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Loader2 } from 'lucide-react';
@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils';
 
 import { ITemplateProps } from '@/types';
 
+import { useRefreshAll } from '@/components/molecules/NavKit';
 import BottomNav from '@/components/organisms/BottomNav';
+import PullToRefresh from '@/components/organisms/PullToRefresh';
 import Sidebar from '@/components/organisms/Sidebar';
 import WalletFormDialog from '@/components/organisms/WalletFormDialog';
 
@@ -67,6 +69,11 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 	};
 	const { is_open: is_new_wallet_open, setIsOpen: setIsNewWalletOpen } = useNewWalletDialog();
 
+	/* Puxar pra atualizar (toque): escuta a coluna de conteúdo e desce o <main> junto com a gota. */
+	const column_ref = useRef<HTMLDivElement>(null);
+	const main_ref = useRef<HTMLElement>(null);
+	const { refresh } = useRefreshAll();
+
 	/*
 	 * Toda página autenticada passa por este template — é o lugar certo pra bloquear a
 	 * renderização até o GET /users/me (disparado pelo CurrentUserProvider assim que existe
@@ -106,8 +113,9 @@ const DefaultTemplate = ({ children }: ITemplateProps) => {
 				/>
 			)}
 
-			<div className='relative z-10 flex flex-1 flex-col overflow-hidden'>
-				<main className='no-scrollbar relative flex-1 overflow-auto'>
+			<div ref={column_ref} className='relative z-10 flex flex-1 flex-col overflow-hidden'>
+				<PullToRefresh rootRef={column_ref} contentRef={main_ref} onRefresh={refresh} />
+				<main ref={main_ref} className='no-scrollbar relative flex-1 overflow-auto overscroll-y-contain'>
 					{/*
 					 * No celular, o padding-bottom reserva o espaço da barra flutuante (`--bottom-nav-space`,
 					 * ver BottomNav): página que rola inteira deixa o último item visível acima da barra. Lista
