@@ -183,9 +183,9 @@ const CreditBalanceDetail = ({ creditBalance, walletId }: IDetailProps) => {
 	const can_pay = remaining > 0;
 	const purchases = (transactions_data?.credits.data || []).filter((item) => item.source_id === creditBalance.id);
 
-	/* Dias recolhidos em "Nesta fatura" (dias com mais de uma compra recolhem, como na Home). */
-	const [ collapsed_days, setCollapsedDays ] = useState<Set<string>>(new Set());
-	const toggleDay = (label: string) => setCollapsedDays((current) => {
+	/* Dias abertos em "Nesta fatura" (fora do Set = recolhido, que é o padrão — como na Home). */
+	const [ open_days, setOpenDays ] = useState<Set<string>>(new Set());
+	const toggleDay = (label: string) => setOpenDays((current) => {
 		const next = new Set(current);
 		if (next.has(label)) next.delete(label);
 		else next.add(label);
@@ -379,37 +379,23 @@ const CreditBalanceDetail = ({ creditBalance, walletId }: IDetailProps) => {
 				{groupTransactionsByDay(purchases).map((group) => {
 					/* Total do dia: estorno/pagamento soma, compra subtrai (rascunho fora) — igual a lista da Home. */
 					const net = group.items.filter((item) => !item.draft).reduce((acc, item) => acc + (item.kind === 'deposit' ? item.value : -item.value), 0);
-					const can_collapse = group.items.length > 1;
-					const is_collapsed = can_collapse && collapsed_days.has(group.label);
-					const header = (
-						<>
-							<span className='flex items-center gap-1.5'>
-								{group.label}
-								{can_collapse && (
-									<>
-										<span className='font-medium opacity-70'>· {group.items.length}</span>
-										<ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', is_collapsed && '-rotate-90')} />
-									</>
-								)}
-							</span>
-							{net !== 0 && <span>{net > 0 ? '+' : '−'} {MoneyUtils.formatMoney(Math.abs(net)).replace(/^R\$\s?/, '')}</span>}
-						</>
-					);
+					const is_collapsed = !open_days.has(group.label);
 
 					return (
 						<section key={group.label} aria-label={group.label}>
-							{can_collapse ? (
-								<button
-									type='button'
-									onClick={() => toggleDay(group.label)}
-									aria-expanded={!is_collapsed}
-									className='flex w-full items-baseline justify-between pb-1 pt-3.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground'
-								>
-									{header}
-								</button>
-							) : (
-								<div className='flex items-baseline justify-between pb-1 pt-3.5 text-xs font-semibold text-muted-foreground'>{header}</div>
-							)}
+							<button
+								type='button'
+								onClick={() => toggleDay(group.label)}
+								aria-expanded={!is_collapsed}
+								className='flex w-full items-baseline justify-between pb-1 pt-3.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground'
+							>
+								<span className='flex items-center gap-1.5'>
+									{group.label}
+									<span className='font-medium opacity-70'>· {group.items.length}</span>
+									<ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', is_collapsed && '-rotate-90')} />
+								</span>
+								{net !== 0 && <span>{net > 0 ? '+' : '−'} {MoneyUtils.formatMoney(Math.abs(net)).replace(/^R\$\s?/, '')}</span>}
+							</button>
 							<div className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out', is_collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
 								<div className='min-h-0 overflow-hidden'>
 									{group.items.map((item) => {
