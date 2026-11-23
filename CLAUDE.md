@@ -1114,6 +1114,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     do cartão com as abas Contas/Cartões e o contador, e só o corpo do cartão rola. Já existiu uma tabela
     no desktop (Data | Descrição | Conta | Valor, ordenável por coluna); o dono achou esquisita e pediu a
     lista do celular no lugar, então a ordenação por coluna saiu junto. Não reintroduza a tabela.
+    **Todo dia começa recolhido (2026-11-23, pedido do Gabriel)**, inclusive os de uma transação só: o cabeçalho
+    mostra dia, contagem e total, e abre ao tocar. Vale também pro "Nesta fatura" dos cartões.
   - **Nova transação no visual do mockup (redesign 2026-11, `TransactionFormDialog`)** — só a apresentação
     mudou; salvar/editar/repetir/escopo seguem iguais. Não existe mais a "etapa 1" (Conta/Cartão/
     Transferência): o **tipo vem primeiro** (abas Saída/Entrada/Transferência no MESMO `SegmentedControl` do resto do app — já teve um grupo de abas próprio em marinho e o dono pediu padrão; segmento indisponível usa `disabled`/`title`) e define as
