@@ -247,6 +247,21 @@
         display: none;
     }
 
+    /*
+     * Sombra em cima/embaixo de uma lista que rola, só do lado em que ainda há conteúdo — no app (WebView) a
+     * barra de rolagem é invisível e não dava pra saber que a lista continuava. Truque de `background-attachment`:
+     * as "tampas" (cor do fundo, `local`) andam com o conteúdo e cobrem as sombras (`scroll`) quando chega na ponta.
+     * Precisa de fundo opaco igual a `--popover` (é o caso dos popovers).
+     */
+    .scroll-hint {
+        background:
+            linear-gradient(hsl(var(--popover)) 30%, hsl(var(--popover) / 0)) top / 100% 32px no-repeat local,
+            linear-gradient(hsl(var(--popover) / 0), hsl(var(--popover)) 70%) bottom / 100% 32px no-repeat local,
+            radial-gradient(farthest-side at 50% 0, hsl(var(--foreground) / 0.22), transparent) top / 100% 12px no-repeat scroll,
+            radial-gradient(farthest-side at 50% 100%, hsl(var(--foreground) / 0.22), transparent) bottom / 100% 12px no-repeat scroll,
+            hsl(var(--popover));
+    }
+
     .scroll-container {
         @apply overflow-auto scrollbar scrollbar-w-[5px] scrollbar-thumb-rounded-full scrollbar-thumb-gray-400 hover:scrollbar-thumb-gray-600
     }
