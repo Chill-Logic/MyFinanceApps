@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TUserPreferences, TWallet } from './models';
+import { TPolicyKind, TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TUserPreferences, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -26,11 +26,30 @@ export type TSignInBody = {
 	password: string;
 };
 
+/* Versões dos documentos que a pessoa viu e aceitou (backend #26), mandadas ao criar a conta. */
+export type TAcceptedPolicies = Partial<Record<TPolicyKind, string>>;
+
 export type TSignUpBody = {
 	name: string;
 	email: string;
 	password: string;
+	accepted_policies?: TAcceptedPolicies;
 }
+
+/* `POST /auth/lookup` (backend #30): o e-mail tem conta? Base do login em duas etapas. */
+export type TAuthLookupResponse = {
+	exists: boolean;
+	has_password: boolean;
+	google_linked: boolean;
+};
+
+/* `DELETE /users/me` (backend #25): com senha, `password`; conta só do Google, `confirmation: 'EXCLUIR'`. */
+export type TDeleteAccountBody = { password: string } | { confirmation: 'EXCLUIR' };
+
+export type TDeleteAccountResponse = {
+	message: string;
+	data: { deleted_at: string; purge_at: string };
+};
 
 export type TRecoverPasswordBody = {
 	email: string;
@@ -357,6 +376,8 @@ export type TVersionResponse = {
 	branch: string;
 	/* Quando foi o deploy (ISO). `'unknown'` onde o deploy não grava. */
 	deployed_at: string;
+	/* Versão vigente de cada documento legal (backend #26). */
+	policies?: Record<TPolicyKind, string>;
 };
 
 /*

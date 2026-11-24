@@ -2,7 +2,7 @@ import { type ReactNode, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { getApiErrorMessage, MONTH_NAMES_PT, QUERY_KEYS } from '@myfinance/shared';
-import { Bot, ChevronLeft, ChevronRight, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, User, type LucideIcon } from 'lucide-react';
+import { Bot, ChevronLeft, ChevronRight, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, Trash2, User, type LucideIcon } from 'lucide-react';
 
 import { useIndexClaudeSessions } from '@/hooks/api/claude-sessions/useIndexClaudeSessions';
 import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
@@ -25,6 +25,7 @@ import AboutInfo, { useShortVersions } from '@/components/organisms/AboutInfo';
 import AccountInfoForm, { SETTINGS_CARD } from '@/components/organisms/AccountInfoForm';
 import AccountPasswordForm from '@/components/organisms/AccountPasswordForm';
 import ClaudeConnections from '@/components/organisms/ClaudeConnections';
+import DeleteAccountDialog from '@/components/organisms/DeleteAccountDialog';
 import Badge from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -82,6 +83,7 @@ const SettingsContent = () => {
 	 * seção no menu SUBSTITUI a entrada (é troca de aba, não navegação; senão o voltar desfaria clique por clique).
 	 */
 	const [ search_params, setSearchParams ] = useSearchParams();
+	const [ delete_open, setDeleteOpen ] = useState(false);
 	const location = useLocation();
 	const navigate = useNavigate();
 	/*
@@ -215,6 +217,20 @@ const SettingsContent = () => {
 		</section>
 	);
 
+	/* Excluir conta (backend #25): cartão no fim da seção Conta (tablet/desktop) e linha no grupo Conta (celular). */
+	const deleteDialog = <DeleteAccountDialog open={delete_open} onOpenChange={setDeleteOpen} />;
+	const deleteCard = (
+		<section className={cn(SETTINGS_CARD, 'flex-row items-center gap-4')}>
+			<span className='flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-danger-soft text-destructive'><Trash2 className='size-[18px]' /></span>
+			<span className='flex min-w-0 flex-1 flex-col gap-0.5'>
+				<span className='font-bold'>Excluir conta</span>
+				<span className='text-[13px] text-muted-foreground'>A conta é bloqueada na hora e os seus dados são apagados de vez em 30 dias.</span>
+			</span>
+			<Button type='button' variant='outline' onClick={() => setDeleteOpen(true)} className='h-11 shrink-0 px-[18px] font-bold text-destructive hover:text-destructive'>Excluir conta</Button>
+			{deleteDialog}
+		</section>
+	);
+
 	const aboutCard = (
 		<section className={SETTINGS_CARD}>
 			<h3 className='text-lg font-bold'>Sobre</h3>
@@ -264,6 +280,7 @@ const SettingsContent = () => {
 							<AccountInfoForm />
 							<AccountPasswordForm />
 						</div>
+						{deleteCard}
 					</div>
 				);
 			case 'account_info': return <AccountInfoForm />;
@@ -373,6 +390,15 @@ const SettingsContent = () => {
 				<>
 					{row('account_info', User, 'Informações pessoais', 'Nome e e-mail')}
 					{row('password', Lock, 'Senha', 'Trocar a senha de acesso')}
+					<button type='button' onClick={() => setDeleteOpen(true)} className='pressable flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-destructive'>
+						<span className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-danger-soft'><Trash2 className='size-[18px]' /></span>
+						<span className='flex min-w-0 flex-1 flex-col'>
+							<span className='font-semibold leading-tight'>Excluir conta</span>
+							<span className='truncate text-xs text-muted-foreground'>Apaga a conta e os seus dados</span>
+						</span>
+						<ChevronRight className='size-4 shrink-0 text-muted-foreground' />
+					</button>
+					{deleteDialog}
 				</>
 			))}
 			{group('Preferências', (

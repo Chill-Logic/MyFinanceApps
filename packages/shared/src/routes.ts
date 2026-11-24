@@ -4,12 +4,18 @@ export const API_ROUTES = {
 		signUp: '/auth/sign_up',
 		/* Login com o ID token do Google: acha pelo Google, vincula pelo e-mail ou cria a conta. */
 		google: '/auth/google',
+		/* O e-mail tem conta? (login em duas etapas). */
+		lookup: '/auth/lookup',
 		recoverPassword: '/auth/recover_password',
 		resetPassword: '/auth/reset_password',
 	},
 	users: {
 		me: '/users/me',
 		updateMe: '/users/me',
+		/* Excluir a própria conta (bloqueia na hora, apaga em 30 dias). */
+		deleteMe: '/users/me',
+		/* Aceitar a versão vigente de um documento legal. */
+		policyAcceptances: '/users/me/policy_acceptances',
 	},
 	wallets: {
 		index: '/wallets',

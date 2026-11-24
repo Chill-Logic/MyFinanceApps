@@ -560,6 +560,24 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     Configurações (abaixo do "Sobre"). App é "de organização e planejamento financeiro", projeto Chillogic, sem empresa
     constituída; está "em fase de testes" e pode passar a cobrar (aviso de 30 dias). A importação bancária NÃO entra nos
     textos enquanto não estiver liberada pra todos.
+  - **Login em duas etapas (2026-11-24, mockup v3 "Login em 2 etapas"; backend #29/#30)**: `/entrar` e `/criar-conta` são o
+    mesmo `organisms/AuthFlow`. 1ª etapa: e-mail + "Continuar com o Google"; `POST /auth/lookup` diz se o e-mail tem conta e
+    como entra → senha (`has_password`), só o Google (conta sem senha) ou cadastro (nome + senha, e-mail já preenchido, sem
+    "confirmar senha"). 429 = "muitas tentativas"; outro erro (backend sem a rota) cai no login antigo (senha + "Criar
+    conta"). **Conta do Google lembrada** (`util/rememberedGoogleAccount`, `localStorage`): nome/e-mail/foto lidos do ID
+    token no login com o Google; com ela, a tela abre em "Continuar como <nome>" (o `GoogleSignInButton` com `account`).
+    Sair NÃO esquece; "Usar outra conta" e excluir a conta, sim. O botão do Google é o NOSSO, com o do Google invisível
+    por cima pra receber o clique (o popup só funciona com o botão deles) e desenhado uma vez — antes ele piscava a cada
+    troca de tema e destoava do app.
+  - **Aceite dos documentos (backend #26)**: cadastro e login com o Google que cria conta mandam `accepted_policies` (versões
+    de `usePolicyVersions`: as do `GET /core/version` `policies`, senão as do `util/legalDocuments`). Com
+    `pending_policies` no `/users/me`, o `organisms/PolicyUpdateDialog` (montado no `DefaultShell`) não fecha até aceitar
+    (`POST /users/me/policy_acceptances`) ou sair. Mudou um documento? Suba a `version` e escreva o `changes` dele em
+    `legalDocuments.ts` (o aviso lista o que mudou; sem `changes`, diz que foi publicado).
+  - **Excluir conta (backend #25)**: `organisms/DeleteAccountDialog`, aberto pela linha "Excluir conta" (celular, grupo
+    Conta) ou pelo cartão no fim da seção Conta (tablet/desktop). Confirma com a senha; conta sem senha (`has_password ===
+    false`) digita EXCLUIR. Depois: esquece a conta do Google lembrada, vai pra `/conta-excluida?ate=<purge_at>` e sai.
+    `/excluir-conta` é a página pública que vai pra Play (como excluir sem o app, o que é apagado, prazos).
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
