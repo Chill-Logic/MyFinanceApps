@@ -13,6 +13,7 @@ import { ITemplateProps } from '@/types';
 
 import { useRefreshAll } from '@/components/molecules/NavKit';
 import BottomNav from '@/components/organisms/BottomNav';
+import PolicyUpdateDialog from '@/components/organisms/PolicyUpdateDialog';
 import PullToRefresh from '@/components/organisms/PullToRefresh';
 import Sidebar from '@/components/organisms/Sidebar';
 import WalletFormDialog from '@/components/organisms/WalletFormDialog';
@@ -140,6 +141,8 @@ const DefaultShell = ({ children }: ITemplateProps) => {
 			 * monta a WalletFormModal) — o "Nova Carteira" da nav/página só alterna o contexto.
 			 */}
 			<WalletFormDialog open={is_new_wallet_open} onOpenChange={setIsNewWalletOpen} />
+			{/* Termos/Política pendentes (backend #26): aceite obrigatório antes de seguir. */}
+			<PolicyUpdateDialog />
 		</div>
 	);
 };

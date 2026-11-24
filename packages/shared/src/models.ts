@@ -40,7 +40,15 @@ export type TUser = WithModelFields<{
 	main_user_wallet_id: string | null;
 	/* Liberação da integração bancária (Pluggy). Toda UI de conexão bancária só aparece com `true`. */
 	pluggy_enabled: boolean;
+	/* Como a pessoa entra (backend #29): conta com senha / ligada ao Google. Os dois podem ser `true`. */
+	has_password?: boolean;
+	google_linked?: boolean;
+	/* Documentos cuja versão vigente a pessoa ainda não aceitou (backend #26). Vazio = tudo em dia. */
+	pending_policies?: TPolicyKind[];
 }>;
+
+/* Documentos legais com versão e aceite (backend #26). */
+export type TPolicyKind = 'privacy' | 'terms';
 
 export type TTransaction = WithModelFields<{
 	description: string;

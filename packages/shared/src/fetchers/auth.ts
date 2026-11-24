@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios';
 
-import { TGoogleSignInResponse, TMessageResponse, TRecoverPasswordBody, TResetPasswordBody, TSignInBody, TSignInResponse, TSignUpBody, TSignUpResponse } from '../api';
+import { TAcceptedPolicies, TAuthLookupResponse, TGoogleSignInResponse, TMessageResponse, TRecoverPasswordBody, TResetPasswordBody, TSignInBody, TSignInResponse, TSignUpBody, TSignUpResponse } from '../api';
 import { API_ROUTES } from '../routes';
 
 export const signIn = async(axios: AxiosInstance, body?: TSignInBody) => {
@@ -8,8 +8,14 @@ export const signIn = async(axios: AxiosInstance, body?: TSignInBody) => {
 	return response.data.data;
 };
 
-export const signInWithGoogle = async(axios: AxiosInstance, id_token: string) => {
-	const response = await axios.post<{ data: TGoogleSignInResponse }>(API_ROUTES.auth.google, { id_token });
+/* `accepted_policies` só conta quando o login CRIA a conta (backend #26). */
+export const signInWithGoogle = async(axios: AxiosInstance, id_token: string, accepted_policies?: TAcceptedPolicies) => {
+	const response = await axios.post<{ data: TGoogleSignInResponse }>(API_ROUTES.auth.google, { id_token, accepted_policies });
+	return response.data.data;
+};
+
+export const lookupEmail = async(axios: AxiosInstance, email: string) => {
+	const response = await axios.post<{ data: TAuthLookupResponse }>(API_ROUTES.auth.lookup, { email });
 	return response.data.data;
 };
 

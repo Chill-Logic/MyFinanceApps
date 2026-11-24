@@ -5,11 +5,13 @@ import { SocialLogin } from '@capgo/capacitor-social-login';
 import { getApiErrorMessage } from '@myfinance/shared';
 
 import { useGoogleSignIn } from '@/hooks/api/auth/useGoogleSignIn';
+import usePolicyVersions from '@/hooks/usePolicyVersions';
 import useToast from '@/hooks/useToast';
 
 import { useCurrentUserContext } from '@/context/current_user';
 import { cn } from '@/lib/utils';
 import { is_native } from '@/services/native';
+import { rememberGoogleAccount, type TRememberedGoogleAccount } from '@/util/rememberedGoogleAccount';
 
 import { FIELD_SURFACE } from '@/components/ui/field';
 
@@ -26,6 +28,9 @@ import { FIELD_SURFACE } from '@/components/ui/field';
  *   ele o público (`aud`) do ID token que a API valida. No Google Cloud, além dele, precisa existir um client
  *   "Android" com o package e o SHA-1 de cada chave que assina o app (debug, upload e a da Play App Signing).
  *   Aqui o botão é nosso, no visual do app.
+ * - Conta lembrada (`account`): o mesmo botão vira "Continuar como <nome>", com a foto — a última conta do Google
+ *   usada neste aparelho (`util/rememberedGoogleAccount`). O clique continua abrindo a escolha de conta do Google.
+ * - Ao criar a conta, manda as versões dos Termos e da Política que a pessoa viu (`accepted_policies`, backend #26).
  */
 
 type TGoogleCredentialResponse = { credential?: string };
@@ -79,11 +84,30 @@ const GoogleLogo = () => (
 	</svg>
 );
 
-const GoogleSignInButton = () => {
+interface IProps {
+	account?: TRememberedGoogleAccount | null;
+	/* O "ou" em cima (quando vem logo depois de outro jeito de entrar). */
+	divider?: boolean;
+}
+
+const Avatar = ({ account }: { account: TRememberedGoogleAccount }) => {
+	const [ broken, setBroken ] = useState(false);
+	if (account.picture && !broken) {
+		return <img src={account.picture} alt='' referrerPolicy='no-referrer' onError={() => setBroken(true)} className='size-11 shrink-0 rounded-full object-cover' />;
+	}
+	return (
+		<span aria-hidden='true' className='flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal to-primary text-base font-bold text-sand-light'>
+			{account.name.charAt(0).toUpperCase()}
+		</span>
+	);
+};
+
+const GoogleSignInButton = ({ account = null, divider: with_divider = true }: IProps) => {
 	const navigate = useNavigate();
 	const { login } = useCurrentUserContext();
 	const { toast } = useToast();
 	const { mutate: googleSignIn, isPending } = useGoogleSignIn();
+	const { accepted } = usePolicyVersions();
 	const overlay_ref = useRef<HTMLDivElement>(null);
 	const [ failed, setFailed ] = useState(false);
 	const [ is_native_pending, setIsNativePending ] = useState(false);
@@ -93,8 +117,9 @@ const GoogleSignInButton = () => {
 	on_credential.current = (id_token) => {
 		if (!id_token) return;
 		googleSignIn({
-			body: { id_token },
+			body: { id_token, accepted_policies: accepted },
 			onSuccess: ({ token, created }) => {
+				rememberGoogleAccount(id_token);
 				login(token);
 				if (created) toast.success('Conta criada com o Google');
 				navigate('/');
@@ -163,7 +188,7 @@ const GoogleSignInButton = () => {
 
 	if (!is_google_sign_in_available || failed) return null;
 
-	const divider = (
+	const divider_line = (
 		<div className='flex items-center gap-3 text-xs text-muted-foreground' aria-hidden='true'>
 			<span className='h-px flex-1 bg-border' />
 			ou
@@ -172,17 +197,31 @@ const GoogleSignInButton = () => {
 	);
 
 	const busy = is_native_pending || isPending;
-	const face = (
-		<>
-			<GoogleLogo />
-			{busy ? 'Entrando…' : 'Continuar com o Google'}
-		</>
-	);
+	const face = account
+		? (
+			<>
+				<Avatar account={account} />
+				<span className='flex min-w-0 flex-1 flex-col text-left'>
+					<span className='truncate text-base font-bold'>{busy ? 'Entrando…' : `Continuar como ${ account.name }`}</span>
+					<span className='truncate text-[13px] font-normal text-muted-foreground'>{account.email}</span>
+				</span>
+				<GoogleLogo />
+			</>
+		)
+		: (
+			<>
+				<GoogleLogo />
+				{busy ? 'Entrando…' : 'Continuar com o Google'}
+			</>
+		);
 	const look = cn(
 		FIELD_SURFACE,
-		'flex h-[52px] w-full items-center justify-center gap-3 rounded-full text-[15px] font-semibold text-foreground md:h-[54px] xl:h-[52px]',
+		account
+			? 'flex h-auto min-h-[68px] w-full items-center gap-3.5 rounded-3xl py-3 pl-3 pr-[18px] text-foreground'
+			: 'flex h-[52px] w-full items-center justify-center gap-3 rounded-full text-[15px] font-semibold text-foreground md:h-[54px] xl:h-[52px]',
 		busy && 'opacity-60',
 	);
+	const divider = with_divider ? divider_line : null;
 
 	if (is_native) {
 		return (
@@ -198,11 +237,11 @@ const GoogleSignInButton = () => {
 			{divider}
 			{/* O nosso botão, só visual; quem recebe o clique é o do Google, invisível por cima (ver o efeito acima). */}
 			<div className={cn('group relative', look)}>
-				<span className='pointer-events-none flex items-center gap-3 transition-opacity group-hover:opacity-80'>{face}</span>
+				<span className={cn('pointer-events-none flex items-center transition-opacity group-hover:opacity-80', account ? 'w-full gap-3.5' : 'gap-3')}>{face}</span>
 				<div
 					ref={overlay_ref}
 					aria-label='Continuar com o Google'
-					className={cn('absolute inset-0 overflow-hidden rounded-full opacity-[0.01]', busy && 'pointer-events-none')}
+					className={cn('absolute inset-0 overflow-hidden opacity-[0.01]', account ? 'rounded-3xl' : 'rounded-full', busy && 'pointer-events-none')}
 				/>
 			</div>
 		</>
