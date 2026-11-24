@@ -209,7 +209,8 @@ const TransactionList = () => {
 	};
 
 	// Uma única busca: o mês inteiro (contas + créditos vêm separados na resposta, com as faturas dos cartões).
-	const { data: data_all, isLoading: is_transactions_loading } = useListTransactions({
+	/* `is_switching_credits`: trocou o modo dos cartões e a resposta nova ainda não chegou (ver o hook). */
+	const { data: data_all, isLoading: is_transactions_loading, isPlaceholderData: is_switching_credits } = useListTransactions({
 		enabled: Boolean(wallet_id),
 		params: { wallet_id: wallet_id || '', reference, credits_by },
 	});
@@ -779,7 +780,7 @@ const TransactionList = () => {
 			 * alto e espremia a lista. Lá ele vira resumo à esquerda + cartões em duas colunas à direita. Do tablet
 			 * deitado pra cima ele mora na coluna da direita, ao lado da lista, em coluna.
 			 */
-			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light md:max-lg:grid md:max-lg:grid-cols-[minmax(200px,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6'>
+			<div className={cn('flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light transition-opacity md:max-lg:grid md:max-lg:grid-cols-[minmax(200px,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6', is_switching_credits && 'opacity-50')}>
 				<div className='flex flex-col gap-3'>
 					<span className='flex items-baseline justify-between gap-3'>
 						<span className='whitespace-nowrap text-[13px] font-semibold'>{credits_by === 'open' ? 'Faturas em aberto' : `Vencem em ${ format(new Date(month_year.year, month_year.month, 1), 'MMMM', { locale: ptBR }) }`}</span>
@@ -1276,7 +1277,7 @@ const TransactionList = () => {
 								)}
 
 								{has_transactions && tab_txs.length > 0 && list_tab === 'credits' && (
-									<div className='flex flex-col pt-1'>{credit_sections.map(renderCreditSection)}</div>
+									<div className={cn('flex flex-col pt-1 transition-opacity', is_switching_credits && 'opacity-50')}>{credit_sections.map(renderCreditSection)}</div>
 								)}
 
 								{has_transactions && tab_txs.length > 0 && list_tab === 'accounts' && (
