@@ -8,16 +8,19 @@ import { useGoogleSignIn } from '@/hooks/api/auth/useGoogleSignIn';
 import useToast from '@/hooks/useToast';
 
 import { useCurrentUserContext } from '@/context/current_user';
-import { useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 import { is_native } from '@/services/native';
+
+import { FIELD_SURFACE } from '@/components/ui/field';
 
 /*
  * "Continuar com o Google" (backend #16, `POST /auth/google` com o ID token; a API acha a conta pelo Google,
  * senão vincula pelo e-mail, senão cria). Só aparece com `VITE_GOOGLE_CLIENT_ID` (o client ID OAuth "Web").
  *
- * - Navegador: Google Identity Services (script oficial, carregado só aqui). O botão é desenhado pelo próprio
- *   Google — o fluxo de popup só funciona com o botão deles.
+ * - Navegador: Google Identity Services (script oficial, carregado só aqui). O fluxo de popup só funciona com o
+ *   botão DELES, mas o desenho dele destoava do app (caixa branca no tema escuro, outra altura) e piscava a cada troca
+ *   de tema, porque precisava ser redesenhado. Então o que aparece é o NOSSO botão, e o do Google fica por cima,
+ *   invisível (opacidade ~0), esticado do tamanho do nosso, só pra receber o clique. Ele é desenhado uma vez só.
  * - App (Capacitor): o Google bloqueia login dentro de WebView, então vai pelo plugin
  *   `@capgo/capacitor-social-login` (Credential Manager no Android). O `webClientId` é o MESMO client "Web" — é
  *   ele o público (`aud`) do ID token que a API valida. No Google Cloud, além dele, precisa existir um client
@@ -79,10 +82,9 @@ const GoogleLogo = () => (
 const GoogleSignInButton = () => {
 	const navigate = useNavigate();
 	const { login } = useCurrentUserContext();
-	const { theme } = useTheme();
 	const { toast } = useToast();
 	const { mutate: googleSignIn, isPending } = useGoogleSignIn();
-	const container_ref = useRef<HTMLDivElement>(null);
+	const overlay_ref = useRef<HTMLDivElement>(null);
 	const [ failed, setFailed ] = useState(false);
 	const [ is_native_pending, setIsNativePending ] = useState(false);
 
@@ -101,33 +103,47 @@ const GoogleSignInButton = () => {
 		});
 	};
 
-	/* Navegador: desenha o botão do Google Identity Services. */
+	/*
+	 * Navegador: desenha o botão do Google, invisível, por cima do nosso. O botão deles tem no máximo 400px de
+	 * largura e altura fixa: ele é desenhado em 400px e esticado (scale) até cobrir o nosso, pra qualquer ponto do
+	 * nosso botão cair num clique dele. Sem dependência de tema: o desenho dele não aparece.
+	 */
 	useEffect(() => {
 		if (!is_google_sign_in_available || is_native) return undefined;
 		let cancelled = false;
+		let observer: ResizeObserver | null = null;
 		loadScript()
 			.then(() => {
-				const container = container_ref.current;
+				const overlay = overlay_ref.current;
 				const google_id = window.google?.accounts.id;
-				if (cancelled || !container || !google_id) return;
+				if (cancelled || !overlay || !google_id) return;
 				google_id.initialize({ client_id: CLIENT_ID!, callback: ({ credential }) => on_credential.current(credential), ux_mode: 'popup' });
-				container.innerHTML = '';
-				google_id.renderButton(container, {
-					type: 'standard',
-					theme: theme === 'dark' ? 'filled_black' : 'outline',
-					size: 'large',
-					shape: 'pill',
-					text: 'continue_with',
-					logo_alignment: 'center',
-					locale: 'pt-BR',
-					width: Math.min(container.offsetWidth || 400, 400),
-				});
+				const inner = document.createElement('div');
+				inner.style.transformOrigin = 'top left';
+				overlay.replaceChildren(inner);
+				google_id.renderButton(inner, { type: 'standard', size: 'large', shape: 'pill', text: 'continue_with', locale: 'pt-BR', width: 400 });
+				const fit = () => {
+					const box = overlay.getBoundingClientRect();
+					const rendered = inner.getBoundingClientRect();
+					const base_width = rendered.width / (Number(inner.dataset.sx) || 1);
+					const base_height = rendered.height / (Number(inner.dataset.sy) || 1);
+					if (!base_width || !base_height) return;
+					const sx = box.width / base_width;
+					const sy = box.height / base_height;
+					inner.dataset.sx = String(sx);
+					inner.dataset.sy = String(sy);
+					inner.style.transform = `scale(${ sx }, ${ sy })`;
+				};
+				observer = new ResizeObserver(fit);
+				observer.observe(overlay);
+				observer.observe(inner);
 			})
 			.catch(() => !cancelled && setFailed(true));
 		return () => {
 			cancelled = true;
+			observer?.disconnect();
 		};
-	}, [ theme ]);
+	}, []);
 
 	/* App: abre o seletor de contas do Android. Cancelar não é erro. */
 	const signInNative = async() => {
@@ -155,23 +171,24 @@ const GoogleSignInButton = () => {
 		</div>
 	);
 
+	const busy = is_native_pending || isPending;
+	const face = (
+		<>
+			<GoogleLogo />
+			{busy ? 'Entrando…' : 'Continuar com o Google'}
+		</>
+	);
+	const look = cn(
+		FIELD_SURFACE,
+		'flex h-[52px] w-full items-center justify-center gap-3 rounded-full text-[15px] font-semibold text-foreground md:h-[54px] xl:h-[52px]',
+		busy && 'opacity-60',
+	);
+
 	if (is_native) {
-		const busy = is_native_pending || isPending;
 		return (
 			<>
 				{divider}
-				<button
-					type='button'
-					onClick={signInNative}
-					disabled={busy}
-					className={cn(
-						'pressable flex h-12 w-full items-center justify-center gap-3 rounded-full border border-border bg-white text-[15px] font-semibold text-[#1F1F1F] transition-opacity dark:border-transparent',
-						busy && 'opacity-60',
-					)}
-				>
-					<GoogleLogo />
-					{busy ? 'Entrando…' : 'Continuar com o Google'}
-				</button>
+				<button type='button' onClick={signInNative} disabled={busy} className={cn('pressable', look)}>{face}</button>
 			</>
 		);
 	}
@@ -179,8 +196,15 @@ const GoogleSignInButton = () => {
 	return (
 		<>
 			{divider}
-			{/* Altura reservada (a do botão "large" do Google) pra o formulário não pular quando ele aparece. */}
-			<div ref={container_ref} className='flex h-11 w-full justify-center' />
+			{/* O nosso botão, só visual; quem recebe o clique é o do Google, invisível por cima (ver o efeito acima). */}
+			<div className={cn('group relative', look)}>
+				<span className='pointer-events-none flex items-center gap-3 transition-opacity group-hover:opacity-80'>{face}</span>
+				<div
+					ref={overlay_ref}
+					aria-label='Continuar com o Google'
+					className={cn('absolute inset-0 overflow-hidden rounded-full opacity-[0.01]', busy && 'pointer-events-none')}
+				/>
+			</div>
 		</>
 	);
 };
