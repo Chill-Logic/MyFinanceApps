@@ -476,7 +476,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     fora. Compras em LISTA, não tabela (mesma decisão da Home). Bordas: `border-border` não aceita `/60`
     — com modificador o navegador cai no branco.
   - **Configurações (redesign 2026-11, `pages/settings`)**: desktop/tablet deitado = menu de seções (Conta, Aparência,
-    Carteira principal, Conexões com o Claude, Integração bancária, Sobre) com resumo de cada + o conteúdo; tablet em pé
+    Carteira principal, Conexões com o Claude, Integração bancária — só pra quem tem `pluggy_enabled`; os outros nem veem
+    a seção, e o link direto pra ela cai no início —, Sobre) com resumo de cada + o conteúdo; tablet em pé
     = tudo empilhado; celular = lista agrupada que abre cada item numa tela com "Voltar", "Sair da conta" e a linha
     "Sobre". Conta = cartão marinho do perfil ("Membro desde", carteira principal) + `AccountInfoForm` e
     `AccountPasswordForm` lado a lado (cartões; senha valida 6–128 com o `passwordProblem` do AuthForm). Carteira

@@ -84,7 +84,13 @@ const SettingsContent = () => {
 	const [ search_params, setSearchParams ] = useSearchParams();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const section = sectionFromSlug(search_params.get('secao'));
+	/*
+	 * Integração bancária (Pluggy) em testes: quem não foi liberado pelo backend (`pluggy_enabled`) nem vê a seção.
+	 * Um link direto pra ela (`?secao=integracao-bancaria`) cai na tela inicial das Configurações.
+	 */
+	const pluggy_enabled = Boolean(me?.pluggy_enabled);
+	const requested_section = sectionFromSlug(search_params.get('secao'));
+	const section = requested_section === 'bank' && !pluggy_enabled ? null : requested_section;
 
 	/* Pra onde a última troca foi: decide de que lado a tela entra (nada na primeira renderização). */
 	const [ previous_section, setPreviousSection ] = useState(section);
@@ -198,18 +204,14 @@ const SettingsContent = () => {
 				<div className='flex flex-col gap-0.5'>
 					<h3 className='text-lg font-bold'>Integração bancária</h3>
 					<p className='text-sm text-muted-foreground'>
-						{me?.pluggy_enabled
-							? 'Liberada para a sua conta. As conexões com bancos ficam em Contas & Cartões, aba Bancos.'
-							: 'Em testes: ainda não liberada para a sua conta.'}
+						Liberada para a sua conta. As conexões com bancos ficam em Contas & Cartões, aba Bancos.
 					</p>
 				</div>
-				{me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>}
+				<Badge variant='success' dot>Ativa</Badge>
 			</div>
-			{me?.pluggy_enabled && (
-				<Button asChild variant='outline' className='h-11 self-start gap-2 px-5'>
-					<Link to='/contas?aba=bancos'>Ver bancos conectados <ChevronRight className='size-4' /></Link>
-				</Button>
-			)}
+			<Button asChild variant='outline' className='h-11 self-start gap-2 px-5'>
+				<Link to='/contas?aba=bancos'>Ver bancos conectados <ChevronRight className='size-4' /></Link>
+			</Button>
 		</section>
 	);
 
@@ -310,7 +312,7 @@ const SettingsContent = () => {
 						{row('appearance', Palette, 'Aparência', preference === 'system' ? 'Seguindo o sistema' : theme_summary)}
 						{row('main_wallet', Star, 'Carteira principal', main_wallet?.name ?? '—')}
 						{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot || undefined)}
-						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Ativa na sua conta' : 'Não liberada')}
+						{pluggy_enabled && row('bank', Landmark, 'Integração bancária', 'Ativa na sua conta')}
 						{row('about', Info, 'Sobre', 'Versões, termos e privacidade')}
 						<LegalLinks className='px-3 pt-2 text-xs text-muted-foreground' />
 					</nav>
@@ -340,9 +342,9 @@ const SettingsContent = () => {
 								<ChevronRight className='size-4 text-muted-foreground' />
 							</span>
 						))}
-						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Liberada para sua conta · as conexões ficam em Contas' : 'Em testes: ainda não liberada', (
-							me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>
-						), me?.pluggy_enabled ? undefined : () => undefined)}
+						{pluggy_enabled && row('bank', Landmark, 'Integração bancária', 'Liberada para sua conta · as conexões ficam em Contas', (
+							<Badge variant='success' dot>Ativa</Badge>
+						))}
 					</div>
 				</section>
 				<section className={cn(SURFACE, 'flex items-center gap-3 rounded-3xl p-5')}>
@@ -391,8 +393,8 @@ const SettingsContent = () => {
 			{group('Integrações', (
 				<>
 					{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot ? <span className='flex items-center gap-2'>{pending_dot}<ChevronRight className='size-4 text-muted-foreground' /></span> : undefined)}
-					{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Liberada para você · veja em Contas' : 'Em testes: ainda não liberada', (
-						me?.pluggy_enabled ? <Badge variant='success' dot>Ativa</Badge> : <Badge variant='neutral'>Não liberada</Badge>
+					{pluggy_enabled && row('bank', Landmark, 'Integração bancária', 'Liberada para você · veja em Contas', (
+						<Badge variant='success' dot>Ativa</Badge>
 					))}
 				</>
 			))}
