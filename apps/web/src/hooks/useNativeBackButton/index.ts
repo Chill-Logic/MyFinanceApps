@@ -7,10 +7,10 @@ import { is_native } from '@/services/native';
 
 /*
  * Telas "raiz": voltar nelas minimiza o app (convenção do Android), em vez de navegar pra trás —
- * o histórico ali costuma ter telas que o RouteGuard só redirecionaria de volta (ex.: o sign-in
+ * o histórico ali costuma ter telas que o RouteGuard só redirecionaria de volta (ex.: o Entrar
  * depois de logar, ou uma tela privada depois do logout).
  */
-const ROOT_PATHS = [ '/', '/auth/sign-in' ];
+const ROOT_PATHS = [ '/', '/entrar' ];
 
 /*
  * Camadas do Radix abertas (Dialog, AlertDialog, Sheet, Popover, DropdownMenu, Select). Todas

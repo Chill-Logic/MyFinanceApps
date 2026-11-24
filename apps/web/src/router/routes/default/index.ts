@@ -1,4 +1,4 @@
-import HomePage from '@/pages/home';
+import RootPage from '@/pages/root';
 import SettingsPage from '@/pages/settings';
 
 import { IPath } from '@/types';
@@ -10,15 +10,15 @@ export const DefaultPaths: IPath[] = [
 		id: 'home',
 		display: 'Início',
 		path: '/',
-		element: HomePage,
+		element: RootPage,
 		template: DefaultTemplate,
 		isMainPath: true,
-		isPrivate: true,
+		/* Sem `isPrivate`: visitante vê a landing; quem decide é a RootPage. */
 	},
 	{
 		id: 'settings',
 		display: 'Configurações',
-		path: '/settings',
+		path: '/configuracoes',
 		element: SettingsPage,
 		template: DefaultTemplate,
 		isPrivate: true,
