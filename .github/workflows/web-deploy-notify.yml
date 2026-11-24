@@ -23,15 +23,19 @@ jobs:
       github.event.state != 'pending'
     steps:
       # Cada projeto também gera prévias de outras branches (o de staging builda até a main), então só
-      # notifica o par certo: projeto de produção + commit na ponta da main, projeto de staging + ponta
-      # da staging.
+      # notifica o par certo: projeto de produção + commit na PONTA da main, projeto de staging + ponta
+      # da staging. A ponta vem da API (branches-where-head): o `branches` do evento lista as branches
+      # que CONTÊM o commit, e a prévia de uma branch de PR que termina depois do merge já aparece "na
+      # main" — avisava como Produção (aconteceu no #77).
       - name: Decide se notifica
         id: gate
         env:
           CONTEXT: ${{ github.event.context }}
-          BRANCHES: ${{ join(github.event.branches.*.name, ' ') }}
+          SHA: ${{ github.event.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Status: $CONTEXT · branches: ${BRANCHES:-<nenhuma>}"
+          BRANCHES=$(gh api "repos/${{ github.repository }}/commits/${SHA}/branches-where-head" --jq '.[].name' 2>/dev/null || echo "")
+          echo "Status: $CONTEXT · ${SHA:0:7} é ponta de: ${BRANCHES:-<nenhuma>}"
           case "$CONTEXT" in
             *my-finance-ui-production) WANT=main;    ENV_LABEL="Produção" ;;
             *my-finance-ui-stg)        WANT=staging; ENV_LABEL="Staging" ;;
@@ -45,7 +49,7 @@ jobs:
               exit 0
             fi
           done
-          echo "Commit não é da $WANT — prévia, não notifica."
+          echo "Commit não é a ponta da $WANT — prévia ou commit antigo, não notifica."
           echo "notify=false" >> "$GITHUB_OUTPUT"
 
       - name: Notifica o Discord
