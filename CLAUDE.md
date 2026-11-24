@@ -797,6 +797,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   (validação estática), só não iniciar servidor nem abrir o app.
 - **Branches**: trabalho em branch própria → PR pra `staging` (era `dev` até 2026-11-24) → PR `staging` → `main`. A `main`
   publica o site (Vercel) e o app Android (CD); a `staging` tem um projeto próprio na Vercel.
+- **Mudança que exige ajuste fora do código é breaking change** (Vercel, secrets/Variables do GitHub, Railway, Play
+  Console, Google Cloud, ou passos no clone de quem desenvolve): commit e PR com `!` (`chore!:`, `feat!:`) e uma seção
+  `BREAKING CHANGE:` listando cada passo. Só vai pra `main` depois que o dono confirmar CADA passo — deploy verde na
+  `staging` não prova nada sobre o projeto da `main` (são projetos separados na Vercel). Aconteceu na saída do monorepo
+  (2026-11-24): foi como `chore:`, a `staging` passou e o deploy de produção quebrou por causa do Root Directory.
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
 - Todo fluxo novo do app precisa funcionar em desktop **e** responsivo (mobile web) — teste os
