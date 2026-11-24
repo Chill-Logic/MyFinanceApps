@@ -670,9 +670,13 @@ reaparecer se alguém comparar os dois apps):
   (liam `.data` de um objeto que não tem mais esse campo → lista vazia). Correção: `TListTransactionsResponse`
   virou `{ accounts, credits }` + `TTransactionGroup`; a aba (`SegmentedControl`) agora **escolhe o grupo**
   (`source_type === 'Account' ? accounts.data : credits.data`) em vez de filtrar `source_type` no cliente
-  (o filtro do cliente não respeitava o ciclo do cartão). O "Total do mês · todas as origens" é
-  `buildSummary([...accounts.data, ...credits.data])` — as duas listas são disjuntas (source_type
-  diferente), então concatenar não dupla-conta. Os params `source_type`/`source_id` de
+  (o filtro do cliente não respeitava o ciclo do cartão). **Desatualizado (corrigido em 2026-11-23):** na
+  época o "Total do mês · todas as origens" somava `accounts` + `credits`; desde o redesign o card de destaque
+  da Início (web) usa **só `accounts`** — `buildSummary(data_all?.accounts, ...)` no `TransactionList`:
+  saldo efetivado (`total_settled`), "Fim do mês" (`total_projected`), pendentes e Entrou/Saiu, como fluxo de
+  caixa real. Cartão nenhum entra nesses totais. A única informação de cartão no card é o chip "faturas em
+  aberto" (soma do `remaining` das faturas do mês exibido, a mesma do card "Faturas do mês"), que não entra
+  em total nenhum. Os params `source_type`/`source_id` de
   `TListTransactionsParams` continuam existindo (o backend ainda os aceita), mas os apps **não passam mais**.
   - **Agrupamento por dia usa a DATA EFETIVA, não `transaction_date`:** como o backend agora bucketiza
     `accounts` por `COALESCE(settled_at, transaction_date)`, agrupar a lista no cliente por
@@ -1103,6 +1107,14 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     (excluída) o painel fecha. O "⋮" da linha tem `stopPropagation` (os itens do menu estão num portal, mas
     na mesma árvore React, e o clique subiria até a linha). Celular usa linha do tempo (Criada → Vence →
     Pago); tablet/desktop usam grade de fatos + "Criada em · editada em" (`created_at`/`user_edited_at`).
+  - **Cartões na Início seguem o mês de VENCIMENTO, e isso vai virar toggle (pendente, 2026-11-23)**: hoje a aba
+    Cartões, o card "Faturas do mês" e o chip "faturas em aberto" usam `reference` = mês exibido = faturas que
+    VENCEM nele (em novembro aparecem as compras de outubro). Pra ver o gasto do mês atual era preciso ir pro mês
+    seguinte. Decidido com o dono: toggle "Vencendo no mês / Em aberto" (padrão "Em aberto"), com a regra toda no
+    backend — o front só manda o modo e mostra. Issues no my-finance-api: #18 (`users.preferences` jsonb, chave
+    `home_credits_by`, sem validação por enquanto), #19 (`credits_by` no `GET /transactions`), #20
+    (`credits.invoices`, resumo das faturas na resposta — tira a chamada por cartão do `useGetInvoicesForMonth`).
+    O card de destaque não muda (só contas). A tela Cartões já mostra a fatura aberta (`current_invoice`).
   - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
     Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
     O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
