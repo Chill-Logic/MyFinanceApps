@@ -1022,12 +1022,10 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
   - **Contas e saldo projetado (`organisms/AccountList` + `CashProjectionChart`, redesign 2026-11)**: cartão
     marinho com o saldo de hoje, gráfico 7/30/90 dias, ponto mais baixo e aviso quando cai/fica negativo;
-    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). **A projeção ainda não existe
-    no backend** — o contrato já está definido como se existisse (`TCashProjection` em `api.ts`,
-    `GET /accounts/projection` em `routes.ts`, fetcher `getCashProjection`), e o `useCashProjection` usa,
-    por enquanto, `estimateCashProjection` (fetchers/projection.ts), que monta a MESMA resposta a partir dos
-    endpoints de hoje via `ProjectionUtils.build` (utils/projection.ts — as regras estão no comentário de
-    lá). Quando o backend implementar, troca-se uma linha no hook. A chave `QUERY_KEYS.account.get_projection`
+    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). A projeção vem do backend
+    (`GET /accounts/projection`, fetcher `getCashProjection`, desde 2026-11-24 — backend #13): pendências de conta
+    atrasadas e faturas vencidas e não pagas de QUALQUER mês anterior entram hoje. Antes era estimada no front
+    (`estimateCashProjection` + `ProjectionUtils`, só o mês corrente) — os dois foram apagados. A chave `QUERY_KEYS.account.get_projection`
     é invalidada em toda mutação que mexe em conta, transação, recorrência ou fatura. A projeção só enxerga
     o que está lançado (pendentes, recorrências previstas e faturas): sem entradas futuras cadastradas, a
     linha só desce.
@@ -1107,14 +1105,16 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     (excluída) o painel fecha. O "⋮" da linha tem `stopPropagation` (os itens do menu estão num portal, mas
     na mesma árvore React, e o clique subiria até a linha). Celular usa linha do tempo (Criada → Vence →
     Pago); tablet/desktop usam grade de fatos + "Criada em · editada em" (`created_at`/`user_edited_at`).
-  - **Cartões na Início seguem o mês de VENCIMENTO, e isso vai virar toggle (pendente, 2026-11-23)**: hoje a aba
-    Cartões, o card "Faturas do mês" e o chip "faturas em aberto" usam `reference` = mês exibido = faturas que
-    VENCEM nele (em novembro aparecem as compras de outubro). Pra ver o gasto do mês atual era preciso ir pro mês
-    seguinte. Decidido com o dono: toggle "Vencendo no mês / Em aberto" (padrão "Em aberto"), com a regra toda no
-    backend — o front só manda o modo e mostra. Issues no my-finance-api: #18 (`users.preferences` jsonb, chave
-    `home_credits_by`, sem validação por enquanto), #19 (`credits_by` no `GET /transactions`), #20
-    (`credits.invoices`, resumo das faturas na resposta — tira a chamada por cartão do `useGetInvoicesForMonth`).
-    O card de destaque não muda (só contas). A tela Cartões já mostra a fatura aberta (`current_invoice`).
+  - **Cartões na Início: fatura em aberto ou a que vence (toggle, 2026-11-24; backend #18–#20)**: a aba Cartões, o card
+    de faturas e o chip de faturas do destaque mostram, por cartão, a fatura escolhida pelo `credits_by` do
+    `GET /transactions` — `open` (padrão; no mês atual é a do `current_invoice`, a mais antiga ainda com saldo a pagar,
+    então uma fatura atrasada fica na Início até ser paga — decisão do backend, aceita pelo dono) ou `due` (a que VENCE
+    no mês exibido, o comportamento antigo). Antes era só `due`, e pra ver o gasto do mês atual era preciso ir pro mês
+    seguinte. A escolha fica em `users.preferences.home_credits_by` (`PATCH /users/me` com merge raso), trocada pelo
+    `SegmentedControl` "Abertas / Vencendo" no lugar do contador da aba Cartões — aparece na hora e o PATCH vai em
+    segundo plano. As faturas vêm na própria resposta (`credits.invoices`, uma por cartão, mesmo zerada); o
+    `useGetInvoicesForMonth` (uma chamada por cartão) foi apagado. Card: "Faturas em aberto" / "Vencem em <mês>".
+    O card de destaque não muda (só contas). A tela Cartões segue com a fatura aberta (`current_invoice`).
   - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
     Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
     O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).

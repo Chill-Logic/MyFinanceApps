@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TUserPreferences, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -41,6 +41,8 @@ export type TUpdateUserBody = {
 	password_confirmation?: string;
 	/* Define a carteira principal do usuário — id de uma carteira acessível/aceita. */
 	main_wallet_id?: string;
+	/* Merge raso no backend: só as chaves enviadas mudam. */
+	preferences?: TUserPreferences;
 };
 
 export type TResetPasswordBody = {
@@ -71,9 +73,16 @@ export type TTransactionGroup = {
  * (o pagamento da fatura conta só em `accounts`, as compras só em `credits`) e faz a aba Cartões
  * mostrar a fatura do mês — o cliente NÃO filtra mais `source_type` na mão.
  */
+/* Resumo da fatura de um cartão no index de transações: os campos do `GET /credit_balances/:id/invoice` + o id. */
+export type TCreditInvoiceSummary = TCurrentInvoice & { credit_balance_id: string };
+
 export type TListTransactionsResponse = {
 	accounts: TTransactionGroup;
-	credits: TTransactionGroup;
+	/*
+	 * `invoices`: uma entrada por cartão da carteira (mesmo zerada), com a fatura escolhida pelo `credits_by`
+	 * — é a MESMA fatura cujas compras vêm em `data`.
+	 */
+	credits: TTransactionGroup & { invoices: TCreditInvoiceSummary[] };
 };
 
 export type TIndexWalletsResponse = TPaginatedResponse<TWallet>;
@@ -140,9 +149,8 @@ export type TIndexAccountsResponse = TPaginatedResponse<TAccount>;
 
 /*
  * Saldo projetado das contas de uma carteira, dia a dia (tela de Contas). Contrato no formato das outras
- * respostas da API (`{ data: ... }`, centavos, datas "YYYY-MM-DD"), pensado pra `GET /accounts/projection`
- * — que AINDA NÃO EXISTE no backend. Enquanto isso, `estimateCashProjection` monta exatamente esta resposta
- * a partir dos endpoints atuais; quando o endpoint existir, o hook troca pra `getCashProjection` e nada mais muda.
+ * respostas da API (`{ data: ... }`, centavos, datas "YYYY-MM-DD"), de `GET /accounts/projection`. Pendências de
+ * conta atrasadas e faturas vencidas e não pagas de qualquer mês anterior entram no dia de hoje.
  */
 export type TCashProjectionParams = {
 	wallet_id: string;

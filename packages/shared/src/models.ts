@@ -17,7 +17,24 @@ type TModelFields = {
 
 type WithModelFields<T> = TModelFields & T;
 
+/*
+ * Que fatura de cada cartão a Início mostra no mês exibido (`credits_by` do `GET /transactions`):
+ * `open` = a fatura em aberto (no mês atual, a do `current_invoice` — a mais antiga ainda com saldo a pagar;
+ * nos outros meses, deslocada a partir dela); `due` = a que VENCE no mês. A regra mora no backend.
+ */
+export type TCreditsBy = 'open' | 'due';
+
+/*
+ * Preferências do usuário, salvas no backend (`users.preferences`, jsonb). O `PATCH /users/me` faz merge raso:
+ * mandar só uma chave não apaga as outras. Sem validação de chaves no backend por enquanto.
+ */
+export type TUserPreferences = {
+	/* Modo dos cartões na Início. Ausente = `open`. */
+	home_credits_by?: TCreditsBy;
+};
+
 export type TUser = WithModelFields<{
+	preferences?: TUserPreferences;
 	name: string;
 	email: string;
 	main_user_wallet_id: string | null;

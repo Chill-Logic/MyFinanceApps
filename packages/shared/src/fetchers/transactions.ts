@@ -11,7 +11,7 @@ import {
 	TSettleTransactionBody,
 	TUpdateTransactionBody,
 } from '../api';
-import { TTransaction, TTransactionSourceType } from '../models';
+import { TCreditsBy, TTransaction, TTransactionSourceType } from '../models';
 import { API_ROUTES } from '../routes';
 
 export type TListTransactionsParams = {
@@ -24,6 +24,8 @@ export type TListTransactionsParams = {
 	source_type?: TTransactionSourceType;
 	source_id?: string;
 	terms?: string;
+	/* Que fatura de cada cartão entra no grupo `credits` (ver `TCreditsBy`). Ausente = `due` no backend. */
+	credits_by?: TCreditsBy;
 };
 
 export type TIndexPendingInvoiceReviewsParams = {
@@ -55,7 +57,7 @@ export const listTransactions = async(axios: AxiosInstance, params?: TListTransa
 	const response = await axios.get<TListTransactionsResponse>(API_ROUTES.transactions.index, { params });
 	return {
 		accounts: normalizeGroup(response.data.accounts),
-		credits: normalizeGroup(response.data.credits),
+		credits: { ...normalizeGroup(response.data.credits), invoices: response.data.credits.invoices ?? [] },
 	};
 };
 
