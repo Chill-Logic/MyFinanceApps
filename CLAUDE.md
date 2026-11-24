@@ -4,27 +4,32 @@ Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar neste repositó
 
 ## Estrutura do repositório
 
-Monorepo com npm workspaces (sem pnpm/yarn, sem Turborepo):
+Um app só (sem monorepo desde 2026-11-24 — antes era `MyFinanceApps`, com npm workspaces, `apps/web`, `apps/mobile`
+e `src/shared`):
 
 ```
-apps/web/        @myfinance/web    — o app: Vite + React no navegador (Vercel) e, empacotado no Capacitor 8,
-                                     o app Android da Play Store
-packages/shared/ @myfinance/shared — tipos de domínio, contratos de API e rotas do backend
+src/          o app: Vite + React no navegador (Vercel) e, empacotado no Capacitor 8, o app Android da Play Store
+src/shared/   contrato com o backend: tipos de domínio, rotas, fetchers, chaves de cache, utils puros e tokens
+android/      projeto Android do Capacitor (versionado)
+public/       servido como está (app-version.json, og-image.png, brand/)
+assets/       ícones de origem e as imagens da Play Store (assets/play-store, com os scripts que as refazem)
 ```
 
-**Não existe mais app nativo em React Native.** O `apps/mobile` (RN + Expo) foi apagado em 2026-11-24,
-depois que o Capacitor foi aprovado (ver "Casca nativa do web (Capacitor)" no fim). Menções a "mobile",
-`TransactionFormModal`, `PayInvoiceModal` etc. nas seções históricas abaixo são de antes disso. "Celular" nas
-seções do web quer dizer o layout responsivo do próprio web (que também é o do app).
+**Não existe mais app nativo em React Native.** O `apps/mobile` (RN + Expo) foi apagado em 2026-11-24, depois que o
+Capacitor foi aprovado (ver "Casca nativa do web (Capacitor)" no fim). Menções a "mobile", `TransactionFormModal`,
+`PayInvoiceModal`, "os dois apps" etc. nas seções históricas abaixo são de antes disso. "Celular" quer dizer o
+layout responsivo do próprio web (que também é o do app). Caminhos antigos citados nessas seções: `src/...`
+hoje é `src/...` e `src/shared/...` hoje é `src/shared/...`.
 
-`packages/shared` é a única fonte de verdade pra qualquer coisa que descreva o contrato com o backend
-e pra lógica que não depende de tela:
+`src/shared` é a única fonte de verdade pra qualquer coisa que descreva o contrato com o backend e pra lógica que
+não depende de tela. É importado como **`@myfinance/shared`** (o nome do antigo pacote, mantido no `paths` do
+tsconfig e no `alias` do Vite pra nenhum import mudar) e, por dentro, usa imports relativos (o ESLint libera só ali):
 - `models.ts` — entidades de domínio (`TUser`, `TTransaction`, `TWallet`, `TInvite`)
 - `api.ts` — tipos de request/response + `TMutationParams`
 - `routes.ts` — `API_ROUTES`, o mapa de endpoints
 - `queryKeys.ts` — `QUERY_KEYS`, as chaves de cache do React Query
 - `fetchers/*.ts` — funções puras `(axios, params?) => Promise<T>` que batem no endpoint certo com o
-  tipo certo (uma por operação: `signIn`, `indexWallets`, `createTransaction`, etc.). Os hooks do web só
+  tipo certo (uma por operação: `signIn`, `indexWallets`, `createTransaction`, etc.). Os hooks do app só
   chamam essas funções, passando a instância de axios — a lógica de "qual endpoint, qual payload, qual tipo
   de retorno" mora só aqui.
 - `utils/` — `DateUtils`, `MoneyUtils`, `TextUtils`, `TransactionUtils`, `InvoiceUtils`: formatação/lógica
@@ -35,37 +40,32 @@ e pra lógica que não depende de tela:
   cycle_end]` fechado (fatura atual de verdade, não "offset 0 de navegação"). Nomes de mês em pt-BR hardcoded
   no helper porque `DateUtils.formateTo` não aceita locale (sairia em inglês); comparação de datas por string
   `YYYY-MM-DD` pra não deslocar por fuso.
-- `tokens.ts` — design tokens: `brandPalette`/`brandTheme` (paleta do redesign, que o web converte em
+- `tokens.ts` — design tokens: `brandPalette`/`brandTheme` (paleta do redesign, que o app converte em
   variáveis CSS) e a paleta antiga `colors` (chaves hifenizadas de propósito — consumidas literalmente como
   classes Tailwind, ex. `colors['background-light']` vira `bg-background-light`; não normalize pra camelCase),
-  `spacing`, `borderRadius`, `fontSize`, `fontWeight`. `fontFamily` fica só em `apps/web/src/util/tokens.ts`.
+  `spacing`, `borderRadius`, `fontSize`, `fontWeight`. `fontFamily` fica só em `src/util/tokens.ts`.
+  **`src/util/tokens.ts` importa `../shared/tokens` por caminho relativo de propósito:** o `tailwind.config.ts`
+  carrega esse arquivo pelo Node (jiti), que não conhece os apelidos do tsconfig/Vite — com `@myfinance/shared` o
+  build quebra (`Cannot find module`).
 
-O web importa `packages/shared` como dependência de workspace (sem etapa de build — o Vite consome o
-TypeScript fonte diretamente). Ao adicionar ou mudar algo do contrato com o backend, um fetcher, uma query key
-ou um formatter, edite ali, não no app.
+Ao adicionar ou mudar algo do contrato com o backend, um fetcher, uma query key ou um formatter, edite em
+`src/shared`, não no resto do app.
 
 ## Comandos
 
-Instale uma vez a partir da raiz do repositório (instala todos os workspaces):
-
 ```bash
 npm install
+npm run dev              # vite dev server
+npm run build            # tsc && vite build
+npm run lint
+npm run storybook
+npm run cap:sync         # build + cap sync android (Node >= 22)
+npm run android          # sync + abre o Android Studio
+npm run android:bundle   # sync + bundleRelease assinado
 ```
 
-A raiz tem aliases pro web, sem precisar lembrar da flag `--workspace`:
-
-```bash
-npm run webapp:dev            # vite dev server
-npm run webapp:build          # tsc && vite build
-npm run webapp:lint
-npm run webapp:storybook
-npm run webapp:cap:sync       # build web + cap sync android (Node >= 22)
-npm run webapp:android        # sync + abre o Android Studio
-npm run webapp:android:bundle # sync + bundleRelease assinado
-```
-
-Não há testes automatizados no web (o `jest` que existia vinha "emprestado" do mobile pelo hoisting do npm e
-nunca teve teste nenhum; os scripts saíram junto com o `apps/mobile`). Validação = `tsc` + lint + build.
+Não há testes automatizados (o `jest` que existia vinha "emprestado" do mobile pelo hoisting do npm e nunca teve
+teste nenhum). Validação = `tsc` + lint + build.
 
 ## Arquitetura
 
@@ -76,7 +76,7 @@ pro web.
 
 **Adaptação ao backend novo — index de transações separado + fatura parcial (2026-08-02):** o backend
 (`my-finance-api`, repo separado read-only) mudou o contrato em dois pontos, adaptados nos dois apps +
-`packages/shared`:
+`src/shared`:
 - **`GET /transactions` passou a vir SEPARADO** em `{ accounts, credits }` (cada um um `TTransactionGroup`
   = `{ data, total_count, total_settled, total_projected }`), em vez do `{ data, total_count, ... }` plano
   de antes. Motivo do backend: evitar dupla contagem do cartão (pagamento da fatura conta só em `accounts`,
@@ -101,7 +101,7 @@ pro web.
     `transaction_date` cru colocaria uma transação efetivada num dia diferente do vencimento no grupo
     errado (podendo até cair fora do mês devolvido). O `groupTransactionsByDay` dos dois apps agora
     agrupa por `TransactionUtils.effectiveDate(t)` (`settled_at || transaction_date`, helper em
-    `packages/shared/src/utils/transaction.ts`). A tabela desktop do web (view tabular, coluna "Data"
+    `src/shared/utils/transaction.ts`). A tabela desktop do web (view tabular, coluna "Data"
     ordenável) **segue exibindo/ordenando por `transaction_date` nominal de propósito** — não é
     agrupamento por dia.
 - **Fatura com pagamento parcial**: `TCurrentInvoice` ganhou `paid_amount` e `remaining` (`paid` agora só
@@ -153,7 +153,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   seguinte; `1` = ciclo igual ao mês-calendário. A migration converteu os valores existentes
   (`best_purchase_day = closing_day + 1`), então **o usuário vê um número diferente do que cadastrou** —
   quem tinha fechamento 3 agora tem melhor compra 4. Renomeado em `TCreditBalance`/`TCreditBalanceBody`
-  (`packages/shared`), nos dois formulários do web (`CreditBalanceFormDialog`, `NewCardDialog`), nos dois
+  (`src/shared`), nos dois formulários do web (`CreditBalanceFormDialog`, `NewCardDialog`), nos dois
   do mobile (`CreditBalanceFormModal`, `NewCardModal`) e no `TCreditBalanceForm` de
   `apps/mobile/src/types/forms.ts`. Rótulos: "Dia de fechamento" → "Melhor dia de compra" (web),
   "Fechamento *" → "Melhor compra *" (mobile).
@@ -169,7 +169,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   guarda um só campo, `invoice_month`: ou a sentinela `AUTO_INVOICE_MONTH` (o Select do Radix não aceita
   item com value vazio), ou o `"YYYY-MM"` composto pelos dois seletores. "Automática" vira `''` no UPDATE
   (é assim que o backend devolve o campo pro default) e some no CREATE. Os nomes dos meses vêm do
-  `MONTH_NAMES_PT` exportado por `packages/shared/src/utils/invoice.ts`, e o ano do valor atual entra na
+  `MONTH_NAMES_PT` exportado por `src/shared/utils/invoice.ts`, e o ano do valor atual entra na
   lista mesmo fora da janela de 5 anos, pra uma transação em fatura antiga não abrir com o select vazio.
   Uma transação de cartão carregada pra edição vem com o mês concreto, ou seja, **desmarcada** — mudar a
   data NÃO move a fatura (mesmo comportamento de antes, já que o backend só calcula o default quando o
@@ -190,7 +190,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   `TransactionFormModal`/`TransactionDuplicateModal` (mobile), incluindo o título do calendário do mobile.
 - **Horário nasce com a hora de AGORA**, não 00:00. A data sugerida (o dia que a lista está mostrando)
   é do DIA, não da hora — antes o lançamento nascia meia-noite, o que bagunçava a ordenação e o "Pago em",
-  que herda esse horário. Helper `DateUtils.withCurrentTime` no `packages/shared` (web); no mobile, que
+  que herda esse horário. Helper `DateUtils.withCurrentTime` no `src/shared` (web); no mobile, que
   guarda data e hora em campos separados, o efeito de criação usa `nowParts().time`. Vale também na
   DUPLICAÇÃO: a cópia é um lançamento novo, então não herda o horário da original (que podia ser 00:00).
 - **"Marcar como pago" pré-preenche com a data/hora da transação**, não com "agora" — o caso comum é
@@ -249,9 +249,9 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     mesmas listagens que o form já busca. No web vai como `<span>` dentro do `SelectItem`; no mobile, no
     texto da opção do Picker ("Itaú — R$ 1.234,00"), que não aceita marcação.
 - **Altura dos campos**: o botão "Marcar como pago" (web) usava a altura padrão do `Button` (36px) e
-  destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `apps/web/src/components/ui/field.ts`).
+  destoava dos inputs (40px) — ganhou `FIELD_METRICS` (ver `src/components/ui/field.ts`).
 
-### apps/web (Vite + React)
+### O app (Vite + React)
 
 - A entrada `src/App.tsx` envolve o `Router` (de `src/router`) num `QueryClientProvider` do
   `@tanstack/react-query`, mesma versão pinada do mobile (`5.80.6`) — os dois apps estão alinhados
@@ -439,7 +439,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     lado, sem caixa, e é essa referência que vale seguir), lista agrupada por dia ("Hoje"/"Ontem"/data),
     ícone de seta por tipo (`deposit`/`withdraw`), menu de ações (`DropdownMenu`) por transação e
     confirmação de exclusão via `AlertDialog`. Formulário de nova/editar transação usa `Calendar`
-    (`react-day-picker` — único caso no repo, `date-fns` já era dependência do `packages/shared`,
+    (`react-day-picker` — único caso no repo, `date-fns` já era dependência do `src/shared`,
     mesma versão `^3.6.0`, sem conflito) dentro de um `Popover` em vez de campo de data digitado à mão
     como o mobile.
   - **Seletor de mês + barra de Saldo/Entrada/Saída são `sticky top-0 z-10`** dentro do container
@@ -492,7 +492,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     uma entrada no histórico, então o voltar (gesto, navegador ou Android) fecha a seção — com state ele pulava pra
     tela de antes das Configurações. No desktop a troca no menu usa `replace` (é aba, não navegação).
     "Sobre": no app, a versão da loja (`App.getInfo()` do `@capacitor/app`: 0.3.105, build 105); no navegador,
-    `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `apps/web/package.json` —
+    `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `package.json` —
     fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API mostra o número de versão (`version`,
     arquivo VERSION do backend, desde 2026-11-24 — #17) e, no detalhe, branch · commit · data do deploy (`deployed_at`;
     onde vem `unknown`, a data do commit). Backend antigo sem `version` cai em branch · commit.
@@ -704,7 +704,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     num lado, mude no outro. A escolha fica em Configurações → Aparência (Sistema/Claro/Escuro).
   - As variáveis CSS do shadcn (`--background`, `--primary`, `--secondary`, etc., em
     `src/styles/index.css`, dentro de `:root`/`.dark`) são `brandTheme`/`brandPalette` de
-    `packages/shared/src/tokens.ts` (paleta do redesign) **convertidos pra HSL** — se mudar um valor
+    `src/shared/tokens.ts` (paleta do redesign) **convertidos pra HSL** — se mudar um valor
     lá, recalcule o HSL e mude aqui também, os dois lados não sincronizam sozinhos. Além das do
     shadcn existem papéis próprios: `sidebar`, `brand` (oliva legível como texto), `success`,
     `warning` (+`warning-dot`), `info`, `danger`, cada um com `*-soft` (fundo translúcido, ex.
@@ -737,7 +737,7 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     mão (chips, teclado, abas, itens de lista) aplique `pressable` em vez de só `transition-colors` — o dono
     reclamou que os cliques estavam "duros". Evite em elemento que já usa `transform` pra se posicionar
     (o `:active` troca o transform).
-  - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `webapp:dev`**: o Tailwind importa
+  - **Ao mexer em `src/util/tokens.ts` (fontes, escalas), reinicie o `npm run dev`**: o Tailwind importa
     esse arquivo na config e o Vite não o observa, então o servidor segue com a config antiga (já deu
     `The font-sans class does not exist` no dev com o build passando).
   - **`body` precisa de `@apply text-foreground`** no `index.css` (`@layer base`). Sem isso, qualquer
@@ -760,23 +760,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   implementado em `src/components/ui/sonner.tsx`) é sobrescrever as **variáveis CSS** que o próprio
   sonner lê (`--normal-bg`, `--success-bg`, etc.) via `style` inline no `<Toaster>`, apontando pros
   tokens `--toast-*` de `index.css`.
-- **React duplicado no monorepo afeta qualquer pacote hoisted na raiz, não só `react-router`**: o
-  problema documentado acima, na seção do mobile, pro `react-router-dom` (dedupe do npm pro React 19
-  do mobile em vez do React 18 do web) se repete pra **qualquer** pacote hoisted que dependa de React
-  como peer —
-  já apareceu de novo com `lucide-react` e os pacotes `@radix-ui/*` (usados pelos primitivos do
-  shadcn), sempre com o mesmo sintoma: erro de tipo tipo "X cannot be used as a JSX component" no
-  editor/`tsc`, mesmo com `npm run webapp:build` passando limpo. A causa: o editor e um `tsc` direto
-  usam `tsconfig.json`, que tem um redirect de tipos (`paths`: `react`/`react-dom` →
-  `../node_modules/@types/react`/`@types/react-dom`, a cópia local do `apps/web`) — mas esse mesmo
-  redirect quebraria o Vite em runtime se ele enxergasse (`@types/react` não é um pacote executável).
-  Por isso existe um `tsconfig.vite.json` separado (mesmo arquivo, sem esse redirect) e
-  `vite.config.ts` aponta `vite-tsconfig-paths({ projects: ['tsconfig.vite.json'] })` pra ele —
-  **não delete `tsconfig.vite.json` nem mova o redirect de volta pro `tsconfig.json` compartilhado sem
-  entender esse split**. `vite.config.ts` também tem `resolve.dedupe: ['react', 'react-dom']`, que
-  cobre a duplicação em runtime (bundle), separado do problema de tipos.
-- **Zumbi do Vite no Windows pode travar o cache** (`apps/web/node_modules/.vite`): `npm run
-  webapp:dev` roda via `cmd.exe /d /s /c vite --host` — um `Ctrl+C` no terminal nem sempre mata o
+- **Zumbi do Vite no Windows pode travar o cache** (`node_modules/.vite`): `npm run
+  dev` roda via `cmd.exe /d /s /c vite --host` — um `Ctrl+C` no terminal nem sempre mata o
   processo `esbuild` que o Vite mantém rodando em segundo plano (encadeamento
   cmd.exe→node→esbuild.exe), sobretudo se você reinicia rápido no mesmo terminal. O zumbi segura um
   lock de arquivo em `node_modules/.vite/deps` (nome fixo, não muda por tentativa), e qualquer
@@ -801,22 +786,18 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   `@types/axios` obsoleto (dependência esquecida do mobile, de quando o axios não vinha com tipos
   próprios) vazava pro web e sobrescrevia `AxiosInstance`. Não reintroduza `@types/axios` nem outros
   stubs de tipos de pacotes que já publicam seus próprios `.d.ts`.
-- `eslint-rule-composer` é uma devDependency direta aqui mesmo sem nenhum código do repo importar
-  dela — é uma dependência real de `eslint-plugin-unused-imports@3.2.0` (a versão que o web usa; o
-  mobile usa a v4, que não precisa dela) que o npm, no contexto do monorepo, não estava instalando
-  sozinho de forma confiável (mesma categoria de bug de resolução aninhada que já vimos com
-  `eslint-plugin-jest` no mobile). Se o lint do web começar a falhar com
-  `Cannot find module 'eslint-rule-composer'`, não é regressão de código — é essa dependência sumindo
-  de novo depois de um `npm install` do zero; reinstale/declare explicitamente de novo.
+- `eslint-rule-composer` é dependência direta mesmo sem nenhum import no código: o `eslint-plugin-unused-imports@3.2.0`
+  precisa dele e o npm nem sempre instalava sozinho. Se o lint falhar com `Cannot find module 'eslint-rule-composer'`,
+  é ele sumindo, não regressão de código.
 
 ## Convenções deste repositório
 
-- **NUNCA subir o servidor de desenvolvimento** (`npm run webapp:dev`, `vite dev`/`vite preview`, ou qualquer processo que sirva/rode o app). O dono do repo testa
+- **NUNCA subir o servidor de desenvolvimento** (`npm run dev`, `vite dev`/`vite preview`, ou qualquer processo que sirva/rode o app). O dono do repo testa
   **sempre na mão** — deixe a execução do app pra ele. Pode rodar typecheck, lint, testes e build
   (validação estática), só não iniciar servidor nem abrir o app.
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
-- Todo fluxo novo do `apps/web` precisa funcionar em desktop **e** responsivo (mobile web) — teste os
+- Todo fluxo novo do app precisa funcionar em desktop **e** responsivo (mobile web) — teste os
   dois antes de considerar uma tela pronta, não só o layout desktop.
 
 **Recorrências e conciliação com o banco (2026-11-07, web + mobile; backend `feature/recorrencias`):** o
@@ -877,7 +858,7 @@ conciliar a transação que chega do banco com o que já estava lançado. *Break
 O backend expõe um servidor MCP (`<API>/mcp`, OAuth 2.1 com tela de consentimento servida pela própria API —
 ver o `CLAUDE.md` do my-finance-api). Os apps só **gerenciam** as conexões, via `GET /v1/claude_sessions`
 (lista + `mcp_url`), `GET /v1/claude_sessions/:id/tool_calls` (auditoria) e `DELETE /v1/claude_sessions/:id`
-(revoga). Contrato em `packages/shared` (`TClaudeSession`/`TClaudeToolCall`, fetchers `claudeSessions.ts`,
+(revoga). Contrato em `src/shared` (`TClaudeSession`/`TClaudeToolCall`, fetchers `claudeSessions.ts`,
 `QUERY_KEYS.claude_session`) e rótulos/regras em `ClaudeSessionUtils` (status, acesso, "último uso",
 validade; `isRevocable` = `active`/`pending`).
 - **Web**: folha "Conexões com o Claude" nas Configurações (`organisms/ClaudeConnections`) — endereço do MCP
@@ -886,21 +867,21 @@ validade; `isRevocable` = `active`/`pending`).
 ## Casca nativa do web (Capacitor) — o app da loja (desde 2026-11-21)
 
 Decisão do dono e do Gabriel: nada no MyFinance precisa ser 100% nativo, então o app da loja passa a ser o
-**`apps/web` empacotado no Capacitor 8** (Android), acabando com a duplicação web → port pro mobile. Aprovado
+**app web empacotado no Capacitor 8** (Android), acabando com a duplicação web → port pro mobile. Aprovado
 em 2026-11-24: o `apps/mobile` (RN/Expo), o `mobile-cd.yml` e os secrets do Expo (`EXPO_TOKEN`,
 `EXPO_PUBLIC_API_URL`) foram apagados. Não há mais caminho de volta pro RN.
 - **Mesmo app da loja**: `appId` = `com.chilllogic.myfinance.app` (o mesmo package do RN) e assinatura com a
   **mesma upload key** que o RN usava (guardada também no EAS, conta `csjhonathan`, projeto `myfinance`:
   `npx eas-cli credentials -p android` baixa). A 1ª versão (`0.3.0`, `versionCode 100`) foi aceita como
   atualização do app existente; o `versionCode` pulou de 19 (último do RN) pra 100.
-- `apps/web/android/` **é versionado** (no Capacitor ele não é regenerado como no Expo CNG — ajustes nativos
-  feitos à mão sobrevivem). `capacitor.config.ts` fica em `apps/web/`; o `dist/` do Vite vai empacotado no APK/AAB
+- `android/` **é versionado** (no Capacitor ele não é regenerado como no Expo CNG — ajustes nativos
+  feitos à mão sobrevivem). `capacitor.config.ts` fica na raiz; o `dist/` do Vite vai empacotado no APK/AAB
   (não carregamos a URL da Vercel — abre sem rede e não depende do deploy).
 - **Comandos** (Capacitor 8 exige **Node ≥ 22**; o nvm daqui costuma estar no 20 — `nvm use 22.16.0` antes):
-  `npm run webapp:cap:sync` (build web + `cap sync`), `npm run webapp:android` (sync + abre o Android Studio),
-  `npm run webapp:android:bundle` (sync + `bundleRelease` assinado →
-  `apps/web/android/app/build/outputs/bundle/release/app-release.aab`). O build embute o `VITE_API_URL`/
-  `VITE_API_KEY` do `apps/web/.env` — sem ele o app abre mas não fala com a API.
+  `npm run cap:sync` (build web + `cap sync`), `npm run android` (sync + abre o Android Studio),
+  `npm run android:bundle` (sync + `bundleRelease` assinado →
+  `android/app/build/outputs/bundle/release/app-release.aab`). O build embute o `VITE_API_URL`/
+  `VITE_API_KEY` do `.env` — sem ele o app abre mas não fala com a API.
 - **Assinatura de release**: `android/app/build.gradle` lê `android/keystore.properties` (fora do git; modelo em
   `keystore.properties.example`) ou, no CI, `ANDROID_KEYSTORE_FILE`/`ANDROID_KEYSTORE_PASSWORD`/
   `ANDROID_KEY_ALIAS`/`ANDROID_KEY_PASSWORD`. A keystore (`android/app/release.p12`, também fora do git) é a
@@ -918,12 +899,12 @@ em 2026-11-24: o `apps/mobile` (RN/Expo), o `mobile-cd.yml` e os secrets do Expo
 - **Ícone**: o Android 8+ usa o ícone ADAPTATIVO (`mipmap-anydpi-v26`), não os PNGs — o `@capacitor/assets` só
   com `icon-only.png` gera os PNGs mas deixa o foreground padrão do Capacitor no adaptativo (ícone genérico). O
   foreground foi gerado à mão (ícone em 72% da camada, fundo `#C5C4BF` = cinza do próprio ícone). Fonte:
-  `apps/web/assets/icon-only.png` (192px, herdado do app antigo — pedir um de 1024px). Splash = fundo liso na cor do app.
+  `assets/icon-only.png` (192px, herdado do app antigo — pedir um de 1024px). Splash = fundo liso na cor do app.
 - **Sem OTA** (não há mais EAS Update): cada merge na `main` vira um binário novo na faixa interna.
-- **CD: `.github/workflows/android-cd.yml`** — PR mesclado na `main` que mexe em `apps/web/**`,
-  `packages/shared/**` ou nas dependências (ou disparo manual) → build web → `cap sync` → `bundleRelease`
+- **CD: `.github/workflows/android-cd.yml`** — PR mesclado na `main` que mexe no app
+  (`src/`, `public/`, `android/`, configs ou dependências) (ou disparo manual) → build web → `cap sync` → `bundleRelease`
   assinado → faixa **interna** da Play. O `versionCode` é o maior já enviado à Play + 1 (consultado na hora pela
-  API) e o `versionName` é `0.3.<versionCode>` (prefixo = major.minor do `version` de `apps/web/package.json`, o mesmo que o webapp mostra no "Sobre"). A publicação é
+  API) e o `versionName` é `0.3.<versionCode>` (prefixo = major.minor do `version` de `package.json`, o mesmo que o webapp mostra no "Sobre"). A publicação é
   feita por `.github/scripts/play-publish.mjs` (Android Publisher API, só módulos do Node; roda local também,
   com `PLAY_SERVICE_ACCOUNT_FILE`). Secrets: `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64`, `ANDROID_KEYSTORE_BASE64`,
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `VITE_API_URL`, `VITE_API_KEY`;
@@ -931,7 +912,7 @@ em 2026-11-24: o `apps/mobile` (RN/Expo), o `mobile-cd.yml` e os secrets do Expo
   Variável `VITE_GOOGLE_CLIENT_ID` também, quando o login com o Google estiver configurado.
 - **Aviso de atualização** (`organisms/AppUpdatePrompt` + `services/app-update`, só no nativo): a Play
   (plugin `@capawesome/capacitor-app-update`, In-App Updates API) diz se há versão nova → aviso dispensável, uma
-  vez por versão ("Depois" grava a versão em `localStorage`); o `apps/web/public/app-version.json`
+  vez por versão ("Depois" grava a versão em `localStorage`); o `public/app-version.json`
   (`android.min_version_code`, servido pela Vercel em `${VITE_WEB_URL}/app-version.json`) diz o mínimo aceito →
   abaixo dele, aviso que não fecha. **Suba o `min_version_code` quando uma mudança no backend quebrar versões
   antigas.** Falha aberta: sem `VITE_WEB_URL` ou sem rede, ninguém é bloqueado. "Atualizar" tenta a atualização
