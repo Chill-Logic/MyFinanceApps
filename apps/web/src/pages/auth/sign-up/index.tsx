@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage } from '@myfinance/shared';
 
@@ -121,7 +121,12 @@ const SignUpPage = () => {
 
 			<AuthSubmit isLoading={is_pending}>Criar conta</AuthSubmit>
 
-			<p className='pt-2 text-center text-sm text-muted-foreground'>
+			<p className='px-3 text-center text-[12.5px] leading-normal text-muted-foreground'>
+				Ao criar sua conta, você aceita os <Link to='/termos' className='font-semibold text-brand'>Termos de Uso</Link> e
+				a <Link to='/privacidade' className='font-semibold text-brand'>Política de Privacidade</Link>.
+			</p>
+
+			<p className='pt-1 text-center text-sm text-muted-foreground'>
 				Já tem conta? <AuthLink to='/auth/sign-in'>Entrar</AuthLink>
 			</p>
 		</form>
