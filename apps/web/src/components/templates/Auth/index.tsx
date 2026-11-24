@@ -28,7 +28,7 @@ const AuthTemplate = ({ children }: ITemplateProps) => {
 	const { pathname } = useLocation();
 	const split = useMediaQuery('(min-width: 1024px)');
 	const mark_ref = useRef<HTMLSpanElement>(null);
-	const compact = pathname.includes('sign-up');
+	const compact = pathname.includes('criar-conta');
 
 	const brand = (
 		<div className='pointer-events-none relative flex flex-col items-center gap-5 md:gap-6 xl:gap-7'>

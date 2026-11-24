@@ -1,13 +1,15 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
+import useLandingVisibility from '@/hooks/useLandingVisibility';
 import useNativeBackButton from '@/hooks/useNativeBackButton';
 
 import { RouteGuard } from './guards';
 import { Paths } from './routes';
 
-/* Componente só pra ter acesso ao contexto do router (useNavigate) dentro do <BrowserRouter>. */
+/* Componente só pra ter acesso ao contexto do router (useNavigate/useLocation) dentro do <BrowserRouter>. */
 const NativeBridge = () => {
 	useNativeBackButton();
+	useLandingVisibility();
 	return null;
 };
 

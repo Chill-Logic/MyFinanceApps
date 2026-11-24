@@ -23,7 +23,7 @@ export const LEGAL_INFO: Record<string, string | null> = {
 	'provedor de e-mail': null,
 	'X': null,
 	'endereço da página de exclusão': null,
-	'data de publicação': null,
+	'data de publicação': '24 de novembro de 2026',
 };
 
 export const PRIVACY_SECTIONS: TLegalSection[] = [

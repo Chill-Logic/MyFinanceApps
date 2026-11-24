@@ -32,9 +32,9 @@ export type TNavAction = {
  */
 const NAV_ITEMS: TNavItem[] = [
 	{ id: 'home', label: 'Início', path: '/', icon: Home },
-	{ id: 'finances', label: 'Contas & Cartões', short: 'Contas', path: '/accounts', icon: CreditCard },
-	{ id: 'my_wallets', label: 'Carteiras', path: '/wallets', icon: WalletIcon },
-	{ id: 'wallets_invites', label: 'Convites', path: '/wallets/invites', icon: Mail },
+	{ id: 'finances', label: 'Contas & Cartões', short: 'Contas', path: '/contas', icon: CreditCard },
+	{ id: 'my_wallets', label: 'Carteiras', path: '/carteiras', icon: WalletIcon },
+	{ id: 'wallets_invites', label: 'Convites', path: '/carteiras/convites', icon: Mail },
 ];
 
 /*
