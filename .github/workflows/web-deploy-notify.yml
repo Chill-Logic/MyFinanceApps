@@ -21,9 +21,9 @@ jobs:
     steps:
       # A Vercel cria os deployments com ref = SHA do commit (não o nome da branch), então
       # não dá pra filtrar por branch no `if`. Descobrimos a branch pela API do GitHub
-      # (branches cujo HEAD é esse commit) e só seguimos se for main ou dev — deploys de
+      # (branches cujo HEAD é esse commit) e só seguimos se for main ou staging — deploys de
       # preview de outras branches não notificam.
-      - name: Decide se notifica (branch main/dev)
+      - name: Decide se notifica (branch main/staging)
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -33,10 +33,10 @@ jobs:
           echo "Branches com HEAD em ${SHA}: ${BRANCHES:-<nenhuma>}"
           BRANCH=""
           for b in $BRANCHES; do
-            if [ "$b" = "main" ] || [ "$b" = "dev" ]; then BRANCH="$b"; break; fi
+            if [ "$b" = "main" ] || [ "$b" = "staging" ]; then BRANCH="$b"; break; fi
           done
           if [ -z "$BRANCH" ]; then
-            echo "Commit não é HEAD de main/dev — não notifica."
+            echo "Commit não é HEAD de main/staging — não notifica."
             echo "notify=false" >> "$GITHUB_OUTPUT"
           else
             echo "notify=true" >> "$GITHUB_OUTPUT"

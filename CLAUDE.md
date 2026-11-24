@@ -795,6 +795,8 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
 - **NUNCA subir o servidor de desenvolvimento** (`npm run dev`, `vite dev`/`vite preview`, ou qualquer processo que sirva/rode o app). O dono do repo testa
   **sempre na mão** — deixe a execução do app pra ele. Pode rodar typecheck, lint, testes e build
   (validação estática), só não iniciar servidor nem abrir o app.
+- **Branches**: trabalho em branch própria → PR pra `staging` (era `dev` até 2026-11-24) → PR `staging` → `main`. A `main`
+  publica o site (Vercel) e o app Android (CD); a `staging` tem um projeto próprio na Vercel.
 - READMEs e este `CLAUDE.md` são escritos inteiramente em português.
 - Mensagens de commit são escritas em português.
 - Todo fluxo novo do app precisa funcionar em desktop **e** responsivo (mobile web) — teste os
