@@ -10,6 +10,7 @@ import {
 	RECURRENCE_FREQUENCY_OPTIONS,
 	RecurrenceUtils,
 	TransactionUtils,
+	type TDescriptionSuggestion,
 	type TRecurrenceFrequency,
 	type TRepeatMode,
 	type TTransaction,
@@ -29,6 +30,7 @@ import { useCreateRecurrence } from '@/hooks/api/recurrences/useCreateRecurrence
 import { useShowRecurrence } from '@/hooks/api/recurrences/useShowRecurrence';
 import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
 import { useCreateTransactions } from '@/hooks/api/transactions/useCreateTransactions';
+import { useTransactionDescriptions } from '@/hooks/api/transactions/useTransactionDescriptions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
 import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
 import useToast from '@/hooks/useToast';
@@ -1162,6 +1164,87 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 	const desktop_value_ref = useRef<HTMLInputElement>(null);
 	const MAX_VALUE_DIGITS = 11;
 
+	/*
+	 * Sugestões de descrição (só na criação): descrições já usadas na carteira, filtradas pelo tipo e com as da
+	 * origem escolhida primeiro. Com o campo vazio aparecem as mais usadas — dá pra lançar o de sempre em dois
+	 * toques. Some quando o texto já é igual a uma delas e depois de escolher uma (volta ao digitar de novo).
+	 */
+	const [ description_terms, setDescriptionTerms ] = useState('');
+	const [ suggestions_closed, setSuggestionsClosed ] = useState(false);
+	const shows_suggestions = open && !is_editing && !is_duplicating;
+	useEffect(() => {
+		const timer = setTimeout(() => setDescriptionTerms(values.description.trim()), 250);
+		return () => clearTimeout(timer);
+	}, [ values.description ]);
+	useEffect(() => {
+		if (open) setSuggestionsClosed(false);
+	}, [ open ]);
+	const { data: suggestions_data } = useTransactionDescriptions({
+		enabled: shows_suggestions,
+		params: {
+			wallet_id: wallet_id || '',
+			terms: description_terms || undefined,
+			kind: values.kind,
+			source_type: source_type || undefined,
+			source_id: source_id || undefined,
+			limit: 6,
+		},
+	});
+	const typed_description = values.description.trim().toLowerCase();
+	const suggestions = shows_suggestions && !suggestions_closed
+		? (suggestions_data || []).filter((suggestion) => suggestion.description.toLowerCase() !== typed_description)
+		: [];
+
+	const changeDescription = (description: string) => {
+		setValues((prev) => ({ ...prev, description }));
+		setSuggestionsClosed(false);
+	};
+
+	/*
+	 * Escolher uma sugestão preenche a descrição. Se o valor ainda está vazio (começando do zero), repete a última
+	 * vez: tipo, valor, origem, cartão e destino — desde que a origem ainda exista. Com valor já digitado, só a
+	 * descrição (e a origem, se ainda não tem nenhuma e o tipo é o mesmo).
+	 */
+	const applySuggestion = ({ description, last }: TDescriptionSuggestion) => {
+		const origin = `${ last.source_type }:${ last.source_id }`;
+		const origin_exists = last.source_type === 'Account'
+			? accounts.some((account) => account.id === last.source_id)
+			: credit_balances.some((credit_balance) => credit_balance.id === last.source_id);
+		const fresh = !values.value;
+		const takes_origin = origin_exists && (fresh || (!values.origin && last.kind === values.kind));
+		if (takes_origin) setOriginType(last.source_type);
+		setValues((prev) => ({
+			...prev,
+			description,
+			...(fresh && takes_origin ? { kind: last.kind, value: last.value ? MoneyUtils.formatMoney(last.value) : prev.value } : {}),
+			...(takes_origin
+				? {
+					origin,
+					credit_card_id: last.source_type === 'CreditBalance' ? last.credit_card_id || '' : '',
+					destination_account_id: last.kind === 'transfer' ? last.destination_account_id || '' : '',
+				}
+				: {}),
+		}));
+		setSuggestionsClosed(true);
+	};
+
+	const renderSuggestions = () => suggestions.length > 0 && (
+		<div className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 no-scrollbar' aria-label='Descrições já usadas'>
+			{suggestions.map((suggestion) => (
+				<button
+					key={suggestion.description}
+					type='button'
+					onClick={() => applySuggestion(suggestion)}
+					disabled={is_pending}
+					className='pressable flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border bg-secondary px-3.5 text-sm font-medium'
+				>
+					<span className='max-w-[180px] truncate'>{suggestion.description}</span>
+					{!values.value && <span className='text-xs text-muted-foreground'>{MoneyUtils.formatMoney(suggestion.last.value)}</span>}
+				</button>
+			))}
+		</div>
+	);
+
 	const changeValue = (raw: string) => {
 		const digits = raw.replace(/\D/g, '').replace(/^0+/, '');
 		if (digits.length > MAX_VALUE_DIGITS) return;
@@ -1289,7 +1372,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 									value={values.description}
 									enterKeyHint='done'
 									placeholder={is_transfer ? default_transfer_description || 'Descrição (opcional)' : 'Descrição'}
-									onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
+									onChange={(e) => changeDescription(e.target.value)}
 									disabled={is_pending}
 									className='h-12 w-full rounded-2xl border border-border bg-white px-4 text-center text-base font-semibold outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/15 dark:bg-[rgba(199,195,191,0.05)]'
 								/>
@@ -1318,12 +1401,14 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 									<input
 										value={values.description}
 										placeholder={is_transfer ? default_transfer_description : 'Ex.: Mercado'}
-										onChange={(e) => setValues((prev) => ({ ...prev, description: e.target.value }))}
+										onChange={(e) => changeDescription(e.target.value)}
 										disabled={is_pending}
 										className='h-14 rounded-2xl border border-input bg-secondary px-4 text-base font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground focus:border-primary focus:ring-4 focus:ring-primary/15'
 									/>
 								</label>
 							</div>
+
+							{renderSuggestions()}
 
 							{/* Campos em cartões com rótulo, grade de 2 colunas em todos os tamanhos */}
 							<div className='grid grid-flow-row-dense grid-cols-2 gap-2'>

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
-import { format } from 'date-fns';
+import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCreditsBy, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
 	ArrowDownRight,
@@ -31,19 +31,20 @@ import {
 } from 'lucide-react';
 
 import { useIndexAccounts } from '@/hooks/api/accounts/useIndexAccounts';
-import { useGetInvoicesForMonth } from '@/hooks/api/credit-balances/useGetInvoicesForMonth';
 import { useIndexCreditBalances } from '@/hooks/api/credit-balances/useIndexCreditBalances';
 import { useDeleteRecurrence } from '@/hooks/api/recurrences/useDeleteRecurrence';
 import { useUpdateRecurrence } from '@/hooks/api/recurrences/useUpdateRecurrence';
 import { useDeleteTransactions } from '@/hooks/api/transactions/useDeleteTransactions';
 import { useListTransactions } from '@/hooks/api/transactions/useListTransactions';
 import { useUpdateTransactions } from '@/hooks/api/transactions/useUpdateTransactions';
+import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
 import { useListWalletMembers } from '@/hooks/api/wallets/useListWalletMembers';
 import useMediaQuery from '@/hooks/useMediaQuery';
 import useMonthTransition from '@/hooks/useMonthTransition';
 import useToast from '@/hooks/useToast';
 
+import { useCurrentUserContext } from '@/context/current_user';
 import { useMonthSelection } from '@/context/monthSelection';
 import { useNewTransactionDialog } from '@/context/newTransactionDialog';
 import { useWallet } from '@/context/wallet';
@@ -155,7 +156,11 @@ const PROJECTED_TONE: Record<-1 | 0 | 1, { className: string; Icon: typeof Arrow
 	[-1]: { className: 'bg-[rgba(245,169,159,0.18)] text-[#F5A99F]', Icon: ArrowDownRight },
 };
 
-const formatShortDate = (iso: string) => format(new Date(iso), 'd MMM', { locale: ptBR });
+/*
+ * `parseISO`, não `new Date()`: o `due_date` vem só com a data ("2026-10-11"), e `new Date` lê isso como meia-noite
+ * em UTC — no fuso de Brasília ainda é o dia anterior, e o vencimento aparecia um dia antes.
+ */
+const formatShortDate = (iso: string) => format(parseISO(iso), 'd MMM', { locale: ptBR });
 
 const TransactionList = () => {
 	const navigate = useNavigate();
@@ -182,10 +187,32 @@ const TransactionList = () => {
 	const wallet_id = user_wallet.data?.id;
 	const reference = `${ month_year.year }-${ String(month_year.month + 1).padStart(2, '0') }`;
 
-	// Uma única busca: o mês inteiro (contas + créditos vêm separados na resposta).
-	const { data: data_all, isLoading: is_transactions_loading } = useListTransactions({
+	/*
+	 * Que fatura de cada cartão a Início mostra (aba Cartões, card "Faturas do mês" e o chip do destaque):
+	 * `open` = a em aberto (padrão), `due` = a que vence no mês. Fica nas preferências do usuário (vale em
+	 * qualquer aparelho); a troca aparece na hora e o PATCH vai em segundo plano.
+	 */
+	const { current_user } = useCurrentUserContext();
+	const { mutate: updateCurrentUser } = useUpdateCurrentUser();
+	const [ credits_by_override, setCreditsByOverride ] = useState<TCreditsBy | null>(null);
+	const credits_by: TCreditsBy = credits_by_override ?? current_user.data?.preferences?.home_credits_by ?? 'open';
+	const changeCreditsBy = (value: TCreditsBy) => {
+		if (value === credits_by) return;
+		setCreditsByOverride(value);
+		updateCurrentUser({
+			body: { preferences: { home_credits_by: value } },
+			onError: (error) => {
+				setCreditsByOverride(null);
+				toast.error(getApiErrorMessage(error, 'Não foi possível salvar a preferência'));
+			},
+		});
+	};
+
+	// Uma única busca: o mês inteiro (contas + créditos vêm separados na resposta, com as faturas dos cartões).
+	/* `is_switching_credits`: trocou o modo dos cartões e a resposta nova ainda não chegou (ver o hook). */
+	const { data: data_all, isLoading: is_transactions_loading, isPlaceholderData: is_switching_credits } = useListTransactions({
 		enabled: Boolean(wallet_id),
-		params: { wallet_id: wallet_id || '', reference },
+		params: { wallet_id: wallet_id || '', reference, credits_by },
 	});
 
 	/* Contas/créditos: pra resolver o nome da origem de cada linha e pra guiar o empty-state. */
@@ -258,12 +285,15 @@ const TransactionList = () => {
 		return ordered;
 	}, [ credit_txs, credit_balances, source_names ]);
 
-	/* Fatura do mês exibido de cada cartão da carteira (o total que importa — ver o hook). */
-	const { invoices } = useGetInvoicesForMonth({
-		ids: credit_balances.map((credit_balance) => credit_balance.id),
-		reference,
-		enabled: credit_balances.length > 0,
-	});
+	/*
+	 * Fatura de cada cartão no modo escolhido, já na resposta do index (`credits.invoices`): é a MESMA fatura
+	 * cujas compras vêm na aba Cartões. Não somar as transações do grupo pra isso: ele inclui o PAGAMENTO da
+	 * fatura (um `deposit` no cartão), então uma fatura paga daria zero — o `amount` é o total das compras.
+	 */
+	const invoices = useMemo(
+		() => new Map((data_all?.credits.invoices || []).map((invoice) => [ invoice.credit_balance_id, invoice ])),
+		[ data_all ],
+	);
 
 	/* Cartões que aparecem em "Faturas do mês": com fatura no mês OU com alguma transação nele. */
 	const invoice_cards = credit_balances
@@ -615,7 +645,7 @@ const TransactionList = () => {
 						{invoices_open > 0 && (
 							<span className='inline-flex h-7 items-center gap-1.5 rounded-full bg-sand-light/10 px-2.5 text-xs font-medium text-[#E2DFDB] md:hidden'>
 								<CreditCard className='h-3 w-3' />
-								faturas em aberto · <span className='font-semibold text-[#F5A99F]'>{signedMoney(-invoices_open, true)}</span>
+								{credits_by === 'open' ? 'faturas em aberto' : 'faturas do mês'} · <span className='font-semibold text-[#F5A99F]'>{signedMoney(-invoices_open, true)}</span>
 							</span>
 						)}
 					</div>
@@ -750,11 +780,11 @@ const TransactionList = () => {
 			 * alto e espremia a lista. Lá ele vira resumo à esquerda + cartões em duas colunas à direita. Do tablet
 			 * deitado pra cima ele mora na coluna da direita, ao lado da lista, em coluna.
 			 */
-			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light md:max-lg:grid md:max-lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6'>
+			<div className={cn('flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light transition-opacity md:max-lg:grid md:max-lg:grid-cols-[minmax(200px,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6', is_switching_credits && 'opacity-50')}>
 				<div className='flex flex-col gap-3'>
 					<span className='flex items-baseline justify-between gap-3'>
-						<span className='text-[13px] font-semibold'>Faturas do mês</span>
-						<span className='text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
+						<span className='whitespace-nowrap text-[13px] font-semibold'>{credits_by === 'open' ? 'Faturas em aberto' : `Vencem em ${ format(new Date(month_year.year, month_year.month, 1), 'MMMM', { locale: ptBR }) }`}</span>
+						<span className='shrink-0 whitespace-nowrap text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
 					</span>
 					<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
 					{all_loaded && (
@@ -767,7 +797,8 @@ const TransactionList = () => {
 							)
 					)}
 				</div>
-				<div className='grid grid-cols-1 md:max-lg:grid-cols-2 md:max-lg:gap-x-4'>
+				{/* Tablet em pé: cartões em colunas de no mínimo 200px (com um cartão só, ele ocupa a largura toda). */}
+				<div className='grid grid-cols-1 md:max-lg:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] md:max-lg:gap-x-4'>
 					{invoice_cards.map((card) => (
 						<button
 							key={card.id}
@@ -1082,10 +1113,23 @@ const TransactionList = () => {
 		);
 	};
 
+	/*
+	 * Na aba Cartões, o contador dá lugar à escolha da fatura: "Abertas" (a em aberto de cada cartão — o gasto
+	 * que ainda está correndo, ou a atrasada se houver) ou "Vencendo" (a que vence neste mês).
+	 */
 	const renderTabsRow = () => (
 		<>
 			{renderTabs()}
-			<span className='text-xs text-muted-foreground'>{plural(tab_txs.length, 'transação', 'transações')}</span>
+			{list_tab === 'credits'
+				? (
+					<SegmentedControl
+						className='w-[160px] shrink-0'
+						segments={[ { value: 'open', label: 'Abertas' }, { value: 'due', label: 'Vencendo' } ]}
+						value={credits_by}
+						onChange={(value) => changeCreditsBy(value as TCreditsBy)}
+					/>
+				)
+				: <span className='text-xs text-muted-foreground'>{plural(tab_txs.length, 'transação', 'transações')}</span>}
 		</>
 	);
 
@@ -1233,7 +1277,7 @@ const TransactionList = () => {
 								)}
 
 								{has_transactions && tab_txs.length > 0 && list_tab === 'credits' && (
-									<div className='flex flex-col pt-1'>{credit_sections.map(renderCreditSection)}</div>
+									<div className={cn('flex flex-col pt-1 transition-opacity', is_switching_credits && 'opacity-50')}>{credit_sections.map(renderCreditSection)}</div>
 								)}
 
 								{has_transactions && tab_txs.length > 0 && list_tab === 'accounts' && (

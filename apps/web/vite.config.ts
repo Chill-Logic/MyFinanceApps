@@ -22,6 +22,7 @@ const appVersion = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json
 const PUBLIC_PAGES = [
 	{ path: 'termos', title: 'Termos de Uso · MyFinance', description: 'As regras de uso do MyFinance, app de organização e planejamento financeiro.' },
 	{ path: 'privacidade', title: 'Política de Privacidade · MyFinance', description: 'Como o MyFinance trata os seus dados: o que guardamos, para quê e como excluir a sua conta.' },
+	{ path: 'excluir-conta', title: 'Excluir sua conta · MyFinance', description: 'Como excluir a sua conta do MyFinance, pelo app, pelo site ou por e-mail, e o que acontece com os seus dados.' },
 ];
 
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');

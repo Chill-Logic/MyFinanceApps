@@ -456,12 +456,10 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     pra invalidar cache depois de criar/editar/excluir, e importar de volta do `App.tsx` seria estranho.
   - **Contas e saldo projetado (`organisms/AccountList` + `CashProjectionChart`, redesign 2026-11)**: cartão
     marinho com o saldo de hoje, gráfico 7/30/90 dias, ponto mais baixo e aviso quando cai/fica negativo;
-    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). **A projeção ainda não existe
-    no backend** — o contrato já está definido como se existisse (`TCashProjection` em `api.ts`,
-    `GET /accounts/projection` em `routes.ts`, fetcher `getCashProjection`), e o `useCashProjection` usa,
-    por enquanto, `estimateCashProjection` (fetchers/projection.ts), que monta a MESMA resposta a partir dos
-    endpoints de hoje via `ProjectionUtils.build` (utils/projection.ts — as regras estão no comentário de
-    lá). Quando o backend implementar, troca-se uma linha no hook. A chave `QUERY_KEYS.account.get_projection`
+    contas em linhas (celular) ou cartões com "Fim do mês" (tablet/desktop). A projeção vem do backend
+    (`GET /accounts/projection`, fetcher `getCashProjection`, desde 2026-11-24 — backend #13): pendências de conta
+    atrasadas e faturas vencidas e não pagas de QUALQUER mês anterior entram hoje. Antes era estimada no front
+    (`estimateCashProjection` + `ProjectionUtils`, só o mês corrente) — os dois foram apagados. A chave `QUERY_KEYS.account.get_projection`
     é invalidada em toda mutação que mexe em conta, transação, recorrência ou fatura. A projeção só enxerga
     o que está lançado (pendentes, recorrências previstas e faturas): sem entradas futuras cadastradas, a
     linha só desce.
@@ -495,7 +493,9 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     tela de antes das Configurações. No desktop a troca no menu usa `replace` (é aba, não navegação).
     "Sobre": no app, a versão da loja (`App.getInfo()` do `@capacitor/app`: 0.3.105, build 105); no navegador,
     `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `apps/web/package.json` —
-    fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API segue com branch · commit (não tem versão).
+    fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API mostra o número de versão (`version`,
+    arquivo VERSION do backend, desde 2026-11-24 — #17) e, no detalhe, branch · commit · data do deploy (`deployed_at`;
+    onde vem `unknown`, a data do commit). Backend antigo sem `version` cai em branch · commit.
   - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
     tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
     aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
@@ -509,7 +509,10 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     faixa (celular/tablet em pé) ou botão no cabeçalho. Excluir mostra tudo o que vai junto (contas, cartões, conexões e
     quem perde acesso). Textos sem gênero: "você administra", "de Jéssica", selo "Admin" — não "dono/dona" (não
     sabemos o gênero de ninguém). `TWallet.total` pode ser negativo e o `MoneyUtils.formatMoney` TIRA o sinal: use o
-    `signedMoney` local. A API não tem remover membro, sair da carteira nem transferir — não desenhe.
+    `signedMoney` local. **Sair da carteira** (2026-11-24, backend #14, `DELETE /wallets/:id/membership`): no "⋮" de
+    qualquer carteira que você NÃO administra, com confirmação dizendo o que fica (o que você lançou continua lá) e o
+    que muda (deixa de ver; banco conectado para de atualizar; se era a principal, o backend escolhe outra). Saindo da
+    que está na tela, o contexto volta pra principal. A API não tem remover membro nem transferir — não desenhe.
   - **Bancos (redesign 2026-11, `BankConnectionList` + página `bank-connection`)**: cartão por conexão com status em
     palavras (`BankConnectionUtils.statusView`: "Em dia", "Precisa entrar de novo"...) e "atualizado há X" pelo
     `last_imported_at` mais recente dos vínculos (`lastUpdatedAt`) — o backend NÃO grava `last_synced_at`, por isso
@@ -534,7 +537,16 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     fundo fica branco). Regras: senha de 6 a 128 checada no cliente (a mensagem da API pode vir em inglês); cadastro
     entra sozinho logo depois (a API não devolve token, então chama o sign-in com a mesma senha); "Esqueci a senha"
     fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
-    `/auth/reset-password?token=` continua valendo).
+    `/auth/reset-password?token=` continua valendo). **Continuar com o Google** (2026-11-24, backend #16,
+    `POST /auth/google` com o ID token; a API acha a conta pelo Google, vincula pelo e-mail ou cria): botão do Google
+    Identity Services (`molecules/GoogleSignInButton`, script carregado só ali) em Entrar e Criar conta, só com
+    `VITE_GOOGLE_CLIENT_ID` (o client OAuth "Web"; sem ele nada aparece). No app o Google bloqueia login em WebView:
+    lá vai pelo plugin `@capgo/capacitor-social-login@8.7.7` (Credential Manager), com botão nosso e o MESMO client
+    "Web" como `webClientId` (é o `aud` do ID token). No Google Cloud, no mesmo projeto, também precisa de um client
+    "Android" com o package e o SHA-1 de cada chave que assina (debug, upload e Play App Signing). `capacitor.config.ts`
+    empacota só o Google (`SocialLogin.providers`); Apple fica desligado até existir iOS — lá a App Store exige "Entrar
+    com a Apple" junto, e o backend ainda não valida token da Apple. O CD lê `VITE_GOOGLE_CLIENT_ID` das Variables.
+    O backend precisa do client "Web" em `GOOGLE_CLIENT_IDS`.
   - **Termos de Uso e Política de Privacidade (2026-11-24, mockup v3 "Privacy"/"Terms")**: `/termos` e `/privacidade`,
     públicas (sem `isPrivate` nem `isGuestOnly`: a Play, o Google e quem recebe o link abrem sem conta), no template
     `Blank` (a página desenha o próprio cabeçalho). Uma peça só, `organisms/LegalDocument`: celular/tablet = cabeçalho
@@ -548,6 +560,24 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     Configurações (abaixo do "Sobre"). App é "de organização e planejamento financeiro", projeto Chillogic, sem empresa
     constituída; está "em fase de testes" e pode passar a cobrar (aviso de 30 dias). A importação bancária NÃO entra nos
     textos enquanto não estiver liberada pra todos.
+  - **Login em duas etapas (2026-11-24, mockup v3 "Login em 2 etapas"; backend #29/#30)**: `/entrar` e `/criar-conta` são o
+    mesmo `organisms/AuthFlow`. 1ª etapa: e-mail + "Continuar com o Google"; `POST /auth/lookup` diz se o e-mail tem conta e
+    como entra → senha (`has_password`), só o Google (conta sem senha) ou cadastro (nome + senha, e-mail já preenchido, sem
+    "confirmar senha"). 429 = "muitas tentativas"; outro erro (backend sem a rota) cai no login antigo (senha + "Criar
+    conta"). **Conta do Google lembrada** (`util/rememberedGoogleAccount`, `localStorage`): nome/e-mail/foto lidos do ID
+    token no login com o Google; com ela, a tela abre em "Continuar como <nome>" (o `GoogleSignInButton` com `account`).
+    Sair NÃO esquece; "Usar outra conta" e excluir a conta, sim. O botão do Google é o NOSSO, com o do Google invisível
+    por cima pra receber o clique (o popup só funciona com o botão deles) e desenhado uma vez — antes ele piscava a cada
+    troca de tema e destoava do app.
+  - **Aceite dos documentos (backend #26)**: cadastro e login com o Google que cria conta mandam `accepted_policies` (versões
+    de `usePolicyVersions`: as do `GET /core/version` `policies`, senão as do `util/legalDocuments`). Com
+    `pending_policies` no `/users/me`, o `organisms/PolicyUpdateDialog` (montado no `DefaultShell`) não fecha até aceitar
+    (`POST /users/me/policy_acceptances`) ou sair. Mudou um documento? Suba a `version` e escreva o `changes` dele em
+    `legalDocuments.ts` (o aviso lista o que mudou; sem `changes`, diz que foi publicado).
+  - **Excluir conta (backend #25)**: `organisms/DeleteAccountDialog`, aberto pela linha "Excluir conta" (celular, grupo
+    Conta) ou pelo cartão no fim da seção Conta (tablet/desktop). Confirma com a senha; conta sem senha (`has_password ===
+    false`) digita EXCLUIR. Depois: esquece a conta do Google lembrada, vai pra `/conta-excluida?ate=<purge_at>` e sai.
+    `/excluir-conta` é a página pública que vai pra Play (como excluir sem o app, o que é apagado, prazos).
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
@@ -555,14 +585,16 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     (excluída) o painel fecha. O "⋮" da linha tem `stopPropagation` (os itens do menu estão num portal, mas
     na mesma árvore React, e o clique subiria até a linha). Celular usa linha do tempo (Criada → Vence →
     Pago); tablet/desktop usam grade de fatos + "Criada em · editada em" (`created_at`/`user_edited_at`).
-  - **Cartões na Início seguem o mês de VENCIMENTO, e isso vai virar toggle (pendente, 2026-11-23)**: hoje a aba
-    Cartões, o card "Faturas do mês" e o chip "faturas em aberto" usam `reference` = mês exibido = faturas que
-    VENCEM nele (em novembro aparecem as compras de outubro). Pra ver o gasto do mês atual era preciso ir pro mês
-    seguinte. Decidido com o dono: toggle "Vencendo no mês / Em aberto" (padrão "Em aberto"), com a regra toda no
-    backend — o front só manda o modo e mostra. Issues no my-finance-api: #18 (`users.preferences` jsonb, chave
-    `home_credits_by`, sem validação por enquanto), #19 (`credits_by` no `GET /transactions`), #20
-    (`credits.invoices`, resumo das faturas na resposta — tira a chamada por cartão do `useGetInvoicesForMonth`).
-    O card de destaque não muda (só contas). A tela Cartões já mostra a fatura aberta (`current_invoice`).
+  - **Cartões na Início: fatura em aberto ou a que vence (toggle, 2026-11-24; backend #18–#20)**: a aba Cartões, o card
+    de faturas e o chip de faturas do destaque mostram, por cartão, a fatura escolhida pelo `credits_by` do
+    `GET /transactions` — `open` (padrão; no mês atual é a do `current_invoice`, a mais antiga ainda com saldo a pagar,
+    então uma fatura atrasada fica na Início até ser paga — decisão do backend, aceita pelo dono) ou `due` (a que VENCE
+    no mês exibido, o comportamento antigo). Antes era só `due`, e pra ver o gasto do mês atual era preciso ir pro mês
+    seguinte. A escolha fica em `users.preferences.home_credits_by` (`PATCH /users/me` com merge raso), trocada pelo
+    `SegmentedControl` "Abertas / Vencendo" no lugar do contador da aba Cartões — aparece na hora e o PATCH vai em
+    segundo plano. As faturas vêm na própria resposta (`credits.invoices`, uma por cartão, mesmo zerada); o
+    `useGetInvoicesForMonth` (uma chamada por cartão) foi apagado. Card: "Faturas em aberto" / "Vencem em <mês>".
+    O card de destaque não muda (só contas). A tela Cartões segue com a fatura aberta (`current_invoice`).
   - **Home no tablet deitado (1024–1279px) tem layout próprio, como no mockup**: destaque + card
     Entrou/Saiu empilhados + card Pendente em cima; lista + "Faturas do mês" numa coluna de 320px embaixo.
     O tablet em pé empilha tudo e o card de faturas vira resumo + cartões em duas colunas (`md:max-lg:`).
@@ -607,6 +639,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     pé; desktop (≥1280) = campos digitados (Valor/Descrição) e cartões em grade, com Cancelar/Salvar no rodapé.
     O chip Repetir é quem liga/desliga; o painel não tem
     "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
+    **Sugestões de descrição** (2026-11-24, backend #15, `GET /transactions/descriptions`): só na criação, uma faixa
+    de chips logo abaixo da descrição com as já usadas na carteira (filtradas pelo tipo, as da origem escolhida
+    primeiro; com o campo vazio, as mais usadas). Escolher preenche a descrição e, se o valor ainda está vazio, repete
+    a última vez (tipo, valor, origem, cartão, destino — se a origem ainda existe). Some quando o texto já é igual a
+    uma sugestão e depois de escolher; volta ao digitar.
     **Duplicar = este mesmo formulário** (`duplicateFrom`, 2026-11-22): abre como NOVA transação já preenchida com a
     original (valor, tipo, origem, cartão, destino, rascunho, responsável), data +1 mês com o MESMO horário da
     original (se ela estiver em 00:00 — transação antiga, de antes do campo de hora — usa o horário de agora;

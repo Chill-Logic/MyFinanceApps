@@ -2,12 +2,20 @@ export const API_ROUTES = {
 	auth: {
 		signIn: '/auth/sign_in',
 		signUp: '/auth/sign_up',
+		/* Login com o ID token do Google: acha pelo Google, vincula pelo e-mail ou cria a conta. */
+		google: '/auth/google',
+		/* O e-mail tem conta? (login em duas etapas). */
+		lookup: '/auth/lookup',
 		recoverPassword: '/auth/recover_password',
 		resetPassword: '/auth/reset_password',
 	},
 	users: {
 		me: '/users/me',
 		updateMe: '/users/me',
+		/* Excluir a própria conta (bloqueia na hora, apaga em 30 dias). */
+		deleteMe: '/users/me',
+		/* Aceitar a versão vigente de um documento legal. */
+		policyAcceptances: '/users/me/policy_acceptances',
 	},
 	wallets: {
 		index: '/wallets',
@@ -16,6 +24,8 @@ export const API_ROUTES = {
 		update: (id: string | number) => `/wallets/${ id }`,
 		delete: (id: string | number) => `/wallets/${ id }`,
 		members: (id: string | number) => `/wallets/${ id }/members`,
+		/* Sair da carteira (membro, não quem administra). */
+		leave: (id: string | number) => `/wallets/${ id }/membership`,
 	},
 	accounts: {
 		index: '/accounts',
@@ -53,6 +63,7 @@ export const API_ROUTES = {
 		resolveReview: (id: string | number) => `/transactions/${ id }/resolve_review`,
 		pendingMatches: '/transactions/pending_matches',
 		resolveMatch: (id: string | number) => `/transactions/${ id }/resolve_match`,
+		descriptions: '/transactions/descriptions',
 	},
 	recurrences: {
 		index: '/recurrences',

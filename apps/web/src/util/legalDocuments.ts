@@ -15,14 +15,18 @@ export type TLegalBlock =
 
 export type TLegalSection = { id: string; title: string; blocks: TLegalBlock[] };
 
-export type TLegalDocument = { title: string; version: string; sections: TLegalSection[] };
+/*
+ * `changes`: o que mudou NESTA versão, em frases curtas — é o que o aviso de nova versão mostra a quem já tinha
+ * aceitado a anterior. Na 1ª versão fica vazio (o aviso diz só que os documentos foram publicados).
+ */
+export type TLegalDocument = { title: string; version: string; changes?: string[]; sections: TLegalSection[] };
 
 export const LEGAL_INFO: Record<string, string | null> = {
 	'nomes dos responsáveis': 'Jhonathan Carvalho e Gabriel Paranhos',
 	'e-mail de contato': 'contato@chillogic.com.br',
 	'provedor de e-mail': null,
 	'X': null,
-	'endereço da página de exclusão': null,
+	'endereço da página de exclusão': 'myfinance.app.br/excluir-conta',
 	'data de publicação': '24 de novembro de 2026',
 };
 
