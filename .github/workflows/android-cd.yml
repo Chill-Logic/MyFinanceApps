@@ -14,6 +14,7 @@ name: Android CD (Capacitor)
 #   ANDROID_KEY_ALIAS                   alias da chave
 #   ANDROID_KEY_PASSWORD                senha da chave (PKCS12: a mesma da keystore)
 #   VITE_API_URL / VITE_API_KEY         API embutida no build
+#   DISCORD_WEBHOOK_URL                 (opcional) canal que recebe o aviso de sucesso/falha — o mesmo do web
 # Variável do repositório (aba Variables):
 #   VITE_WEB_URL                        URL pública do web, de onde o app lê /app-version.json
 #   VITE_GOOGLE_CLIENT_ID               client ID OAuth "Web" do Google (login com o Google; vazio = sem o botão)
@@ -71,7 +72,7 @@ jobs:
       - name: Setup Gradle (cache)
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Instala dependências (raiz do monorepo)
+      - name: Instala dependências
         run: npm ci
 
       - name: Credenciais (fora do repositório)
@@ -134,3 +135,42 @@ jobs:
           name: app-release-${{ steps.version.outputs.code }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
+
+      # Avisa o Discord do resultado (sucesso ou falha em qualquer passo). Sem o secret, não faz nada.
+      - name: Notifica o Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          STATUS: ${{ job.status }}
+          VERSION: ${{ steps.version.outputs.name && format('{0} ({1})', steps.version.outputs.name, steps.version.outputs.code) || '—' }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login || github.actor }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && { echo "Sem DISCORD_WEBHOOK_URL — não notifica."; exit 0; }
+          case "$STATUS" in
+            success)   TITLE="✅ App Android publicado no teste interno"; COLOR=5763719 ;;
+            cancelled) TITLE="⚪ CD do app Android cancelado";             COLOR=9807270 ;;
+            *)         TITLE="❌ CD do app Android falhou";                COLOR=15158332 ;;
+          esac
+          if [ -n "$PR_NUMBER" ]; then ORIGIN="#$PR_NUMBER - $PR_TITLE"; else ORIGIN="Disparo manual"; fi
+          jq -n \
+            --arg title "$TITLE" --argjson color "$COLOR" --arg url "$RUN_URL" \
+            --arg version "$VERSION" --arg origin "$ORIGIN" --arg commit "${SHA:0:7}" \
+            --arg author "$AUTHOR" --arg repo "${{ github.repository }}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{embeds: [{
+              title: $title, color: $color, url: $url,
+              fields: [
+                {name: "Projeto", value: ($repo + " (Android)"), inline: true},
+                {name: "Faixa", value: "Teste interno", inline: true},
+                {name: "Versão", value: $version, inline: true},
+                {name: "Origem", value: $origin, inline: false},
+                {name: "Commit", value: $commit, inline: true},
+                {name: "Autor", value: $author, inline: true}
+              ],
+              footer: {text: "GitHub Actions"}, timestamp: $ts
+            }]}' \
+          | curl -sS -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"

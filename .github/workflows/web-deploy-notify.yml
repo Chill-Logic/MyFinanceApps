@@ -1,87 +1,89 @@
 name: Notify Discord on Deploy
 
-# A Vercel faz o deploy do web sozinha (integração GitHub App dela) e publica eventos
-# `deployment_status` no repo a cada mudança de estado do deployment. Este workflow reage
-# a esses eventos — sem ficar fazendo polling na API da Vercel — e notifica o Discord com
-# o resultado (sucesso ou falha). Substitui o antigo web-cd.yml, que ficava sondando.
+# A Vercel faz o deploy do web sozinha (integração GitHub App dela) e marca o resultado no commit como
+# um STATUS ("Vercel – <projeto>": pending → success/failure). Este workflow reage a esses statuses e
+# avisa o Discord — sem polling na API da Vercel.
 #
-# Obs.: workflows disparados por `deployment_status` rodam sempre a partir do arquivo que
-# está na branch default do repo — só passa a valer de fato depois do merge lá.
+# Desde a saída do monorepo (2026-11-24) os projetos são `my-finance-ui-production` (main, domínio
+# myfinance.app.br) e `my-finance-ui-stg` (staging). Eles NÃO criam mais "deployments" no GitHub, só o
+# status do commit — por isso o gatilho é `status`, e não `deployment_status` como antes (que parou de
+# disparar). Trocou o nome de um projeto na Vercel? Ajuste o mapa no passo "Decide se notifica".
+#
+# Obs.: workflows disparados por `status` rodam sempre a partir do arquivo que está na branch default do
+# repo — só passa a valer depois do merge na main.
 on:
-  deployment_status
+  status
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-    # Só roda em estados terminais; ignora pending / in_progress / queued.
+    # Só statuses da Vercel em estado final; ignora pending.
     if: >
-      github.event.deployment_status.state == 'success' ||
-      github.event.deployment_status.state == 'failure' ||
-      github.event.deployment_status.state == 'error'
+      startsWith(github.event.context, 'Vercel') &&
+      github.event.state != 'pending'
     steps:
-      # A Vercel cria os deployments com ref = SHA do commit (não o nome da branch), então
-      # não dá pra filtrar por branch no `if`. Descobrimos a branch pela API do GitHub
-      # (branches cujo HEAD é esse commit) e só seguimos se for main ou staging — deploys de
-      # preview de outras branches não notificam.
-      - name: Decide se notifica (branch main/staging)
+      # Cada projeto também gera prévias de outras branches (o de staging builda até a main), então só
+      # notifica o par certo: projeto de produção + commit na ponta da main, projeto de staging + ponta
+      # da staging.
+      - name: Decide se notifica
         id: gate
         env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.deployment.sha }}
+          CONTEXT: ${{ github.event.context }}
+          BRANCHES: ${{ join(github.event.branches.*.name, ' ') }}
         run: |
-          BRANCHES=$(gh api "repos/${{ github.repository }}/commits/${SHA}/branches-where-head" --jq '.[].name' 2>/dev/null || echo "")
-          echo "Branches com HEAD em ${SHA}: ${BRANCHES:-<nenhuma>}"
-          BRANCH=""
+          echo "Status: $CONTEXT · branches: ${BRANCHES:-<nenhuma>}"
+          case "$CONTEXT" in
+            *my-finance-ui-production) WANT=main;    ENV_LABEL="Produção" ;;
+            *my-finance-ui-stg)        WANT=staging; ENV_LABEL="Staging" ;;
+            *) echo "Projeto desconhecido — não notifica."; echo "notify=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
           for b in $BRANCHES; do
-            if [ "$b" = "main" ] || [ "$b" = "staging" ]; then BRANCH="$b"; break; fi
+            if [ "$b" = "$WANT" ]; then
+              echo "notify=true" >> "$GITHUB_OUTPUT"
+              echo "branch=$WANT" >> "$GITHUB_OUTPUT"
+              echo "env_label=$ENV_LABEL" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           done
-          if [ -z "$BRANCH" ]; then
-            echo "Commit não é HEAD de main/staging — não notifica."
-            echo "notify=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "notify=true" >> "$GITHUB_OUTPUT"
-            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Checkout do commit do deploy
-        if: steps.gate.outputs.notify == 'true'
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.deployment.sha }}
-
-      - name: Monta os dados da notificação
-        if: steps.gate.outputs.notify == 'true'
-        id: vars
-        run: |
-          if [ "${{ github.event.deployment_status.state }}" == "success" ]; then
-            echo "color=5763719" >> "$GITHUB_OUTPUT"
-            echo "title=✅ Deploy web concluído com sucesso" >> "$GITHUB_OUTPUT"
-          else
-            echo "color=15158332" >> "$GITHUB_OUTPUT"
-            echo "title=❌ Deploy web falhou" >> "$GITHUB_OUTPUT"
-          fi
-          echo "commit_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "commit_msg=$(git log -1 --pretty=%s 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
-          echo "author=$(git log -1 --pretty=%an 2>/dev/null || echo N/A)" >> "$GITHUB_OUTPUT"
+          echo "Commit não é da $WANT — prévia, não notifica."
+          echo "notify=false" >> "$GITHUB_OUTPUT"
 
       - name: Notifica o Discord
-        if: steps.gate.outputs.notify == 'true' && env.DISCORD_WEBHOOK != ''
+        if: steps.gate.outputs.notify == 'true'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          STATE: ${{ github.event.state }}
+          TARGET_URL: ${{ github.event.target_url }}
+          SHA: ${{ github.event.sha }}
+          COMMIT_MSG: ${{ github.event.commit.commit.message }}
+          AUTHOR: ${{ github.event.commit.commit.author.name }}
+          BRANCH: ${{ steps.gate.outputs.branch }}
+          ENV_LABEL: ${{ steps.gate.outputs.env_label }}
         run: |
-          curl -s -H "Content-Type: application/json" -d "{
-            \"embeds\": [{
-              \"title\": \"${{ steps.vars.outputs.title }}\",
-              \"color\": ${{ steps.vars.outputs.color }},
-              \"url\": \"${{ github.event.deployment_status.target_url }}\",
-              \"fields\": [
-                {\"name\": \"Projeto\", \"value\": \"${{ github.repository }} (web)\", \"inline\": true},
-                {\"name\": \"Ambiente\", \"value\": \"${{ github.event.deployment.environment }}\", \"inline\": true},
-                {\"name\": \"Branch\", \"value\": \"${{ steps.gate.outputs.branch }}\", \"inline\": true},
-                {\"name\": \"Commit\", \"value\": \"${{ steps.vars.outputs.commit_short }} - ${{ steps.vars.outputs.commit_msg }}\", \"inline\": false},
-                {\"name\": \"Autor\", \"value\": \"${{ steps.vars.outputs.author }}\", \"inline\": true}
+          [ -z "$DISCORD_WEBHOOK" ] && { echo "Sem DISCORD_WEBHOOK_URL — não notifica."; exit 0; }
+          if [ "$STATE" = "success" ]; then
+            TITLE="✅ Deploy web concluído"; COLOR=5763719
+          else
+            TITLE="❌ Deploy web falhou"; COLOR=15158332
+          fi
+          # Mensagem de merge = "Merge pull request #N ...\n\n<título>": mostra o título do PR.
+          SUBJECT=$(printf '%s' "$COMMIT_MSG" | awk 'NF' | sed -n '2p')
+          [ -z "$SUBJECT" ] && SUBJECT=$(printf '%s' "$COMMIT_MSG" | head -n1)
+          # jq monta o JSON: aspas e quebras de linha da mensagem não quebram o payload.
+          jq -n \
+            --arg title "$TITLE" --argjson color "$COLOR" --arg url "$TARGET_URL" \
+            --arg env "$ENV_LABEL" --arg branch "$BRANCH" \
+            --arg commit "${SHA:0:7} - $SUBJECT" --arg author "$AUTHOR" \
+            --arg repo "${{ github.repository }}" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{embeds: [{
+              title: $title, color: $color, url: $url,
+              fields: [
+                {name: "Projeto", value: ($repo + " (web)"), inline: true},
+                {name: "Ambiente", value: $env, inline: true},
+                {name: "Branch", value: $branch, inline: true},
+                {name: "Commit", value: $commit, inline: false},
+                {name: "Autor", value: $author, inline: true}
               ],
-              \"footer\": {\"text\": \"GitHub Actions\"},
-              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-            }]
-          }" "$DISCORD_WEBHOOK"
+              footer: {text: "GitHub Actions"}, timestamp: $ts
+            }]}' \
+          | curl -sS -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK"
