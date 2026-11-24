@@ -18,7 +18,7 @@ export const RequireAuth = ({ children }: { children: ReactNode }) => {
 	const { is_authenticated } = useCurrentUserContext();
 
 	if (!is_authenticated) {
-		return <Navigate to='/entrar' replace />;
+		return <Navigate to='/auth/sign-in' replace />;
 	}
 	return children;
 };

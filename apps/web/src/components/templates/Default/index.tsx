@@ -19,7 +19,7 @@ import WalletFormDialog from '@/components/organisms/WalletFormDialog';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
 
-const DefaultShell = ({ children }: ITemplateProps) => {
+const DefaultTemplate = ({ children }: ITemplateProps) => {
 	/*
 	 * Precisa ser desmontado de verdade no breakpoint errado, não só escondido via
 	 * `hidden`/CSS — o conteúdo do Popover do hambúrguer (BottomNav) é renderizado num
@@ -142,16 +142,6 @@ const DefaultShell = ({ children }: ITemplateProps) => {
 			<WalletFormDialog open={is_new_wallet_open} onOpenChange={setIsNewWalletOpen} />
 		</div>
 	);
-};
-
-/*
- * Visitante não vê menu nem barra: na raiz ele está na landing (RootPage) e nas outras telas o RouteGuard já o manda
- * pro Entrar. O componente de fora é sempre este, em toda rota logada, pra navegar entre elas não remontar a casca.
- */
-const DefaultTemplate = ({ children }: ITemplateProps) => {
-	const { is_authenticated } = useCurrentUserContext();
-	if (!is_authenticated) return <>{children}</>;
-	return <DefaultShell>{children}</DefaultShell>;
 };
 
 export default DefaultTemplate;

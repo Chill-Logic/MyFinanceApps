@@ -11,7 +11,7 @@ export const AuthPaths: IPath[] = [
 	{
 		id: 'login',
 		display: 'Login',
-		path: 'entrar',
+		path: 'auth/sign-in',
 		element: SignInPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
@@ -19,7 +19,7 @@ export const AuthPaths: IPath[] = [
 	{
 		id: 'sign-up',
 		display: 'Sign-up',
-		path: 'criar-conta',
+		path: 'auth/sign-up',
 		element: SignUpPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
@@ -27,7 +27,7 @@ export const AuthPaths: IPath[] = [
 	{
 		id: 'recover-password',
 		display: 'Recuperar senha',
-		path: 'esqueci-a-senha',
+		path: 'auth/recover-password',
 		element: RecoverPasswordPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
@@ -35,7 +35,7 @@ export const AuthPaths: IPath[] = [
 	{
 		id: 'reset-password',
 		display: 'Redefinir senha',
-		path: 'redefinir-senha',
+		path: 'auth/reset-password',
 		element: ResetPasswordPage,
 		template: AuthTemplate,
 		isGuestOnly: true,
@@ -44,7 +44,7 @@ export const AuthPaths: IPath[] = [
 		/* Link que o backend manda no e-mail de redefinição (o código vem no caminho). */
 		id: 'change-password',
 		display: 'Redefinir senha',
-		path: 'redefinir-senha/:codigo',
+		path: 'auth/change-password/:token',
 		element: ResetPasswordPage,
 		template: AuthTemplate,
 		isGuestOnly: true,

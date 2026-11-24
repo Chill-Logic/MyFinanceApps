@@ -9,7 +9,7 @@ export const FinancesPaths: IPath[] = [
 	{
 		id: 'finances',
 		display: 'Contas & Cartões',
-		path: '/contas',
+		path: '/accounts',
 		element: FinancesPage,
 		template: DefaultTemplate,
 		isMainPath: true,
@@ -18,7 +18,7 @@ export const FinancesPaths: IPath[] = [
 	{
 		id: 'bank_connection_accounts',
 		display: 'Contas do banco',
-		path: '/contas/bancos/:id',
+		path: '/accounts/banks/:id',
 		element: BankConnectionPage,
 		template: DefaultTemplate,
 		isPrivate: true,

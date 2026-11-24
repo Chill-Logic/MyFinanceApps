@@ -104,7 +104,7 @@ const BankConnectionPage = () => {
 			id: connection.id,
 			onSuccess: () => {
 				toast.success('Banco desconectado');
-				navigate('/contas?aba=bancos');
+				navigate('/accounts?tab=connections');
 			},
 			onError: (error) => {
 				toast.error(getApiErrorMessage(error, 'Erro ao desconectar o banco'));
@@ -158,7 +158,7 @@ const BankConnectionPage = () => {
 				<button
 					type='button'
 					aria-label='Voltar'
-					onClick={() => navigate('/contas?aba=bancos')}
+					onClick={() => navigate('/accounts?tab=connections')}
 					className='pressable flex size-11 shrink-0 items-center justify-center rounded-full border border-border'
 				>
 					<ArrowLeft className='size-5' />

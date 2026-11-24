@@ -91,7 +91,7 @@ const Sidebar = ({ variant = 'full', onToggle, className }: IProps) => {
 
 	const profileMenu = (
 		<div className='flex flex-col gap-1'>
-			<button type='button' onClick={() => { setProfileOpen(false); navigate('/configuracoes'); }} className='pressable flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-semibold hover:bg-white/30 dark:hover:bg-white/[0.05]'>
+			<button type='button' onClick={() => { setProfileOpen(false); navigate('/settings'); }} className='pressable flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-semibold hover:bg-white/30 dark:hover:bg-white/[0.05]'>
 				<Settings className='size-4' />Configurações
 			</button>
 			<button type='button' onClick={refresh} disabled={is_refreshing} className='pressable flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-semibold hover:bg-white/30 disabled:opacity-60 dark:hover:bg-white/[0.05]'>

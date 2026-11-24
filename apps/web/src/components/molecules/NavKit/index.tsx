@@ -155,7 +155,7 @@ export const WalletPanel = ({ onDone, onNewWallet }: { onDone: ()=> void; onNewW
 					<span className='text-xs text-muted-foreground'>Visualizando a carteira</span>
 					<span className='font-bold'>{wallets.length} {wallets.length === 1 ? 'carteira' : 'carteiras'}</span>
 				</div>
-				<Link to='/carteiras' onClick={onDone} className='text-xs font-bold text-brand hover:opacity-80'>Gerenciar</Link>
+				<Link to='/wallets' onClick={onDone} className='text-xs font-bold text-brand hover:opacity-80'>Gerenciar</Link>
 			</div>
 			<div ref={list_ref} className='relative flex flex-col gap-1'>
 				<LiquidBlob blob={blob} className='rounded-2xl ring-1 ring-primary/50' />

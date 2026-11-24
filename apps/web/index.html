@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/src/assets/brand/icon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>MyFinance · Organização e planejamento financeiro</title>
+  <title>MyFinance</title>
   <!--
     Metadados de compartilhamento (WhatsApp, Telegram, Google…). Quem monta a prévia NÃO roda o JavaScript, então
     eles precisam estar no HTML. As páginas públicas (/termos, /privacidade) ganham uma cópia deste arquivo com título,
@@ -35,137 +35,11 @@
       var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       document.documentElement.classList.toggle('dark', dark);
       document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
-      /*
-        Landing (#landing, abaixo): só na raiz, só pra quem não tem sessão salva e nunca no app da loja. Mesma regra
-        do useLandingVisibility (src/hooks); este script só evita que ela pisque antes de o React assumir.
-      */
-      var path = location.pathname.replace(/\/+$/, '') || '/';
-      var token = null;
-      try { token = localStorage.getItem('my-finance-token') || sessionStorage.getItem('my-finance-token'); } catch (e) {}
-      var cap = window.Capacitor;
-      var native = (cap && cap.isNativePlatform && cap.isNativePlatform()) || (location.protocol === 'https:' && location.hostname === 'localhost');
-      if (path === '/' && !token && !native) document.documentElement.classList.add('show-landing');
     })();
   </script>
-  <!--
-    Página pública da raiz (o que é o MyFinance), em HTML puro de propósito: quem verifica o app (Google) e quem monta
-    prévia de link não roda JavaScript. Gerada a partir do mockup v3 ("Sobre o MyFinance"); mudou um, mude o outro.
-  -->
-  <style>
-#landing{display:none}html.show-landing #landing{display:block}
-.mf{--bg:#05141E;--surf:rgba(199,195,191,.04);--border:rgba(199,195,191,.12);--text:#F1EFEC;--body:#D3CFCA;--muted:#A8A39D;
-  --accent:#BCD291;--primary:#A3BC74;--tile:rgba(163,188,116,.14);--shadow:none;
-  container-type:inline-size;background:var(--bg);color:var(--text);font-family:'Geist Variable',Geist,system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased;min-height:100%;position:relative}
-html:not(.dark) .mf{--bg:#F3F1ED;--surf:#FFFFFF;--border:rgba(8,36,53,.10);--text:#082435;--body:#2E3F4A;--muted:#55626C;
-  --accent:#4F6B2E;--primary:#89A160;--tile:rgba(137,161,96,.16);--shadow:0 1px 2px rgba(8,36,53,.05)}
-.mf *{box-sizing:border-box}
-.mf a{color:inherit;text-decoration:none}
-.mf .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-.mf .top{position:absolute;z-index:2;left:0;right:0;top:0}
-.mf .top .wrap{display:flex;align-items:center;justify-content:space-between;height:72px}
-.mf .brand{display:flex;align-items:center;gap:10px}
-.mf .brand .tile{width:34px;height:34px;border-radius:10px;background:#F1EFEC;display:flex;align-items:center;justify-content:center}
-.mf .brand .tile img{width:26px;height:26px}
-.mf .brand .word{height:14px}
-.mf .top nav{display:flex;gap:8px}
-.mf .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;font-size:15px;font-weight:650;white-space:nowrap}
-.mf .btn.ghost{color:#F1EFEC;border:1px solid rgba(241,239,236,.22)}
-.mf .btn.primary{background:var(--primary);color:#082435}
-.mf .btn.soft{background:rgba(241,239,236,.10);color:#F1EFEC;border:1px solid rgba(241,239,236,.18)}
-.mf .top .btn{height:38px;padding:0 14px;font-size:14px}
-.mf .top .hide-sm{display:none}
-.mf .hero{position:relative;overflow:hidden;background:linear-gradient(150deg,#0F3A52 0%,#082435 62%);color:#F1EFEC;padding:120px 0 56px}
-.mf .hero .glow{position:absolute;right:-160px;top:-220px;width:620px;height:620px;background:radial-gradient(circle,rgba(163,188,116,.30) 0%,rgba(163,188,116,0) 68%)}
-.mf .hero .glow2{position:absolute;left:-260px;bottom:-360px;width:700px;height:700px;background:radial-gradient(circle,rgba(7,141,167,.22) 0%,rgba(7,141,167,0) 68%)}
-.mf .hero .wrap{position:relative;display:flex;flex-direction:column;gap:22px}
-.mf .eyebrow{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:#BCD291}
-.mf h1{margin:0;font-size:38px;line-height:1.06;letter-spacing:-.035em;font-weight:700}
-.mf h1 span{color:#BCD291}
-.mf .lead{margin:0;font-size:17px;line-height:1.55;color:#C9D2D8;max-width:620px}
-.mf .cta{display:flex;flex-wrap:wrap;gap:10px;padding-top:4px}
-.mf .note{font-size:13px;color:#8FA3AF}
-.mf section.block{padding:48px 0 0}
-.mf h2{margin:0 0 6px;font-size:24px;letter-spacing:-.025em;font-weight:700}
-.mf .sub{margin:0 0 22px;font-size:15px;line-height:1.55;color:var(--muted)}
-.mf .grid{display:grid;grid-template-columns:1fr;gap:12px}
-.mf .card{border:1px solid var(--border);background:var(--surf);box-shadow:var(--shadow);border-radius:24px;padding:20px;display:flex;flex-direction:column;gap:10px}
-.mf .card .ic{width:40px;height:40px;border-radius:13px;background:var(--tile);color:var(--accent);display:flex;align-items:center;justify-content:center}
-.mf .card h3{margin:0;font-size:16px;font-weight:650}
-.mf .card p{margin:0;font-size:14.5px;line-height:1.55;color:var(--body)}
-.mf .google{border:1px solid var(--border);background:var(--surf);box-shadow:var(--shadow);border-radius:28px;padding:22px;display:flex;flex-direction:column;gap:14px}
-.mf .google .head{display:flex;align-items:center;gap:12px}
-.mf .google ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
-.mf .google li{display:flex;gap:10px;font-size:14.5px;line-height:1.55;color:var(--body)}
-.mf .google li .ok{flex-shrink:0;color:var(--accent);padding-top:2px}
-.mf .google .legal{display:flex;flex-wrap:wrap;gap:8px;padding-top:4px}
-.mf .google .legal a{display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--border);font-size:14px;font-weight:600}
-.mf footer{margin-top:56px;border-top:1px solid var(--border)}
-.mf footer .wrap{display:flex;flex-direction:column;gap:12px;padding-top:22px;padding-bottom:36px;font-size:13px;color:var(--muted)}
-.mf footer .links{display:flex;flex-wrap:wrap;gap:6px 18px}
-.mf footer .links a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--border)}
-@container (min-width:720px){
-  .mf .wrap{padding:0 40px}
-  .mf .top .hide-sm{display:inline-flex}
-  .mf .top .btn{height:40px;padding:0 18px}
-  .mf .hero{padding:150px 0 84px}
-  .mf h1{font-size:60px}
-  .mf .lead{font-size:19px}
-  .mf section.block{padding:72px 0 0}
-  .mf h2{font-size:30px}
-  .mf .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-  .mf .google{padding:30px 32px}
-  .mf footer .wrap{flex-direction:row;justify-content:space-between;align-items:center}
-}
-@container (min-width:1100px){
-  .mf .grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .mf .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:start}
-}
-  </style>
 </head>
 
 <body>
-  <div id="landing">
-<div class="mf" data-theme="auto">
-<header class="top"><div class="wrap">
-  <a class="brand" href="/" aria-label="MyFinance"><span class="tile"><img src="/brand/icon.svg" alt=""></span><img class="word" src="/brand/wordmark-on-dark.svg" alt="MyFinance"></a>
-  <nav><a class="btn ghost" href="/entrar">Entrar</a><a class="btn primary hide-sm" href="/criar-conta">Criar conta</a></nav>
-</div></header>
-<section class="hero"><span class="glow"></span><span class="glow2"></span><div class="wrap">
-  <span class="eyebrow">Organização e planejamento financeiro</span>
-  <h1>Organize hoje.<br><span>Planeje o mês que vem.</span></h1>
-  <p class="lead">O MyFinance é um app de finanças pessoais para registrar contas, cartões de crédito, faturas e transações, e ver como o seu saldo vai ficar nos próximos dias e meses.</p>
-  <div class="cta"><a class="btn primary" href="/criar-conta">Criar conta grátis <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a class="btn soft" href="/entrar">Já tenho conta</a></div>
-  <span class="note">No navegador e no Android. Em fase de testes, sem custo.</span>
-</div></section>
-<main class="wrap">
-  <section class="block">
-    <h2>Tudo o que mexe no seu saldo, num só lugar</h2>
-    <p class="sub">Você lança o que entra e o que sai; o MyFinance organiza e mostra o que vem pela frente.</p>
-    <div class="grid"><article class="card"><span class="ic"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 6-6"/></svg></span><h3>Saldo projetado</h3><p>Veja hoje como o saldo das suas contas fica até o fim do mês, com o que ainda vai entrar e sair.</p></article><article class="card"><span class="ic"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span><h3>Cartões e faturas</h3><p>Acompanhe o que está em aberto em cada cartão, quando a fatura fecha, quando vence e quanto falta pagar.</p></article><article class="card"><span class="ic"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></span><h3>Recorrências e parcelas</h3><p>Assinaturas, salário e compras parceladas entram sozinhos nos meses seguintes, como previsão.</p></article><article class="card"><span class="ic"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><h3>Carteiras compartilhadas</h3><p>Organize as finanças da casa com quem você convidar, cada um lançando na mesma carteira.</p></article></div>
-  </section>
-  <section class="block split">
-    <div>
-      <h2>Entrar com o Google</h2>
-      <p class="sub">Você pode criar a conta com e-mail e senha ou usar a sua conta Google. Se escolher o Google, é assim que funciona:</p>
-    </div>
-    <div class="google">
-      <div class="head"><span class="card" style="padding:0;border:0;background:none;box-shadow:none"><span class="ic"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span></span><strong style="font-size:16px">Só o necessário para identificar você</strong></div>
-      <ul>
-        <li><span class="ok"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Recebemos do Google apenas o seu nome e o seu endereço de e-mail, usados para criar e identificar a sua conta.</span></li>
-        <li><span class="ok"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Não acessamos seus contatos, arquivos, e-mails nem qualquer outro dado da sua conta Google.</span></li>
-        <li><span class="ok"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><span>Não enviamos ao Google os dados que você registra no MyFinance e não usamos as APIs do Google para gerar imagens ou qualquer outro conteúdo.</span></li>
-      </ul>
-      <div class="legal"><a href="/privacidade">Política de Privacidade</a><a href="/termos">Termos de Uso</a></div>
-    </div>
-  </section>
-</main>
-<footer><div class="wrap">
-  <span>MyFinance · um projeto Chillogic · <a href="mailto:contato@chillogic.com.br">contato@chillogic.com.br</a></span>
-  <span class="links"><a href="/privacidade">Política de Privacidade</a><a href="/termos">Termos de Uso</a><a href="/entrar">Entrar</a></span>
-</div></footer>
-</div>
-  </div>
   <div id="root"></div>
   <script type="module" src="/src/index.tsx"></script>
 </body>
