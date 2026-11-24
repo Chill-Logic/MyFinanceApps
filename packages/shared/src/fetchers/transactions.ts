@@ -2,6 +2,7 @@ import type { AxiosInstance } from 'axios';
 
 import {
 	TCreateTransactionBody,
+	TDescriptionSuggestion,
 	TIndexPendingInvoiceReviewsResponse,
 	TIndexPendingMatchesResponse,
 	TListTransactionsResponse,
@@ -11,7 +12,7 @@ import {
 	TSettleTransactionBody,
 	TUpdateTransactionBody,
 } from '../api';
-import { TTransaction, TTransactionSourceType } from '../models';
+import { TCreditsBy, TTransaction, TTransactionKind, TTransactionSourceType } from '../models';
 import { API_ROUTES } from '../routes';
 
 export type TListTransactionsParams = {
@@ -24,6 +25,20 @@ export type TListTransactionsParams = {
 	source_type?: TTransactionSourceType;
 	source_id?: string;
 	terms?: string;
+	/* Que fatura de cada cartão entra no grupo `credits` (ver `TCreditsBy`). Ausente = `due` no backend. */
+	credits_by?: TCreditsBy;
+};
+
+export type TListTransactionDescriptionsParams = {
+	wallet_id: string;
+	/* O que já foi digitado. Começar com o termo vem primeiro na ordem. */
+	terms?: string;
+	kind?: TTransactionKind;
+	/* Origem escolhida: as usadas nela sobem na ordem. */
+	source_type?: TTransactionSourceType;
+	source_id?: string;
+	/* Padrão 8, máximo 20. */
+	limit?: number;
 };
 
 export type TIndexPendingInvoiceReviewsParams = {
@@ -55,8 +70,13 @@ export const listTransactions = async(axios: AxiosInstance, params?: TListTransa
 	const response = await axios.get<TListTransactionsResponse>(API_ROUTES.transactions.index, { params });
 	return {
 		accounts: normalizeGroup(response.data.accounts),
-		credits: normalizeGroup(response.data.credits),
+		credits: { ...normalizeGroup(response.data.credits), invoices: response.data.credits.invoices ?? [] },
 	};
+};
+
+export const listTransactionDescriptions = async(axios: AxiosInstance, params: TListTransactionDescriptionsParams) => {
+	const response = await axios.get<{ data: TDescriptionSuggestion[] }>(API_ROUTES.transactions.descriptions, { params });
+	return response.data.data;
 };
 
 export const createTransaction = async(axios: AxiosInstance, body?: TCreateTransactionBody) => {

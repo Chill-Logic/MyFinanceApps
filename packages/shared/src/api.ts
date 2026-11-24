@@ -1,4 +1,4 @@
-import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TWallet } from './models';
+import { TAccount, TAccountKind, TBankAccountLink, TBankConnection, TBankImport, TBankImportMode, TClaudeSession, TClaudeToolCall, TCreditBalance, TCreditCard, TCurrentInvoice, TInvite, TPendingInvoiceReview, TPendingMatchReview, TRecurrence, TRecurrenceFrequency, TRecurrenceType, TRecurrenceValueMode, TTransaction, TTransactionKind, TTransactionSourceType, TUserPreferences, TWallet } from './models';
 
 export type TPaginatedResponse<T> = {
 	data: T[];
@@ -17,6 +17,9 @@ export type TSignInResponse = {
 };
 
 export type TSignUpResponse = TMessageResponse;
+
+/* `created` = a conta acabou de ser criada por este login (primeira vez com o Google). */
+export type TGoogleSignInResponse = TSignInResponse & { created: boolean };
 
 export type TSignInBody = {
 	email: string;
@@ -41,6 +44,8 @@ export type TUpdateUserBody = {
 	password_confirmation?: string;
 	/* Define a carteira principal do usuário — id de uma carteira acessível/aceita. */
 	main_wallet_id?: string;
+	/* Merge raso no backend: só as chaves enviadas mudam. */
+	preferences?: TUserPreferences;
 };
 
 export type TResetPasswordBody = {
@@ -71,9 +76,16 @@ export type TTransactionGroup = {
  * (o pagamento da fatura conta só em `accounts`, as compras só em `credits`) e faz a aba Cartões
  * mostrar a fatura do mês — o cliente NÃO filtra mais `source_type` na mão.
  */
+/* Resumo da fatura de um cartão no index de transações: os campos do `GET /credit_balances/:id/invoice` + o id. */
+export type TCreditInvoiceSummary = TCurrentInvoice & { credit_balance_id: string };
+
 export type TListTransactionsResponse = {
 	accounts: TTransactionGroup;
-	credits: TTransactionGroup;
+	/*
+	 * `invoices`: uma entrada por cartão da carteira (mesmo zerada), com a fatura escolhida pelo `credits_by`
+	 * — é a MESMA fatura cujas compras vêm em `data`.
+	 */
+	credits: TTransactionGroup & { invoices: TCreditInvoiceSummary[] };
 };
 
 export type TIndexWalletsResponse = TPaginatedResponse<TWallet>;
@@ -140,9 +152,8 @@ export type TIndexAccountsResponse = TPaginatedResponse<TAccount>;
 
 /*
  * Saldo projetado das contas de uma carteira, dia a dia (tela de Contas). Contrato no formato das outras
- * respostas da API (`{ data: ... }`, centavos, datas "YYYY-MM-DD"), pensado pra `GET /accounts/projection`
- * — que AINDA NÃO EXISTE no backend. Enquanto isso, `estimateCashProjection` monta exatamente esta resposta
- * a partir dos endpoints atuais; quando o endpoint existir, o hook troca pra `getCashProjection` e nada mais muda.
+ * respostas da API (`{ data: ... }`, centavos, datas "YYYY-MM-DD"), de `GET /accounts/projection`. Pendências de
+ * conta atrasadas e faturas vencidas e não pagas de qualquer mês anterior entram no dia de hoje.
  */
 export type TCashProjectionParams = {
 	wallet_id: string;
@@ -339,9 +350,36 @@ export type TEnumOption = {
 export type TEnumOptionsResponse = TEnumOption[];
 
 export type TVersionResponse = {
+	/* Versão semântica da API (arquivo VERSION do backend, sobe a cada release). */
+	version: string;
 	hash: string;
 	date: string;
 	branch: string;
+	/* Quando foi o deploy (ISO). `'unknown'` onde o deploy não grava. */
+	deployed_at: string;
+};
+
+/*
+ * Sugestão de descrição (`GET /transactions/descriptions`): descrições já usadas na carteira, agrupadas sem
+ * acento/caixa/espaços repetidos (`description` = a grafia mais usada), com os dados da última ocorrência em `last`.
+ */
+export type TDescriptionSuggestion = {
+	description: string;
+	count: number;
+	last_used_at: string;
+	last: {
+		value: number;
+		kind: TTransactionKind;
+		source_type: TTransactionSourceType;
+		source_id: string;
+		credit_card_id: string | null;
+		destination_account_id: string | null;
+	};
+};
+
+/* Saiu da carteira: se era a principal, o backend escolheu outra (ids `null` = ficou sem carteira principal). */
+export type TLeaveWalletResponse = TMessageResponse & {
+	data: { main_wallet_id: string | null; main_user_wallet_id: string | null };
 };
 
 /* `mcp_url` = URL do servidor MCP para colar no Claude (Conectores → Adicionar conector personalizado). */

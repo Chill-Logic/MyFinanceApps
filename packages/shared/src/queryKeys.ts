@@ -18,6 +18,7 @@ export const QUERY_KEYS = {
 		get_all: 'get-all-transactions',
 		get_pending_reviews: 'get-pending-invoice-reviews',
 		get_pending_matches: 'get-pending-match-reviews',
+		get_descriptions: 'get-transaction-descriptions',
 	},
 	[MODELS.recurrence]: {
 		get_all: 'get-all-recurrences',

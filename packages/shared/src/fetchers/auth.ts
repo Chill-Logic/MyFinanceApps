@@ -1,10 +1,15 @@
 import type { AxiosInstance } from 'axios';
 
-import { TMessageResponse, TRecoverPasswordBody, TResetPasswordBody, TSignInBody, TSignInResponse, TSignUpBody, TSignUpResponse } from '../api';
+import { TGoogleSignInResponse, TMessageResponse, TRecoverPasswordBody, TResetPasswordBody, TSignInBody, TSignInResponse, TSignUpBody, TSignUpResponse } from '../api';
 import { API_ROUTES } from '../routes';
 
 export const signIn = async(axios: AxiosInstance, body?: TSignInBody) => {
 	const response = await axios.post<{ data: TSignInResponse }>(API_ROUTES.auth.signIn, body);
+	return response.data.data;
+};
+
+export const signInWithGoogle = async(axios: AxiosInstance, id_token: string) => {
+	const response = await axios.post<{ data: TGoogleSignInResponse }>(API_ROUTES.auth.google, { id_token });
 	return response.data.data;
 };
 

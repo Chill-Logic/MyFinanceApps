@@ -16,6 +16,7 @@ name: Android CD (Capacitor)
 #   VITE_API_URL / VITE_API_KEY         API embutida no build
 # Variável do repositório (aba Variables):
 #   VITE_WEB_URL                        URL pública do web, de onde o app lê /app-version.json
+#   VITE_GOOGLE_CLIENT_ID               client ID OAuth "Web" do Google (login com o Google; vazio = sem o botão)
 
 on:
   pull_request:
@@ -81,7 +82,8 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
           VITE_WEB_URL: ${{ vars.VITE_WEB_URL }}
-        run: printf 'VITE_API_URL=%s\nVITE_API_KEY=%s\nVITE_WEB_URL=%s\n' "$VITE_API_URL" "$VITE_API_KEY" "$VITE_WEB_URL" > apps/web/.env
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+        run: printf 'VITE_API_URL=%s\nVITE_API_KEY=%s\nVITE_WEB_URL=%s\nVITE_GOOGLE_CLIENT_ID=%s\n' "$VITE_API_URL" "$VITE_API_KEY" "$VITE_WEB_URL" "$VITE_GOOGLE_CLIENT_ID" > apps/web/.env
 
       - name: Calcula a versão (maior versionCode na Play + 1)
         id: version

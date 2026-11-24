@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios';
 
-import { TGetMainWalletResponse, TIndexWalletsResponse, TMessageResponse, TWalletBody } from '../api';
+import { TGetMainWalletResponse, TIndexWalletsResponse, TLeaveWalletResponse, TMessageResponse, TWalletBody } from '../api';
 import { TUser, TWallet } from '../models';
 import { API_ROUTES } from '../routes';
 
@@ -32,6 +32,12 @@ export const updateWallet = async(axios: AxiosInstance, id: string | number, bod
 
 export const deleteWallet = async(axios: AxiosInstance, id: string | number) => {
 	const response = await axios.delete<TMessageResponse>(API_ROUTES.wallets.delete(id));
+	return response.data;
+};
+
+/* Sai de uma carteira compartilhada (quem administra recebe 422). */
+export const leaveWallet = async(axios: AxiosInstance, id: string | number) => {
+	const response = await axios.delete<TLeaveWalletResponse>(API_ROUTES.wallets.leave(id));
 	return response.data;
 };
 
