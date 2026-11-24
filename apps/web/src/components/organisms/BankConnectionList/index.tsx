@@ -89,7 +89,7 @@ const BankConnectionList = ({ connectRequest = 0 }: IProps) => {
 	});
 	const links_of = (index: number) => links_results[index]?.data?.data ?? [];
 
-	const openAccounts = (connection: Pick<TBankConnection, 'id'>) => navigate(`/contas/bancos/${ connection.id }`);
+	const openAccounts = (connection: Pick<TBankConnection, 'id'>) => navigate(`/accounts/banks/${ connection.id }`);
 	const widget = useBankConnectWidget({ wallet_id, onCreated: openAccounts });
 
 	const { refresh, refreshing_id } = useBankConnectionRefresh({

@@ -5,7 +5,6 @@ import { CreditCard, Link2, Plus, Repeat, Wallet } from 'lucide-react';
 
 import { useCurrentUserContext } from '@/context/current_user';
 import { usePrimaryAction } from '@/context/primaryAction';
-import { TAB_SLUGS } from '@/util/routeSlugs';
 
 import Button from '@/components/atoms/Button';
 import Typography from '@/components/atoms/Typography';
@@ -19,7 +18,7 @@ const TAB_VALUES = [ 'accounts', 'cards', 'recurrences', 'connections' ] as cons
 
 type TTab = typeof TAB_VALUES[number];
 
-const initialTab = (slug: string | null): TTab => TAB_VALUES.find((value) => TAB_SLUGS[value] === slug) ?? 'accounts';
+const initialTab = (value: string | null): TTab => (TAB_VALUES.includes(value as TTab) ? (value as TTab) : 'accounts');
 
 const TABS = [
 	{ value: 'accounts', label: 'Contas', icon: Wallet },
@@ -33,8 +32,8 @@ const CONNECTIONS_TAB = { value: 'connections', label: 'Bancos', icon: Link2 };
 const FinancesPage = () => {
 	const { current_user } = useCurrentUserContext();
 	const [ search_params ] = useSearchParams();
-	/* `?aba=bancos` = voltar da tela "Contas do banco" direto na aba Bancos. */
-	const [ tab, setTab ] = useState<TTab>(() => initialTab(search_params.get('aba')));
+	/* `?tab=connections` = voltar da tela "Contas do banco" direto na aba Bancos. */
+	const [ tab, setTab ] = useState<TTab>(() => initialTab(search_params.get('tab')));
 	/* "Nova recorrência" fica no cabeçalho (como no mockup); o formulário abre dentro da aba. */
 	const [ creating_recurrence, setCreatingRecurrence ] = useState(false);
 	/* "Conectar banco" (aba Bancos): cada incremento abre o widget da Pluggy dentro da aba. */

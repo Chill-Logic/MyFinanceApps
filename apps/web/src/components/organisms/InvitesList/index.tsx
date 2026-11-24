@@ -72,7 +72,7 @@ const InvitesList = () => {
 
 	const openInvite = () => {
 		if (can_invite) setIsInviteOpen(true);
-		else navigate('/carteiras');
+		else navigate('/wallets');
 	};
 	usePrimaryAction({ label: 'Convidar', onClick: openInvite });
 
@@ -283,7 +283,7 @@ const InvitesList = () => {
 					</span>
 				</li>
 			</ul>
-			<Link to='/carteiras' className='pressable flex h-12 w-full max-w-[420px] items-center justify-center gap-2 rounded-full border border-border font-semibold transition-colors hover:bg-accent'>
+			<Link to='/wallets' className='pressable flex h-12 w-full max-w-[420px] items-center justify-center gap-2 rounded-full border border-border font-semibold transition-colors hover:bg-accent'>
 				Ir para Carteiras <ArrowRight className='size-4' />
 			</Link>
 		</div>

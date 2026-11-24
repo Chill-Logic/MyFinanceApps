@@ -259,22 +259,6 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
   (`src/context/current_user.tsx`). O fluxo de auth (`sign-in`/`sign-up`/home) já consome dados via
   hook (`src/hooks/api/...`, mesmo padrão do mobile: wrapper fino em cima dos fetchers de
   `@myfinance/shared`) — não bata no axios direto em telas novas.
-- **Endereços em português, código em inglês (2026-11-24)**: as rotas são `/entrar`, `/criar-conta`,
-  `/esqueci-a-senha`, `/redefinir-senha` (+ `/:codigo`; aceita `?codigo=`), `/contas`, `/contas/bancos/:id`, `/carteiras`,
-  `/carteiras/convites`, `/configuracoes`, `/termos`, `/privacidade`; parâmetros `?secao=` (Configurações) e `?aba=`
-  (Contas). Pastas, componentes e identificadores seguem em inglês; a tradução da URL fica em `util/routeSlugs.ts`.
-  Os endereços antigos (`/auth/sign-in`, `/settings?section=`, `/accounts?tab=`…) continuam valendo por
-  `router/routes/legacy` (redireciona traduzindo os parâmetros) — inclusive o link do e-mail de redefinição de senha,
-  que o backend ainda monta com `/auth/change-password/<código>`. Rota nova = nome em português.
-- **Raiz (`/`) = landing pra visitante, Início pra quem está logado (2026-11-24)**: o Google recusou a verificação da
-  marca porque a raiz caía no login, sem dizer o que é o app. A landing é HTML ESTÁTICO dentro do `index.html`
-  (`#landing`, fora do `#root`), porque o verificador e as prévias de link não rodam JavaScript; aparece com a classe
-  `show-landing` no `<html>` (script do `index.html` na carga + `hooks/useLandingVisibility` na navegação: só na raiz,
-  sem sessão salva e nunca no app da loja). `pages/root` mostra a Início logado, nada (a landing) pro visitante e, no
-  app, manda pro `/entrar`. O `DefaultTemplate` não desenha menu pra visitante (a casca de verdade é o `DefaultShell`;
-  o de fora é sempre o mesmo, pra navegar entre telas logadas não remontar). O conteúdo da landing vem do mockup v3
-  ("Sobre o MyFinance"): mudou um, mude o outro. Precisa dizer o que o app faz, como usa o login do Google (só nome e
-  e-mail) e ter os links de Termos e Privacidade — é o que o Google confere.
 - `src/router/index.tsx` renderiza as rotas a partir de `src/router/routes` (`Paths: IPath[]`), onde
   cada entrada tem `{ id, path, element, template, isMainPath?, isPrivate?, isGuestOnly? }` com
   `element`/`template` como **imports estáticos normais**, não `React.lazy`. As rotas são agrupadas por

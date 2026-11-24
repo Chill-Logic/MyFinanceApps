@@ -59,7 +59,7 @@ const SignInPage = () => {
 				revealable
 				label='Senha'
 				aside={(
-					<Link to='/esqueci-a-senha' className='hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground md:inline'>
+					<Link to='/auth/recover-password' className='hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground md:inline'>
 						Esqueci a senha
 					</Link>
 				)}
@@ -74,11 +74,11 @@ const SignInPage = () => {
 
 			{/* Celular: os dois atalhos numa linha só, embaixo do botão (como no mockup). */}
 			<div className='flex justify-between px-1 pt-1 text-sm md:hidden'>
-				<Link to='/esqueci-a-senha' className='text-muted-foreground'>Esqueci a senha</Link>
-				<AuthLink to='/criar-conta'>Criar conta</AuthLink>
+				<Link to='/auth/recover-password' className='text-muted-foreground'>Esqueci a senha</Link>
+				<AuthLink to='/auth/sign-up'>Criar conta</AuthLink>
 			</div>
 			<p className='hidden pt-2 text-center text-sm text-muted-foreground md:block'>
-				Primeira vez aqui? <AuthLink to='/criar-conta'>Criar conta</AuthLink>
+				Primeira vez aqui? <AuthLink to='/auth/sign-up'>Criar conta</AuthLink>
 			</p>
 			{/* O "Continuar com o Google" também cria conta: por isso o aviso fica no Entrar também. */}
 			<p className='px-3 pt-1 text-center text-xs leading-normal text-muted-foreground'>

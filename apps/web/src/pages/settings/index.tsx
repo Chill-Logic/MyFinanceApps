@@ -15,7 +15,6 @@ import { useCurrentUserContext } from '@/context/current_user';
 import { type TThemePreference, useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
-import { SECTION_SLUGS } from '@/util/routeSlugs';
 
 import Button from '@/components/atoms/Button';
 import LegalLinks from '@/components/molecules/LegalLinks';
@@ -41,7 +40,7 @@ const THEME_SEGMENTS: TSegment[] = [
 /* Seções do menu (desktop/tablet deitado) e das telas de detalhe (celular/tablet em pé). */
 type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'main_wallet' | 'claude' | 'bank' | 'about';
 const SECTIONS: TSection[] = [ 'account', 'account_info', 'password', 'appearance', 'main_wallet', 'claude', 'bank', 'about' ];
-const sectionFromSlug = (slug: string | null): TSection | null => SECTIONS.find((key) => SECTION_SLUGS[key] === slug) ?? null;
+const isSection = (value: string | null): value is TSection => SECTIONS.includes(value as TSection);
 
 /*
  * Transições (tailwindcss-animate). Celular/tablet em pé: a tela da seção entra pela direita e, ao voltar, a lista
@@ -76,7 +75,7 @@ const SettingsContent = () => {
 	const versions = useShortVersions();
 
 	/*
-	 * A seção aberta mora na URL (`/configuracoes?secao=senha`), não num state: no celular/tablet em pé, abrir uma
+	 * A seção aberta mora na URL (`/settings?section=password`), não num state: no celular/tablet em pé, abrir uma
 	 * seção EMPILHA uma entrada no histórico, então o gesto/botão voltar (navegador ou Android) fecha a seção e volta
 	 * pra lista — antes ele pulava direto pra tela de antes das Configurações. No desktop/tablet deitado, trocar de
 	 * seção no menu SUBSTITUI a entrada (é troca de aba, não navegação; senão o voltar desfaria clique por clique).
@@ -84,7 +83,8 @@ const SettingsContent = () => {
 	const [ search_params, setSearchParams ] = useSearchParams();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const section = sectionFromSlug(search_params.get('secao'));
+	const section_param = search_params.get('section');
+	const section: TSection | null = isSection(section_param) ? section_param : null;
 
 	/* Pra onde a última troca foi: decide de que lado a tela entra (nada na primeira renderização). */
 	const [ previous_section, setPreviousSection ] = useState(section);
@@ -98,11 +98,11 @@ const SettingsContent = () => {
 	const setSection = (next: TSection | null) => {
 		if (next === section) return;
 		if (is_wide) {
-			setSearchParams(next ? { secao: SECTION_SLUGS[next] } : {}, { replace: true });
+			setSearchParams(next ? { section: next } : {}, { replace: true });
 			return;
 		}
 		if (next) {
-			setSearchParams({ secao: SECTION_SLUGS[next] }, { state: { settings_section: true } });
+			setSearchParams({ section: next }, { state: { settings_section: true } });
 			return;
 		}
 		/* Botão "Voltar" da tela: desempilha a entrada que a seção criou; aberta por link direto, só limpa a URL. */
@@ -207,7 +207,7 @@ const SettingsContent = () => {
 			</div>
 			{me?.pluggy_enabled && (
 				<Button asChild variant='outline' className='h-11 self-start gap-2 px-5'>
-					<Link to='/contas?aba=bancos'>Ver bancos conectados <ChevronRight className='size-4' /></Link>
+					<Link to='/accounts?tab=connections'>Ver bancos conectados <ChevronRight className='size-4' /></Link>
 				</Button>
 			)}
 		</section>
