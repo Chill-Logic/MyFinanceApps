@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { getApiErrorMessage, MoneyUtils, PROJECTED_HELP, RecurrenceUtils, TransactionUtils, type TCreditsBy, type TCurrentInvoice, type TTransaction, type TTransactionDirection, type TTransactionGroup } from '@myfinance/shared';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
 	ArrowDownRight,
@@ -156,7 +156,11 @@ const PROJECTED_TONE: Record<-1 | 0 | 1, { className: string; Icon: typeof Arrow
 	[-1]: { className: 'bg-[rgba(245,169,159,0.18)] text-[#F5A99F]', Icon: ArrowDownRight },
 };
 
-const formatShortDate = (iso: string) => format(new Date(iso), 'd MMM', { locale: ptBR });
+/*
+ * `parseISO`, não `new Date()`: o `due_date` vem só com a data ("2026-10-11"), e `new Date` lê isso como meia-noite
+ * em UTC — no fuso de Brasília ainda é o dia anterior, e o vencimento aparecia um dia antes.
+ */
+const formatShortDate = (iso: string) => format(parseISO(iso), 'd MMM', { locale: ptBR });
 
 const TransactionList = () => {
 	const navigate = useNavigate();
@@ -775,11 +779,11 @@ const TransactionList = () => {
 			 * alto e espremia a lista. Lá ele vira resumo à esquerda + cartões em duas colunas à direita. Do tablet
 			 * deitado pra cima ele mora na coluna da direita, ao lado da lista, em coluna.
 			 */
-			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light md:max-lg:grid md:max-lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6'>
+			<div className='flex shrink-0 flex-col gap-3 rounded-3xl bg-[radial-gradient(120%_120%_at_0%_0%,#12708A_0%,#0B3E52_50%,#082435_100%)] p-5 text-sand-light md:max-lg:grid md:max-lg:grid-cols-[minmax(200px,1fr)_minmax(0,2fr)] md:max-lg:items-start md:max-lg:gap-x-6'>
 				<div className='flex flex-col gap-3'>
 					<span className='flex items-baseline justify-between gap-3'>
-						<span className='text-[13px] font-semibold'>{credits_by === 'open' ? 'Faturas em aberto' : `Vencem em ${ format(new Date(month_year.year, month_year.month, 1), 'MMMM', { locale: ptBR }) }`}</span>
-						<span className='text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
+						<span className='whitespace-nowrap text-[13px] font-semibold'>{credits_by === 'open' ? 'Faturas em aberto' : `Vencem em ${ format(new Date(month_year.year, month_year.month, 1), 'MMMM', { locale: ptBR }) }`}</span>
+						<span className='shrink-0 whitespace-nowrap text-xs text-[#A9B6BF]'>{plural(invoice_cards.length, 'cartão', 'cartões')}</span>
 					</span>
 					<span className='text-[30px] font-semibold leading-none tracking-[-0.04em]'>{MoneyUtils.formatMoney(total)}</span>
 					{all_loaded && (
@@ -792,7 +796,8 @@ const TransactionList = () => {
 							)
 					)}
 				</div>
-				<div className='grid grid-cols-1 md:max-lg:grid-cols-2 md:max-lg:gap-x-4'>
+				{/* Tablet em pé: cartões em colunas de no mínimo 200px (com um cartão só, ele ocupa a largura toda). */}
+				<div className='grid grid-cols-1 md:max-lg:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] md:max-lg:gap-x-4'>
 					{invoice_cards.map((card) => (
 						<button
 							key={card.id}
