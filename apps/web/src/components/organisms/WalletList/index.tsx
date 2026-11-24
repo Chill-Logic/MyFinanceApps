@@ -267,7 +267,7 @@ const WalletList = () => {
 
 	const invitesBanner = invites.length > 0 && (
 		<Link
-			to='/wallets/invites'
+			to='/carteiras/convites'
 			className='pressable flex items-center gap-3 rounded-3xl border border-info/20 bg-info-soft px-4 py-3 lg:hidden'
 		>
 			<span className='flex -space-x-2'>
@@ -475,7 +475,7 @@ const WalletList = () => {
 				<h1 className='text-2xl font-bold tracking-[-0.03em] md:text-[28px]'>Carteiras</h1>
 				<div className='flex items-center gap-2'>
 					{invites.length > 0 && (
-						<Link to='/wallets/invites' className='pressable hidden h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:bg-accent lg:flex'>
+						<Link to='/carteiras/convites' className='pressable hidden h-11 items-center gap-2 rounded-full border border-border px-4 text-sm font-semibold transition-colors hover:bg-accent lg:flex'>
 							<Mail className='size-4' />
 							Convites recebidos
 							<span className='flex size-6 items-center justify-center rounded-full bg-info-soft text-xs font-bold text-info'>{invites.length}</span>

@@ -1307,7 +1307,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 							type='button'
 							onClick={() => {
 								onOpenChange(false);
-								navigate('/accounts');
+								navigate('/contas');
 							}}
 						>
 							Criar minha primeira conta
@@ -1435,7 +1435,7 @@ const TransactionFormDialog = ({ open, onOpenChange, transaction, duplicateFrom,
 										<button
 											type='button'
 											className='font-semibold underline'
-											onClick={() => { onOpenChange(false); navigate('/accounts'); }}
+											onClick={() => { onOpenChange(false); navigate('/contas'); }}
 										>
 											Contas &amp; Cartões
 										</button>{' '}
