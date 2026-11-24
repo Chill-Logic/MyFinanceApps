@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/termos", "destination": "/termos/index.html" },
+    { "source": "/privacidade", "destination": "/privacidade/index.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
