@@ -49,7 +49,7 @@ const SignUpPage = () => {
 			},
 			onError: () => {
 				toast.success('Conta criada! Entre com seu e-mail e senha.');
-				navigate('/auth/sign-in');
+				navigate('/entrar');
 			},
 		});
 	};
@@ -130,7 +130,7 @@ const SignUpPage = () => {
 			</p>
 
 			<p className='pt-1 text-center text-sm text-muted-foreground'>
-				Já tem conta? <AuthLink to='/auth/sign-in'>Entrar</AuthLink>
+				Já tem conta? <AuthLink to='/entrar'>Entrar</AuthLink>
 			</p>
 		</form>
 	);

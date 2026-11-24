@@ -1240,7 +1240,7 @@ const TransactionList = () => {
 								Crie uma conta ou um cartão em Contas &amp; Cartões para ver as transações aqui.
 							</span>
 						</div>
-						<Button type='button' variant='secondary' onClick={() => navigate('/accounts')}>
+						<Button type='button' variant='secondary' onClick={() => navigate('/contas')}>
 							Ir para Contas &amp; Cartões
 						</Button>
 					</div>

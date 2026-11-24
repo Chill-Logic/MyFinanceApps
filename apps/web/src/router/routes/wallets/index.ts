@@ -9,7 +9,7 @@ export const WalletsPaths: IPath[] = [
 	{
 		id: 'my_wallets',
 		display: 'Carteiras',
-		path: '/wallets',
+		path: '/carteiras',
 		element: MyWalletsPage,
 		template: DefaultTemplate,
 		isPrivate: true,
@@ -17,7 +17,7 @@ export const WalletsPaths: IPath[] = [
 	{
 		id: 'wallets_invites',
 		display: 'Convites',
-		path: '/wallets/invites',
+		path: '/carteiras/convites',
 		element: WalletsInvitesPage,
 		template: DefaultTemplate,
 		isPrivate: true,
