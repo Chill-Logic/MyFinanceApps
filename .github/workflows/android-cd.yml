@@ -1,7 +1,7 @@
 name: Android CD (Capacitor)
 
-# Gera o AAB do app Android (apps/web empacotado no Capacitor) e publica na faixa de TESTE INTERNO da
-# Google Play. Dispara quando um PR que mexeu no web, no shared ou nas dependências é MESCLADO na main
+# Gera o AAB do app Android (o web empacotado no Capacitor) e publica na faixa de TESTE INTERNO da
+# Google Play. Dispara quando um PR que mexeu no app (código, Android ou dependências) é MESCLADO na main
 # (evento pull_request, nunca push solto), ou manualmente (workflow_dispatch).
 #
 # Não existe OTA: cada merge vira um binário novo na faixa interna (sem revisão do Google, chega em
@@ -23,8 +23,15 @@ on:
     types: [closed]
     branches: [main]
     paths:
-      - "apps/web/**"
-      - "packages/shared/**"
+      - "src/**"
+      - "public/**"
+      - "android/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "capacitor.config.ts"
+      - "tailwind.config.ts"
+      - "postcss.config.js"
+      - "tsconfig*.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/android-cd.yml"
@@ -83,15 +90,15 @@ jobs:
           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
           VITE_WEB_URL: ${{ vars.VITE_WEB_URL }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-        run: printf 'VITE_API_URL=%s\nVITE_API_KEY=%s\nVITE_WEB_URL=%s\nVITE_GOOGLE_CLIENT_ID=%s\n' "$VITE_API_URL" "$VITE_API_KEY" "$VITE_WEB_URL" "$VITE_GOOGLE_CLIENT_ID" > apps/web/.env
+        run: printf 'VITE_API_URL=%s\nVITE_API_KEY=%s\nVITE_WEB_URL=%s\nVITE_GOOGLE_CLIENT_ID=%s\n' "$VITE_API_URL" "$VITE_API_KEY" "$VITE_WEB_URL" "$VITE_GOOGLE_CLIENT_ID" > .env
 
       - name: Calcula a versão (maior versionCode na Play + 1)
         id: version
         run: |
           CODE=$(node .github/scripts/play-publish.mjs next-version-code "$PACKAGE_NAME")
-          # versionName = "<major.minor do apps/web/package.json>.<versionCode>" (ex.: 0.3.101). O webapp mostra o
+          # versionName = "<major.minor do package.json>.<versionCode>" (ex.: 0.3.101). O webapp mostra o
           # mesmo prefixo no "Sobre". Suba o `version` do package.json em marcos maiores.
-          PREFIX=$(node -p "require('./apps/web/package.json').version.split('.').slice(0, 2).join('.')")
+          PREFIX=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
           NAME="$PREFIX.$CODE"
           echo "ANDROID_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
           echo "ANDROID_VERSION_NAME=$NAME" >> "$GITHUB_ENV"
@@ -100,10 +107,10 @@ jobs:
           echo "Versão: $NAME ($CODE)"
 
       - name: Build web + sync Capacitor
-        run: npm run cap:sync --workspace=@myfinance/web
+        run: npm run cap:sync
 
       - name: Build do AAB assinado
-        working-directory: apps/web/android
+        working-directory: android
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -118,12 +125,12 @@ jobs:
         run: |
           NOTES="${PR_TITLE:-Atualização do MyFinance}"
           node .github/scripts/play-publish.mjs upload "$PACKAGE_NAME" \
-            apps/web/android/app/build/outputs/bundle/release/app-release.aab \
+            android/app/build/outputs/bundle/release/app-release.aab \
             internal "${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})" "$NOTES"
 
       - name: Guarda o AAB como artefato
         uses: actions/upload-artifact@v4
         with:
           name: app-release-${{ steps.version.outputs.code }}
-          path: apps/web/android/app/build/outputs/bundle/release/app-release.aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
