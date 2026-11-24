@@ -205,7 +205,7 @@ const NavMenu = ({ onClose }: IProps) => {
 			{/* Rodapé */}
 			<div className='flex items-center gap-2 border-t border-foreground/10 pt-4'>
 				<NavLink
-					to='/settings'
+					to='/configuracoes'
 					end
 					onClick={() => setTimeout(onClose, 200)}
 					className={({ isActive }) => cn('pressable flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full px-4 text-sm font-semibold', GLASS_TILE, isActive && 'ring-1 ring-primary/60')}
