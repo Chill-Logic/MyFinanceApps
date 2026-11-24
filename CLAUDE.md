@@ -917,6 +917,11 @@ em 2026-11-24: o `apps/mobile` (RN/Expo), o `mobile-cd.yml` e os secrets do Expo
   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `VITE_API_URL`, `VITE_API_KEY`;
   variável `VITE_WEB_URL`. O `build.gradle` lê `ANDROID_VERSION_CODE`/`ANDROID_VERSION_NAME` (local: 100/0.3.0).
   Variável `VITE_GOOGLE_CLIENT_ID` também, quando o login com o Google estiver configurado.
+- **Avisos no Discord** (secret `DISCORD_WEBHOOK_URL`): o `android-cd.yml` avisa no fim (publicado/falhou/cancelado,
+  com a versão). O web avisa pelo `web-deploy-notify.yml`, que reage ao STATUS que a Vercel põe no commit
+  (`Vercel – my-finance-ui-production` na main, `Vercel – my-finance-ui-stg` na staging) — os projetos novos da Vercel
+  não criam "deployments" no GitHub, então o antigo gatilho `deployment_status` parou de disparar em 2026-11-24.
+  Renomeou um projeto na Vercel? Ajuste o mapa do passo "Decide se notifica".
 - **Aviso de atualização** (`organisms/AppUpdatePrompt` + `services/app-update`, só no nativo): a Play
   (plugin `@capawesome/capacitor-app-update`, In-App Updates API) diz se há versão nova → aviso dispensável, uma
   vez por versão ("Depois" grava a versão em `localStorage`); o `public/app-version.json`
