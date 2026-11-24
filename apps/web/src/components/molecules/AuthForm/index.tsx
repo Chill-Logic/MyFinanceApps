@@ -105,7 +105,7 @@ export const AuthSubmit = ({ children, isLoading, disabled }: { children: ReactN
 
 export const AuthBackLink = () => (
 	<div className='flex justify-center pt-3.5 text-sm'>
-		<Link to='/auth/sign-in' className='pressable inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground'>
+		<Link to='/entrar' className='pressable inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground'>
 			<ArrowLeft className='size-[15px]' strokeWidth={2.2} />
 			Voltar para o login
 		</Link>
