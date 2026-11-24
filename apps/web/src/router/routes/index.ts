@@ -4,13 +4,15 @@ import { IPath } from '@/types';
 import { AuthPaths } from './auth';
 import { DefaultPaths } from './default';
 import { FinancesPaths } from './finances';
+import { LegalPaths } from './legal';
 import { WalletsPaths } from './wallets';
 
 export const Paths: IPath[] = [
 	...DefaultPaths,
 	...AuthPaths,
 	...WalletsPaths,
-	...FinancesPaths
+	...FinancesPaths,
+	...LegalPaths
 ];
 
 export const getNavigationPaths = (): Omit<IPath, 'element' | 'template'>[] => {

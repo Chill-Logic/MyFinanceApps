@@ -83,6 +83,11 @@ const SignInPage = () => {
 			<p className='hidden pt-2 text-center text-sm text-muted-foreground md:block'>
 				Primeira vez aqui? <AuthLink to='/auth/sign-up'>Criar conta</AuthLink>
 			</p>
+			{/* O "Continuar com o Google" também cria conta: por isso o aviso fica no Entrar também. */}
+			<p className='px-3 pt-1 text-center text-xs leading-normal text-muted-foreground'>
+				Ao continuar, você concorda com os <Link to='/termos' className='font-semibold'>Termos de Uso</Link> e
+				a <Link to='/privacidade' className='font-semibold'>Política de Privacidade</Link>.
+			</p>
 		</form>
 	);
 };

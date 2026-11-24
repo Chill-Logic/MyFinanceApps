@@ -7,6 +7,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MyFinance</title>
   <!--
+    Metadados de compartilhamento (WhatsApp, Telegram, Google…). Quem monta a prévia NÃO roda o JavaScript, então
+    eles precisam estar no HTML. As páginas públicas (/termos, /privacidade) ganham uma cópia deste arquivo com título,
+    descrição e endereço próprios, gerada no build pelo plugin `publicPagesMeta` do vite.config.ts.
+  -->
+  <meta name="description" content="Organize hoje, planeje o mês que vem: contas, cartões e faturas num só lugar, com a projeção do seu saldo." />
+  <meta name="theme-color" content="#082435" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="MyFinance" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="MyFinance" />
+  <meta property="og:description" content="Organize hoje, planeje o mês que vem: contas, cartões e faturas num só lugar, com a projeção do seu saldo." />
+  <meta property="og:url" content="https://myfinance.app.br/" />
+  <meta property="og:image" content="https://myfinance.app.br/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="MyFinance: organize hoje, planeje o mês que vem." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!--
     Aplica o tema antes do React montar, para não piscar o tema errado no carregamento.
     Mesma regra do ThemeProvider (src/context/theme.tsx): preferência salva, senão o tema do sistema.
   -->

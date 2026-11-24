@@ -1,87 +1,71 @@
 # MyFinanceApps
 
-Monorepo com o app mobile e o webapp do MyFinance, compartilhando tipos, contratos de API, rotas e
-lógica de formatação do mesmo backend.
+O app do MyFinance: um app web em Vite + React que roda no navegador (Vercel) e, empacotado no Capacitor,
+é o app Android da Play Store. Monorepo com o app e o pacote compartilhado de contrato com o backend.
 
 ## Estrutura
 
 ```
 MyFinanceApps/
 ├── apps/
-│   ├── mobile/   # React Native + Expo (SDK 57) — ver apps/mobile/README.md
-│   └── web/      # Vite + React — ver apps/web/README.md
+│   └── web/      # Vite + React + Capacitor (Android) — ver apps/web/README.md
 └── packages/
     └── shared/   # @myfinance/shared — models, contratos de API, rotas, formatters e design tokens
 ```
 
-- **apps/mobile**: app React Native, migrado pro Expo (SDK 57, Continuous Native Generation). Histórico
-  importado de `my-finance-app`.
-- **apps/web**: aplicação web em Vite/React. Histórico importado de `my-finance-webapp`.
-- **packages/shared**: pacote `@myfinance/shared`, consumido pelos dois apps via workspace (dependência
-  `"*"` no `package.json`, sem etapa de build — Metro e Vite consomem o TypeScript fonte diretamente).
-  Contém:
-  - `models.ts` — entidades do domínio (`TUser`, `TTransaction`, `TWallet`, `TInvite`)
+- **apps/web**: o app. No navegador e no Android (pasta `apps/web/android`, versionada). Histórico importado
+  de `my-finance-webapp`.
+- **packages/shared**: pacote `@myfinance/shared`, consumido via workspace (dependência `"*"` no
+  `package.json`, sem etapa de build — o Vite consome o TypeScript fonte diretamente). Contém:
+  - `models.ts` — entidades do domínio (`TUser`, `TTransaction`, `TWallet`, `TInvite`...)
   - `api.ts` — contratos de request/response da API (`TMutationParams`)
   - `routes.ts` — endpoints do backend (`API_ROUTES`)
   - `queryKeys.ts` — chaves de cache do React Query (`QUERY_KEYS`)
   - `fetchers/` — funções puras `(axios, params?) => Promise<T>`, uma por operação, usadas pelos hooks
-    dos dois apps
-  - `utils/` — formatação de data/dinheiro/texto (`DateUtils`, `MoneyUtils`, `TextUtils`)
-  - `tokens.ts` — design tokens da marca (`colors`, `spacing`, `borderRadius`, `fontSize`, `fontWeight`,
-    `Theme.light`/`Theme.dark`)
+  - `utils/` — formatação e regras puras (`DateUtils`, `MoneyUtils`, `TransactionUtils`, `InvoiceUtils`...)
+  - `tokens.ts` — design tokens da marca
+
+Até 2026-11 existia também um app em React Native (`apps/mobile`); ele foi substituído pelo web no Capacitor e
+apagado.
 
 Qualquer tipo, rota, fetcher, formatter ou token de design deve ser adicionado/alterado em
-`packages/shared`, nunca duplicado em cada app.
+`packages/shared`, não no app.
 
 ## Convenções
 
 - Documentação (READMEs, `CLAUDE.md`) e mensagens de commit em português.
 - npm workspaces puro — sem pnpm/yarn, sem Turborepo.
-- Nunca importar libs de terceiro (ex: `date-fns`) diretamente nos apps — sempre pelos helpers de
+- Nunca importar libs de terceiro (ex: `date-fns`) diretamente no app quando houver helper em
   `packages/shared`.
 
 ## Requisitos
 
-- Node.js >= 22.11 (exigido pelo `apps/mobile`, alinhado ao Expo SDK 57)
+- Node.js >= 22 (o Capacitor 8 exige; o dev do web roda também no 20)
 - npm (workspaces nativos)
-- Pra rodar o mobile no Android: Android Studio/SDK instalado, com `ANDROID_HOME` configurado ou
-  `android/local.properties` criado (ver `apps/mobile/README.md`)
-- Pra rodar o mobile no iOS: só é possível num Mac (CocoaPods + Xcode)
+- Pra gerar o app Android: Android Studio/SDK, com `ANDROID_HOME` configurado ou
+  `apps/web/android/local.properties` criado
 
 ## Instalação
 
-Instale as dependências de todos os workspaces a partir da raiz:
+Instale as dependências a partir da raiz:
 
 ```bash
 npm install
 ```
 
-## Rodando cada app
+## Rodando
 
-A raiz do monorepo tem aliases prontos pra cada app, pra não precisar lembrar da flag `--workspace`:
+A raiz tem aliases prontos, pra não precisar lembrar da flag `--workspace`:
 
 ```bash
-# mobile
-npm run mobile:start        # expo start --clear
-npm run mobile:android      # expo run:android — builda nativo, instala e abre
-npm run mobile:ios
-npm run mobile:lint
-npm run mobile:test
-npm run mobile:typecheck
-npm run mobile:build         # eas build de produção
-npm run mobile:build:submit  # eas build + envio automático pro teste interno da Play Store
-
-# web
-npm run webapp:dev
-npm run webapp:build
+npm run webapp:dev            # servidor de dev do Vite
+npm run webapp:build          # tsc + vite build
 npm run webapp:lint
-npm run webapp:test
 npm run webapp:storybook
+npm run webapp:cap:sync       # build + cap sync android
+npm run webapp:android        # sync + abre o Android Studio
+npm run webapp:android:bundle # sync + AAB de release assinado
 ```
 
-Não existe script de build/lint/test genérico na raiz que rode os dois apps de uma vez — use sempre um
-dos aliases acima, ou entre em `apps/mobile` / `apps/web` e rode o script diretamente.
-
-Detalhes específicos de cada app (variáveis de ambiente, build nativo, assinatura de release, etc.)
-estão nos READMEs de `apps/mobile` e `apps/web`. Detalhes de arquitetura mais profundos (pra quem vai
-mexer no código, não só rodar) estão no `CLAUDE.md` na raiz.
+Variáveis de ambiente, assinatura de release e o CD do Android estão no `apps/web/README.md` e no
+`CLAUDE.md` da raiz, que também tem os detalhes de arquitetura.
