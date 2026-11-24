@@ -1104,9 +1104,14 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
     `/auth/reset-password?token=` continua valendo). **Continuar com o Google** (2026-11-24, backend #16,
     `POST /auth/google` com o ID token; a API acha a conta pelo Google, vincula pelo e-mail ou cria): botão do Google
-    Identity Services (`molecules/GoogleSignInButton`, script carregado só ali) em Entrar e Criar conta, só no NAVEGADOR
-    e só com `VITE_GOOGLE_CLIENT_ID`. No app (Capacitor) o Google bloqueia login em WebView — precisa de plugin nativo
-    (ainda não feito). O backend precisa do mesmo client ID em `GOOGLE_CLIENT_IDS`.
+    Identity Services (`molecules/GoogleSignInButton`, script carregado só ali) em Entrar e Criar conta, só com
+    `VITE_GOOGLE_CLIENT_ID` (o client OAuth "Web"; sem ele nada aparece). No app o Google bloqueia login em WebView:
+    lá vai pelo plugin `@capgo/capacitor-social-login@8.7.7` (Credential Manager), com botão nosso e o MESMO client
+    "Web" como `webClientId` (é o `aud` do ID token). No Google Cloud, no mesmo projeto, também precisa de um client
+    "Android" com o package e o SHA-1 de cada chave que assina (debug, upload e Play App Signing). `capacitor.config.ts`
+    empacota só o Google (`SocialLogin.providers`); Apple fica desligado até existir iOS — lá a App Store exige "Entrar
+    com a Apple" junto, e o backend ainda não valida token da Apple. O CD lê `VITE_GOOGLE_CLIENT_ID` das Variables.
+    O backend precisa do client "Web" em `GOOGLE_CLIENT_IDS`.
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só

@@ -22,6 +22,21 @@ const config: CapacitorConfig = {
 			insetsHandling: 'css',
 			initialViewportFitValueHint: 'cover',
 		},
+		/*
+		 * Login com o Google no app (`@capgo/capacitor-social-login`): no Android usa o Credential Manager — o login
+		 * do Google dentro de WebView é bloqueado pelo próprio Google. Só o Google é empacotado; Facebook e Twitter
+		 * ficam fora do APK. Apple fica desligado até existir app iOS (lá a App Store EXIGE "Entrar com a Apple"
+		 * quando há login por terceiros, e o backend ainda não valida token da Apple).
+		 */
+		SocialLogin: {
+			providers: {
+				google: true,
+				facebook: false,
+				apple: false,
+				twitter: false,
+			},
+			logLevel: 1,
+		},
 	},
 };
 
