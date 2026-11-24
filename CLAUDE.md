@@ -518,6 +518,19 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     entra sozinho logo depois (a API não devolve token, então chama o sign-in com a mesma senha); "Esqueci a senha"
     fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
     `/auth/reset-password?token=` continua valendo).
+  - **Termos de Uso e Política de Privacidade (2026-11-24, mockup v3 "Privacy"/"Terms")**: `/termos` e `/privacidade`,
+    públicas (sem `isPrivate` nem `isGuestOnly`: a Play, o Google e quem recebe o link abrem sem conta), no template
+    `Blank` (a página desenha o próprio cabeçalho). Uma peça só, `organisms/LegalDocument`: celular/tablet = cabeçalho
+    de vidro (voltar + logo; sem histórico, o voltar vai pra `/`), "Nesta página" e o texto; ≥1024 = barra com "Abrir o
+    MyFinance", sumário fixo com a seção visível destacada e coluna de leitura. Textos em `util/legalDocuments.ts`
+    (versão 1.0). Trechos `[[...]]` são dados que faltam (responsável, e-mail, provedor de e-mail, prazo dos backups,
+    página de exclusão, data): o valor vem de `LEGAL_INFO`; enquanto for `null`, aparece destacado em amarelo.
+    Mudou o texto de forma relevante? Suba a versão aqui e no backend (issue #26: versão vigente + aceite, que vai pedir
+    o aceite de novo a quem já tem conta; o aviso "Atualizamos a Política" já está no mockup, `DlgPolicy`). Entradas:
+    aviso de aceite no cadastro, aviso no Entrar (o Google também cria conta) e `molecules/LegalLinks` nas
+    Configurações (abaixo do "Sobre"). App é "de organização e planejamento financeiro", projeto Chillogic, sem empresa
+    constituída; está "em fase de testes" e pode passar a cobrar (aviso de 30 dias). A importação bancária NÃO entra nos
+    textos enquanto não estiver liberada pra todos.
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só

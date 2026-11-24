@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { queryClient } from '@/services/query-client';
 
 import Button from '@/components/atoms/Button';
+import LegalLinks from '@/components/molecules/LegalLinks';
 import { LiquidBlob, useLiquidBlob } from '@/components/molecules/NavKit';
 import SegmentedControl, { type TSegment } from '@/components/molecules/SegmentedControl';
 import AboutInfo, { useShortVersions } from '@/components/organisms/AboutInfo';
@@ -310,7 +311,8 @@ const SettingsContent = () => {
 						{row('main_wallet', Star, 'Carteira principal', main_wallet?.name ?? '—')}
 						{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot || undefined)}
 						{row('bank', Landmark, 'Integração bancária', me?.pluggy_enabled ? 'Ativa na sua conta' : 'Não liberada')}
-						{row('about', Info, 'Sobre', 'Versões do app e da API')}
+						{row('about', Info, 'Sobre', 'Versões, termos e privacidade')}
+						<LegalLinks className='px-3 pt-2 text-xs text-muted-foreground' />
 					</nav>
 					<div key={active} className={cn('min-w-0', direction && ENTER_SECTION)}>{sectionContent(active)}</div>
 				</div>
@@ -348,6 +350,7 @@ const SettingsContent = () => {
 					<span className='font-bold'>Sobre</span>
 					<AboutInfo inline className='ml-auto' />
 				</section>
+				<LegalLinks className='justify-center text-xs text-muted-foreground' />
 			</div>
 		);
 	}
@@ -399,6 +402,7 @@ const SettingsContent = () => {
 			<button type='button' onClick={() => setSection('about')} className='flex items-center justify-center gap-1.5 text-xs text-muted-foreground'>
 				<Info className='size-3.5' />Sobre · {versions.label.toLowerCase()} <span className='font-mono'>{versions.app}</span> · API <span className='font-mono'>{versions.api}</span>
 			</button>
+			<LegalLinks className='-mt-2 justify-center text-xs text-muted-foreground' />
 		</div>
 	);
 };
