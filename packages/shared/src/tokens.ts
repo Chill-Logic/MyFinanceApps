@@ -80,34 +80,12 @@ export const borderRadius = {
 	'circular': '1000px',
 };
 
-/**
- * Papéis semânticos por tema, derivados da paleta acima. Mapeamento confirmado a partir do uso real
- * das classes `dark:` no webapp (não dos nomes dos tokens, que são contraintuitivos: "stroke-dark" é
- * o stroke do tema claro, por exemplo).
- */
-export const Theme = {
-	light: {
-		text: colors['text-dark'],
-		background: colors['background-light'],
-		border: colors['stroke-dark'],
-		placeholder: colors['basic-placeholder'],
-		error: colors['feedback-danger-default'],
-	},
-	dark: {
-		text: colors['text-default'],
-		background: colors['background-default'],
-		border: colors['stroke-default'],
-		placeholder: colors['basic-placeholder'],
-		error: colors['feedback-danger-default'],
-	},
-} as const;
-
 /*
  * ─── Redesign (2026-11) ──────────────────────────────────────────────────────────────────────
  *
  * Paleta e papéis semânticos do redesign "moderno com a marca" (canvas "MyFinance — redesign").
- * `colors`/`Theme` acima continuam existindo porque o mobile ainda não recebeu o redesign — quando
- * receber, ele passa a ler `brandTheme` e os dois acima podem ser aposentados.
+ * `colors` acima é a paleta antiga: o web ainda a usa como classes Tailwind (`bg-background-light`...), mas
+ * código novo deve usar os papéis do redesign (variáveis CSS do `index.css`).
  *
  * O web consome estes valores convertidos para HSL nas variáveis CSS de
  * `apps/web/src/styles/index.css` (`:root` = claro, `.dark` = escuro). Os dois lados não se
