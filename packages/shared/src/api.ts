@@ -18,6 +18,9 @@ export type TSignInResponse = {
 
 export type TSignUpResponse = TMessageResponse;
 
+/* `created` = a conta acabou de ser criada por este login (primeira vez com o Google). */
+export type TGoogleSignInResponse = TSignInResponse & { created: boolean };
+
 export type TSignInBody = {
 	email: string;
 	password: string;
@@ -347,9 +350,36 @@ export type TEnumOption = {
 export type TEnumOptionsResponse = TEnumOption[];
 
 export type TVersionResponse = {
+	/* Versão semântica da API (arquivo VERSION do backend, sobe a cada release). */
+	version: string;
 	hash: string;
 	date: string;
 	branch: string;
+	/* Quando foi o deploy (ISO). `'unknown'` onde o deploy não grava. */
+	deployed_at: string;
+};
+
+/*
+ * Sugestão de descrição (`GET /transactions/descriptions`): descrições já usadas na carteira, agrupadas sem
+ * acento/caixa/espaços repetidos (`description` = a grafia mais usada), com os dados da última ocorrência em `last`.
+ */
+export type TDescriptionSuggestion = {
+	description: string;
+	count: number;
+	last_used_at: string;
+	last: {
+		value: number;
+		kind: TTransactionKind;
+		source_type: TTransactionSourceType;
+		source_id: string;
+		credit_card_id: string | null;
+		destination_account_id: string | null;
+	};
+};
+
+/* Saiu da carteira: se era a principal, o backend escolheu outra (ids `null` = ficou sem carteira principal). */
+export type TLeaveWalletResponse = TMessageResponse & {
+	data: { main_wallet_id: string | null; main_user_wallet_id: string | null };
 };
 
 /* `mcp_url` = URL do servidor MCP para colar no Claude (Conectores → Adicionar conector personalizado). */

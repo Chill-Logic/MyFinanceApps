@@ -9,6 +9,7 @@ import useToast from '@/hooks/useToast';
 import { useCurrentUserContext } from '@/context/current_user';
 
 import { AuthField, AuthHeader, AuthLink, AuthSubmit } from '@/components/molecules/AuthForm';
+import GoogleSignInButton from '@/components/molecules/GoogleSignInButton';
 
 const INITIAL_VALUES = { email: '', password: '' };
 
@@ -71,6 +72,8 @@ const SignInPage = () => {
 			/>
 
 			<AuthSubmit isLoading={is_sign_in_pending}>Entrar</AuthSubmit>
+
+			<GoogleSignInButton />
 
 			{/* Celular: os dois atalhos numa linha só, embaixo do botão (como no mockup). */}
 			<div className='flex justify-between px-1 pt-1 text-sm md:hidden'>

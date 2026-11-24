@@ -10,6 +10,7 @@ import useToast from '@/hooks/useToast';
 import { useCurrentUserContext } from '@/context/current_user';
 
 import { AUTH_MAX_PASSWORD, AuthField, AuthHeader, AuthLink, AuthSubmit, passwordProblem } from '@/components/molecules/AuthForm';
+import GoogleSignInButton from '@/components/molecules/GoogleSignInButton';
 
 type TSignUpForm = {
 	name: string;
@@ -120,6 +121,8 @@ const SignUpPage = () => {
 			/>
 
 			<AuthSubmit isLoading={is_pending}>Criar conta</AuthSubmit>
+
+			<GoogleSignInButton />
 
 			<p className='pt-2 text-center text-sm text-muted-foreground'>
 				Já tem conta? <AuthLink to='/auth/sign-in'>Entrar</AuthLink>

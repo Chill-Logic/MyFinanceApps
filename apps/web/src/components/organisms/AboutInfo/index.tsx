@@ -7,6 +7,8 @@ import { useVersion } from '@/hooks/api/core/useVersion';
 import { cn } from '@/lib/utils';
 import { is_native } from '@/services/native';
 
+import { type TVersionResponse } from '@/types';
+
 /*
  * Prefixo de versão ("0.3") = major.minor do `version` do package.json do web. É a fonte única: o CD do Android
  * (`android-cd.yml`) lê o mesmo campo pra montar o versionName do app ("0.3.<versionCode>"). Suba ali em marcos.
@@ -38,6 +40,20 @@ const formatApiDate = (raw?: string) => {
 const shortHash = (hash?: string) => (hash ? hash.slice(0, 7) : '…');
 
 /*
+ * API: o número de versão (arquivo VERSION do backend) e, no detalhe, branch · commit · quando subiu. O "quando
+ * subiu" é o `deployed_at` (gravado pelo deploy); onde ele não existe (`unknown`), a data do commit.
+ */
+const apiVersionView = (api?: TVersionResponse) => {
+	const has_version = Boolean(api?.version && api.version !== 'unknown');
+	const deployed = api?.deployed_at && api.deployed_at !== 'unknown' ? formatBuildDate(api.deployed_at) : formatApiDate(api?.date);
+	return {
+		main: has_version ? api!.version : `${ api?.branch ?? '…' } · ${ shortHash(api?.hash) }`,
+		short: has_version ? api!.version : shortHash(api?.hash),
+		detail: has_version ? `${ api?.branch ?? '…' } · ${ shortHash(api?.hash) } · ${ deployed }` : deployed,
+	};
+};
+
+/*
  * Versão do que está rodando. No app da loja: o versionName/versionCode do Android (`@capacitor/app`), o mesmo
  * número que a Play mostra (ex.: 0.3.105, build 105). No navegador: o prefixo + a data do build — o webapp não
  * tem número próprio (a Vercel publica a cada merge).
@@ -66,20 +82,21 @@ export const useAppVersion = () => {
 	};
 };
 
-/* Versão curta do app/webapp e commit da API (linha "Sobre" do celular). */
+/* Versão curta do app/webapp e da API (linha "Sobre" do celular). */
 export const useShortVersions = () => {
 	const app = useAppVersion();
 	const { data: api_version } = useVersion();
-	return { label: app.label, app: app.short, api: shortHash(api_version?.hash) };
+	return { label: app.label, app: app.short, api: apiVersionView(api_version).short };
 };
 
 /**
- * Versão do app/webapp e da API (GET /core/version — a API não tem número de versão, só branch, commit e data).
+ * Versão do app/webapp e da API (GET /core/version: número de versão, branch, commit e data do deploy).
  * `inline` = uma linha só (tablet em pé); senão, dois blocos.
  */
 const AboutInfo = ({ inline = false, className }: { inline?: boolean; className?: string }) => {
 	const app = useAppVersion();
 	const { data: api_version } = useVersion();
+	const api = apiVersionView(api_version);
 
 	const block = (label: string, main: string, detail: string) => (
 		<span className={cn('flex text-sm text-muted-foreground', inline ? 'items-baseline gap-1.5' : 'flex-col gap-0.5')}>
@@ -94,7 +111,7 @@ const AboutInfo = ({ inline = false, className }: { inline?: boolean; className?
 	return (
 		<div className={cn('flex gap-6', inline ? 'flex-wrap items-center justify-end' : 'flex-col', className)}>
 			{block(app.label, app.version, app.detail)}
-			{block('API', `${ api_version?.branch ?? '…' } · ${ shortHash(api_version?.hash) }`, formatApiDate(api_version?.date))}
+			{block('API', api.main, api.detail)}
 		</div>
 	);
 };

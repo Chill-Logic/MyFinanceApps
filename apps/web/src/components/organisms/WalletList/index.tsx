@@ -9,6 +9,7 @@ import {
 	Eye,
 	Landmark,
 	Link2,
+	LogOut,
 	Mail,
 	MoreVertical,
 	Pencil,
@@ -27,6 +28,7 @@ import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
 import { useDeleteWallet } from '@/hooks/api/wallets/useDeleteWallet';
 import { useGetMainWallet } from '@/hooks/api/wallets/useGetMainWallet';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
+import { useLeaveWallet } from '@/hooks/api/wallets/useLeaveWallet';
 import useNavItems from '@/hooks/useNavItems';
 import useToast from '@/hooks/useToast';
 
@@ -88,6 +90,7 @@ const WalletList = () => {
 	const { data: invites_data } = useListInvites();
 	const { mutate: deleteWalletMutation, isPending: is_delete_pending } = useDeleteWallet();
 	const { mutate: updateCurrentUserMutation } = useUpdateCurrentUser();
+	const { mutate: leaveWalletMutation, isPending: is_leave_pending } = useLeaveWallet();
 
 	const me = current_user.data?.id || '';
 	const { data: main_wallet } = useGetMainWallet({ enabled: Boolean(me), params: { user_id: me } });
@@ -95,6 +98,7 @@ const WalletList = () => {
 	const [ editing_wallet, setEditingWallet ] = useState<TWallet | null>(null);
 	const [ inviting_wallet, setInvitingWallet ] = useState<TWallet | null>(null);
 	const [ deleting_wallet, setDeletingWallet ] = useState<TWallet | null>(null);
+	const [ leaving_wallet, setLeavingWallet ] = useState<TWallet | null>(null);
 	const [ setting_main_id, setSettingMainId ] = useState<string | null>(null);
 
 	/* Celular: "Nova carteira" é o "+" da barra flutuante (o do cabeçalho some). */
@@ -145,6 +149,27 @@ const WalletList = () => {
 		});
 	};
 
+	/*
+	 * Sair de uma carteira compartilhada (só membro; quem administra exclui). Se era a principal, o backend escolhe
+	 * outra. Se era a que está na tela, volta pra principal (o contexto recarrega ao ficar sem carteira).
+	 */
+	const handleConfirmLeave = () => {
+		if (!leaving_wallet) return;
+
+		leaveWalletMutation({
+			id: leaving_wallet.id,
+			onSuccess: (data) => {
+				toast.success(data.message || 'Você saiu da carteira');
+				if (user_wallet.data?.id === leaving_wallet.id) setUserWallet({ data: null });
+				setLeavingWallet(null);
+			},
+			onError: (error) => {
+				toast.error(getApiErrorMessage(error, 'Não foi possível sair da carteira'));
+				setLeavingWallet(null);
+			},
+		});
+	};
+
 	/* PATCH /users/me com main_wallet_id; vale pra qualquer carteira acessível. */
 	const handleSetMain = (wallet: TWallet) => {
 		setSettingMainId(wallet.id);
@@ -171,7 +196,6 @@ const WalletList = () => {
 		const is_owner = wallet.owner_id === me;
 		const is_main = main_wallet?.id === wallet.id;
 		const is_active = wallet.id === active?.id;
-		if (is_main && !is_owner && is_active) return null;
 
 		return (
 			<DropdownMenu>
@@ -216,6 +240,15 @@ const WalletList = () => {
 							<DropdownMenuItem onClick={() => setDeletingWallet(wallet)} className='text-destructive focus:text-destructive'>
 								<Trash2 className='mr-2 size-4' />
 								Excluir carteira
+							</DropdownMenuItem>
+						</>
+					)}
+					{!is_owner && (
+						<>
+							{(!is_active || !is_main) && <DropdownMenuSeparator />}
+							<DropdownMenuItem onClick={() => setLeavingWallet(wallet)} className='text-destructive focus:text-destructive'>
+								<LogOut className='mr-2 size-4' />
+								Sair da carteira
 							</DropdownMenuItem>
 						</>
 					)}
@@ -479,7 +512,7 @@ const WalletList = () => {
 					<section className='flex min-w-0 flex-col gap-3'>
 						<div className='flex items-baseline justify-between gap-3'>
 							<h2 className='font-bold'>Outras carteiras <span className='font-normal text-muted-foreground'>· {others.length}</span></h2>
-							<span className='hidden text-xs text-muted-foreground md:block'>Editar, convidar e excluir ficam com quem administra</span>
+							<span className='hidden text-xs text-muted-foreground md:block'>Editar, convidar e excluir ficam com quem administra; quem é membro pode sair</span>
 						</div>
 
 						{others.length > 0 && (
@@ -555,6 +588,53 @@ const WalletList = () => {
 							Excluir carteira
 						</Button>
 						<Button type='button' variant='outline' disabled={is_delete_pending} onClick={() => setDeletingWallet(null)} className='h-12 md:flex-1'>
+							Cancelar
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/*
+			 * Sair: o que muda pra quem sai (deixa de ver) e o que fica (o que lançou continua na carteira). Mesmo casco
+			 * da confirmação de excluir — folha no celular, diálogo do tablet em diante.
+			 */}
+			<Dialog open={Boolean(leaving_wallet)} onOpenChange={(open) => !open && !is_leave_pending && setLeavingWallet(null)}>
+				<DialogContent
+					onOpenAutoFocus={(event) => event.preventDefault()}
+					className={cn(
+						'md:max-w-[460px]',
+						'max-md:bottom-0 max-md:top-auto max-md:w-full max-md:max-w-none max-md:translate-y-0 max-md:rounded-b-none max-md:rounded-t-[28px] max-md:border-x-0 max-md:border-b-0 max-md:pb-[max(1.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px)))]',
+						'max-md:data-[state=open]:slide-in-from-bottom-8 max-md:data-[state=open]:zoom-in-100'
+					)}
+				>
+					<span aria-hidden='true' className='mx-auto -mt-2 h-1 w-10 rounded-full bg-border md:hidden' />
+					<span className='flex size-12 items-center justify-center rounded-2xl bg-danger-soft text-destructive'><LogOut className='size-5' /></span>
+					<div className='flex flex-col gap-1'>
+						<DialogTitle className='text-xl font-bold tracking-[-0.02em]'>Sair de “{leaving_wallet?.name}”?</DialogTitle>
+						<DialogDescription>Você deixa de ver esta carteira e tudo o que está nela.</DialogDescription>
+					</div>
+					<ul className='flex flex-col divide-y divide-border rounded-2xl border border-border text-sm'>
+						<li className='flex items-center gap-3 px-4 py-3'>
+							<span className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary'><Landmark className='size-4' /></span>
+							O que você lançou continua na carteira
+						</li>
+						<li className='flex items-center gap-3 px-4 py-3'>
+							<span className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary'><Link2 className='size-4' /></span>
+							Se você conectou um banco a ela, ele para de atualizar aqui
+						</li>
+						{leaving_wallet && main_wallet?.id === leaving_wallet.id && (
+							<li className='flex items-center gap-3 px-4 py-3'>
+								<span className='flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary'><Star className='size-4' /></span>
+								Ela é sua principal: outra carteira passa a ser
+							</li>
+						)}
+					</ul>
+					<p className='text-sm text-muted-foreground'>Para voltar, quem administra precisa te convidar de novo.</p>
+					<div className='flex flex-col gap-2 md:flex-row-reverse'>
+						<Button type='button' variant='destructive' isLoading={is_leave_pending} onClick={handleConfirmLeave} className='h-12 font-bold md:flex-1'>
+							Sair da carteira
+						</Button>
+						<Button type='button' variant='outline' disabled={is_leave_pending} onClick={() => setLeavingWallet(null)} className='h-12 md:flex-1'>
 							Cancelar
 						</Button>
 					</div>

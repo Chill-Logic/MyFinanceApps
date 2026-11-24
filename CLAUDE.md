@@ -1058,7 +1058,9 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     tela de antes das Configurações. No desktop a troca no menu usa `replace` (é aba, não navegação).
     "Sobre": no app, a versão da loja (`App.getInfo()` do `@capacitor/app`: 0.3.105, build 105); no navegador,
     `0.3` + data do build (`__APP_BUILD_DATE__`). O `0.3` é o major.minor do `version` de `apps/web/package.json` —
-    fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API segue com branch · commit (não tem versão).
+    fonte única, o `android-cd.yml` lê dali o prefixo do versionName. A API mostra o número de versão (`version`,
+    arquivo VERSION do backend, desde 2026-11-24 — #17) e, no detalhe, branch · commit · data do deploy (`deployed_at`;
+    onde vem `unknown`, a data do commit). Backend antigo sem `version` cai em branch · commit.
   - **Convites (redesign 2026-11, `InvitesList`)**: pendente num cartão marinho (quem convidou, carteira, há quanto
     tempo, Recusar/Aceitar); recusar pede confirmação (folha no celular). A API só lista os PENDENTES, então o convite
     aceito some da resposta — ele fica nesta tela, nesta visita, em "Aceito agora" (estado local) com "Visualizar
@@ -1072,7 +1074,10 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     faixa (celular/tablet em pé) ou botão no cabeçalho. Excluir mostra tudo o que vai junto (contas, cartões, conexões e
     quem perde acesso). Textos sem gênero: "você administra", "de Jéssica", selo "Admin" — não "dono/dona" (não
     sabemos o gênero de ninguém). `TWallet.total` pode ser negativo e o `MoneyUtils.formatMoney` TIRA o sinal: use o
-    `signedMoney` local. A API não tem remover membro, sair da carteira nem transferir — não desenhe.
+    `signedMoney` local. **Sair da carteira** (2026-11-24, backend #14, `DELETE /wallets/:id/membership`): no "⋮" de
+    qualquer carteira que você NÃO administra, com confirmação dizendo o que fica (o que você lançou continua lá) e o
+    que muda (deixa de ver; banco conectado para de atualizar; se era a principal, o backend escolhe outra). Saindo da
+    que está na tela, o contexto volta pra principal. A API não tem remover membro nem transferir — não desenhe.
   - **Bancos (redesign 2026-11, `BankConnectionList` + página `bank-connection`)**: cartão por conexão com status em
     palavras (`BankConnectionUtils.statusView`: "Em dia", "Precisa entrar de novo"...) e "atualizado há X" pelo
     `last_imported_at` mais recente dos vínculos (`lastUpdatedAt`) — o backend NÃO grava `last_synced_at`, por isso
@@ -1097,7 +1102,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     fundo fica branco). Regras: senha de 6 a 128 checada no cliente (a mensagem da API pode vir em inglês); cadastro
     entra sozinho logo depois (a API não devolve token, então chama o sign-in com a mesma senha); "Esqueci a senha"
     fica na tela e mostra pra onde foi o link; o link do e-mail é `/auth/change-password/:token` (rota nova —
-    `/auth/reset-password?token=` continua valendo).
+    `/auth/reset-password?token=` continua valendo). **Continuar com o Google** (2026-11-24, backend #16,
+    `POST /auth/google` com o ID token; a API acha a conta pelo Google, vincula pelo e-mail ou cria): botão do Google
+    Identity Services (`molecules/GoogleSignInButton`, script carregado só ali) em Entrar e Criar conta, só no NAVEGADOR
+    e só com `VITE_GOOGLE_CLIENT_ID`. No app (Capacitor) o Google bloqueia login em WebView — precisa de plugin nativo
+    (ainda não feito). O backend precisa do mesmo client ID em `GOOGLE_CLIENT_IDS`.
   - **Detalhe da transação (`organisms/TransactionDetailSheet`, redesign 2026-11)**: tocar na linha abre;
     painel flutuante à direita (460px) no tablet/desktop e tela cheia no celular. Só mostra e repassa as
     MESMAS ações do "⋮" (a lista executa; editar/duplicar/excluir fecham o Detalhe antes). A lista guarda só
@@ -1159,6 +1168,11 @@ forma de decidir de que fatura é uma transação de crédito. Duas mudanças, u
     pé; desktop (≥1280) = campos digitados (Valor/Descrição) e cartões em grade, com Cancelar/Salvar no rodapé.
     O chip Repetir é quem liga/desliga; o painel não tem
     "Não repete". Abas de tipo usam Saída/Entrada (o enum da API diz Saque/Depósito). ⌘/Ctrl+Enter salva.
+    **Sugestões de descrição** (2026-11-24, backend #15, `GET /transactions/descriptions`): só na criação, uma faixa
+    de chips logo abaixo da descrição com as já usadas na carteira (filtradas pelo tipo, as da origem escolhida
+    primeiro; com o campo vazio, as mais usadas). Escolher preenche a descrição e, se o valor ainda está vazio, repete
+    a última vez (tipo, valor, origem, cartão, destino — se a origem ainda existe). Some quando o texto já é igual a
+    uma sugestão e depois de escolher; volta ao digitar.
     **Duplicar = este mesmo formulário** (`duplicateFrom`, 2026-11-22): abre como NOVA transação já preenchida com a
     original (valor, tipo, origem, cartão, destino, rascunho, responsável), data +1 mês com o MESMO horário da
     original (se ela estiver em 00:00 — transação antiga, de antes do campo de hora — usa o horário de agora;
