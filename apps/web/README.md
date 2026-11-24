@@ -19,7 +19,6 @@ Da raiz do monorepo:
 npm run webapp:dev          # vite dev server
 npm run webapp:build        # tsc && vite build
 npm run webapp:lint
-npm run webapp:test         # jest
 npm run webapp:storybook    # storybook dev, porta 6006
 ```
 
@@ -30,9 +29,9 @@ etc.).
 
 - **Vite + React + TypeScript**, roteamento com `react-router-dom` (rotas declaradas em
   `src/router/routes`, agrupadas por feature).
-- **Tailwind CSS** + `@material-tailwind/react` pra estilização; design tokens em `src/util`
-  (compartilha a paleta de marca com o mobile via `@myfinance/shared`).
-- **TanStack Query** pra data-fetching (mesma versão fixada do mobile, `5.80.6`) — ao consumir a API,
+- **Tailwind CSS** + shadcn/ui pra estilização; design tokens em `src/util` e a paleta da marca em
+  `@myfinance/shared`.
+- **TanStack Query** pra data-fetching (versão fixada em `5.80.6`) — ao consumir a API,
   use os fetchers de `@myfinance/shared` em vez de bater no axios direto.
 - **i18next/react-i18next** pra internacionalização.
 - **Storybook** pros componentes de `src/components`.
