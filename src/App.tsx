@@ -11,6 +11,7 @@ import ThemeProvider from '@/context/theme';
 import WalletUserProvider from '@/context/wallet';
 import { queryClient } from '@/services/query-client';
 
+import AppLock from '@/components/organisms/AppLock';
 import AppUpdatePrompt from '@/components/organisms/AppUpdatePrompt';
 import Toaster from '@/components/ui/sonner';
 
@@ -27,6 +28,7 @@ function App() {
 										<Router/>
 										<Toaster />
 										<AppUpdatePrompt />
+										<AppLock />
 									</PrimaryActionProvider>
 								</MonthSelectionProvider>
 							</NewWalletDialogProvider>
