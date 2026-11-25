@@ -922,6 +922,15 @@ em 2026-11-24: o `apps/mobile` (RN/Expo), o `mobile-cd.yml` e os secrets do Expo
   (`Vercel – my-finance-ui-production` na main, `Vercel – my-finance-ui-stg` na staging) — os projetos novos da Vercel
   não criam "deployments" no GitHub, então o antigo gatilho `deployment_status` parou de disparar em 2026-11-24.
   Renomeou um projeto na Vercel? Ajuste o mapa do passo "Decide se notifica".
+- **Bloqueio do app com biometria** (2026-11-24, `services/app-lock` + `organisms/AppLock` + `organisms/AppLockSettings`,
+  só no nativo; plugin `@capgo/capacitor-native-biometric@8.9.3`): opção por APARELHO (`localStorage` `app-lock`, não
+  vai pro backend) em Configurações → Segurança, desligada por padrão; ligar pede a biometria uma vez. Quando trava: ao
+  abrir o app (nasce travado, sem mostrar nada antes), ao voltar depois de N em segundo plano (Na hora/30 s/1 min/5 min)
+  e depois de N sem uso com o app aberto (Nunca/1/5/15 min). Aceita digital, rosto e o PIN/padrão do aparelho. "Entrar de
+  outro jeito" sai da conta; sair da conta desliga a opção. Versão SIMPLES: o token segue no `localStorage` e a trava só
+  esconde a tela — a versão com o token no Keystore está na issue. A janela de biometria é outra Activity e dispara
+  `appStateChange` (sai/volta): por isso o `prompting_ref` e a tolerância logo depois de desbloquear — sem isso, com
+  "Na hora", trava de novo em loop. O voltar do Android só minimiza com a trava na tela (`AppLockStore.isLocked()`).
 - **Aviso de atualização** (`organisms/AppUpdatePrompt` + `services/app-update`, só no nativo): a Play
   (plugin `@capawesome/capacitor-app-update`, In-App Updates API) diz se há versão nova → aviso dispensável, uma
   vez por versão ("Depois" grava a versão em `localStorage`); o `public/app-version.json`
