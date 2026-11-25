@@ -10,6 +10,7 @@ export const SECTION_SLUGS = {
 	account_info: 'dados-pessoais',
 	password: 'senha',
 	appearance: 'aparencia',
+	security: 'seguranca',
 	main_wallet: 'carteira-principal',
 	claude: 'claude',
 	bank: 'integracao-bancaria',

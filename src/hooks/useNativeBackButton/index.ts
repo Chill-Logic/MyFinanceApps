@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { App } from '@capacitor/app';
 
+import { AppLockStore } from '@/services/app-lock';
 import { is_native } from '@/services/native';
 
 /*
@@ -40,6 +41,12 @@ const useNativeBackButton = () => {
 		if (!is_native) return;
 
 		const listener = App.addListener('backButton', ({ canGoBack }) => {
+			/* Com a trava na tela, voltar só minimiza: fechar janela ou navegar aconteceria escondido por trás dela. */
+			if (AppLockStore.isLocked()) {
+				App.minimizeApp();
+				return;
+			}
+
 			if (document.querySelector(OPEN_LAYER_SELECTOR)) {
 				document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 				return;

@@ -2,18 +2,20 @@ import { type ReactNode, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { getApiErrorMessage, MONTH_NAMES_PT, QUERY_KEYS } from '@myfinance/shared';
-import { Bot, ChevronLeft, ChevronRight, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, Trash2, User, type LucideIcon } from 'lucide-react';
+import { Bot, ChevronLeft, ChevronRight, Fingerprint, Info, Landmark, Lock, LogOut, Monitor, Moon, Palette, Star, Sun, Trash2, User, type LucideIcon } from 'lucide-react';
 
 import { useIndexClaudeSessions } from '@/hooks/api/claude-sessions/useIndexClaudeSessions';
 import { useUpdateCurrentUser } from '@/hooks/api/user/useUpdateCurrentUser';
 import { useGetMainWallet } from '@/hooks/api/wallets/useGetMainWallet';
 import { useIndexWallets } from '@/hooks/api/wallets/useIndexWallets';
+import useAppLockSettings from '@/hooks/useAppLockSettings';
 import useMediaQuery from '@/hooks/useMediaQuery';
 import useToast from '@/hooks/useToast';
 
 import { useCurrentUserContext } from '@/context/current_user';
 import { type TThemePreference, useTheme } from '@/context/theme';
 import { cn } from '@/lib/utils';
+import { is_native } from '@/services/native';
 import { queryClient } from '@/services/query-client';
 import { SECTION_SLUGS } from '@/util/routeSlugs';
 
@@ -24,6 +26,7 @@ import SegmentedControl, { type TSegment } from '@/components/molecules/Segmente
 import AboutInfo, { useShortVersions } from '@/components/organisms/AboutInfo';
 import AccountInfoForm, { SETTINGS_CARD } from '@/components/organisms/AccountInfoForm';
 import AccountPasswordForm from '@/components/organisms/AccountPasswordForm';
+import AppLockSettings, { appLockSummary } from '@/components/organisms/AppLockSettings';
 import ClaudeConnections from '@/components/organisms/ClaudeConnections';
 import DeleteAccountDialog from '@/components/organisms/DeleteAccountDialog';
 import Badge from '@/components/ui/badge';
@@ -40,8 +43,8 @@ const THEME_SEGMENTS: TSegment[] = [
 ];
 
 /* Seções do menu (desktop/tablet deitado) e das telas de detalhe (celular/tablet em pé). */
-type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'main_wallet' | 'claude' | 'bank' | 'about';
-const SECTIONS: TSection[] = [ 'account', 'account_info', 'password', 'appearance', 'main_wallet', 'claude', 'bank', 'about' ];
+type TSection = 'account' | 'account_info' | 'password' | 'appearance' | 'security' | 'main_wallet' | 'claude' | 'bank' | 'about';
+const SECTIONS: TSection[] = [ 'account', 'account_info', 'password', 'appearance', 'security', 'main_wallet', 'claude', 'bank', 'about' ];
 const sectionFromSlug = (slug: string | null): TSection | null => SECTIONS.find((key) => SECTION_SLUGS[key] === slug) ?? null;
 
 /*
@@ -92,7 +95,10 @@ const SettingsContent = () => {
 	 */
 	const pluggy_enabled = Boolean(me?.pluggy_enabled);
 	const requested_section = sectionFromSlug(search_params.get('secao'));
-	const section = requested_section === 'bank' && !pluggy_enabled ? null : requested_section;
+	/* Segurança (bloqueio com a biometria) só existe no app da loja; no navegador o link direto cai no início. */
+	const hidden_section = (requested_section === 'bank' && !pluggy_enabled) || (requested_section === 'security' && !is_native);
+	const section = hidden_section ? null : requested_section;
+	const { settings: app_lock } = useAppLockSettings();
 
 	/* Pra onde a última troca foi: decide de que lado a tela entra (nada na primeira renderização). */
 	const [ previous_section, setPreviousSection ] = useState(section);
@@ -266,7 +272,7 @@ const SettingsContent = () => {
 	const pending_dot = pending_sessions > 0 && <span className='size-2 shrink-0 rounded-full bg-warning-dot' aria-label='Conexão aguardando' />;
 
 	const sectionTitle: Record<TSection, string> = {
-		account: 'Conta', account_info: 'Informações pessoais', password: 'Senha', appearance: 'Aparência',
+		account: 'Conta', account_info: 'Informações pessoais', password: 'Senha', appearance: 'Aparência', security: 'Segurança',
 		main_wallet: 'Carteira principal', claude: 'Conexões com o Claude', bank: 'Integração bancária', about: 'Sobre',
 	};
 
@@ -286,6 +292,7 @@ const SettingsContent = () => {
 			case 'account_info': return <AccountInfoForm />;
 			case 'password': return <AccountPasswordForm />;
 			case 'appearance': return appearanceCard;
+			case 'security': return <AppLockSettings />;
 			case 'main_wallet': return mainWalletCard;
 			case 'claude': return <ClaudeConnections />;
 			case 'bank': return bankCard;
@@ -327,6 +334,7 @@ const SettingsContent = () => {
 						<LiquidBlob blob={menu_blob} className='rounded-2xl' />
 						{row('account', User, 'Conta', 'Nome, e-mail e senha')}
 						{row('appearance', Palette, 'Aparência', preference === 'system' ? 'Seguindo o sistema' : theme_summary)}
+						{is_native && row('security', Fingerprint, 'Segurança', `Bloqueio do app · ${ appLockSummary(app_lock).toLowerCase() }`)}
 						{row('main_wallet', Star, 'Carteira principal', main_wallet?.name ?? '—')}
 						{row('claude', Bot, 'Conexões com o Claude', claude_summary, pending_dot || undefined)}
 						{pluggy_enabled && row('bank', Landmark, 'Integração bancária', 'Ativa na sua conta')}
@@ -349,6 +357,7 @@ const SettingsContent = () => {
 					{appearanceCard}
 					{mainWalletCard}
 				</div>
+				{is_native && <AppLockSettings />}
 				<section className={SETTINGS_CARD}>
 					<h3 className='text-lg font-bold'>Integrações</h3>
 					<div className='flex flex-col divide-y divide-border'>
@@ -413,6 +422,7 @@ const SettingsContent = () => {
 						</span>
 						<SegmentedControl segments={THEME_SEGMENTS} value={preference} onChange={(value) => setPreference(value as TThemePreference)} />
 					</div>
+					{is_native && row('security', Fingerprint, 'Segurança', `Bloqueio do app · ${ appLockSummary(app_lock).toLowerCase() }`)}
 					{row('main_wallet', Star, 'Carteira principal', main_wallet ? `${ main_wallet.name } · a Início abre nela` : '—')}
 				</>
 			))}
